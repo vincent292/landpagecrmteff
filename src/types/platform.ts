@@ -1,4 +1,4 @@
-export type UserRole = "admin" | "assistant" | "patient" | "student";
+export type UserRole = "superadmin" | "doctor" | "admin" | "user";
 
 export type RequestStatus = "new" | "contacted" | "scheduled" | "finished" | "discarded";
 

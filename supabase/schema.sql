@@ -5,7 +5,7 @@ create table if not exists profiles (
   full_name text,
   phone text,
   city text,
-  role text default 'patient',
+  role text default 'user',
   created_at timestamp default now()
 );
 
@@ -168,7 +168,20 @@ as $$
   select exists (
     select 1 from profiles
     where id = auth.uid()
-    and role in ('admin', 'assistant')
+    and role in ('superadmin', 'doctor', 'admin')
+  );
+$$;
+
+create or replace function is_superadmin()
+returns boolean
+language sql
+stable
+security definer
+as $$
+  select exists (
+    select 1 from profiles
+    where id = auth.uid()
+    and role = 'superadmin'
   );
 $$;
 
@@ -184,7 +197,8 @@ create policy "Visitors read active albums" on gallery_albums for select using (
 create policy "Visitors read gallery images" on gallery_images for select using (true);
 create policy "Visitors read active testimonials" on testimonials for select using (is_active = true);
 
-create policy "Staff manage profiles" on profiles for all using (is_admin_or_assistant()) with check (is_admin_or_assistant());
+create policy "Staff read profiles" on profiles for select using (is_admin_or_assistant());
+create policy "Superadmin manage profiles" on profiles for all using (is_superadmin()) with check (is_superadmin());
 create policy "Staff manage treatments" on treatments for all using (is_admin_or_assistant()) with check (is_admin_or_assistant());
 create policy "Staff manage treatment images" on treatment_images for all using (is_admin_or_assistant()) with check (is_admin_or_assistant());
 create policy "Staff manage promotions" on promotions for all using (is_admin_or_assistant()) with check (is_admin_or_assistant());

@@ -1,6 +1,7 @@
 import { Link, NavLink, Outlet } from "react-router-dom";
 
 import { useAuth } from "../hooks/useAuth";
+import { canManageUsers, roleLabels } from "../lib/roles";
 import { cn } from "../lib/cn";
 
 const adminLinks = [
@@ -17,6 +18,7 @@ const adminLinks = [
 
 export function AdminLayout() {
   const { signOut, role, user } = useAuth();
+  const visibleLinks = adminLinks.filter(([label]) => label !== "Usuarios" || canManageUsers(role));
 
   return (
     <main className="min-h-screen bg-[#f7f2ec] text-[var(--color-ink)] lg:grid lg:grid-cols-[280px_1fr]">
@@ -24,9 +26,11 @@ export function AdminLayout() {
         <Link to="/" className="font-display text-3xl font-semibold">
           Dra. Estefany
         </Link>
-        <p className="mt-2 text-sm text-[var(--color-copy)]">Panel administrativo · {role}</p>
+        <p className="mt-2 text-sm text-[var(--color-copy)]">
+          Panel administrativo · {roleLabels[role]}
+        </p>
         <nav className="mt-8 grid gap-2">
-          {adminLinks.map(([label, href]) => (
+          {visibleLinks.map(([label, href]) => (
             <NavLink
               key={href}
               to={href}
@@ -58,7 +62,7 @@ export function AdminLayout() {
             <p className="text-sm font-semibold text-[var(--color-ink)]">
               {user?.user_metadata.full_name ?? user?.email ?? "Usuario"}
             </p>
-            <p className="text-xs text-[var(--color-copy)]">Rol: {role}</p>
+            <p className="text-xs text-[var(--color-copy)]">Rol: {roleLabels[role]}</p>
           </div>
           <button
             type="button"

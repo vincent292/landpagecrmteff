@@ -10,6 +10,7 @@ import {
 import type { Session, User } from "@supabase/supabase-js";
 
 import { supabase } from "../lib/supabase";
+import { normalizeRole } from "../lib/roles";
 import type { UserRole } from "../types/platform";
 
 type AuthContextValue = {
@@ -26,7 +27,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
-  const [role, setRole] = useState<UserRole>("patient");
+  const [role, setRole] = useState<UserRole>("user");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -51,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!session?.user) {
-      setRole("patient");
+      setRole("user");
       return;
     }
 
@@ -61,7 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq("id", session.user.id)
       .maybeSingle()
       .then(({ data }) => {
-        setRole((data?.role as UserRole | null) ?? "patient");
+        setRole(normalizeRole(data?.role));
       });
   }, [session]);
 

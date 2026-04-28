@@ -41,6 +41,8 @@ import {
   type TreatmentRow,
 } from "../../services/treatmentService";
 import { slugify } from "../../utils/text";
+import { canManageUsers, roleLabels } from "../../lib/roles";
+import { useAuth } from "../../hooks/useAuth";
 
 type Module =
   | "tratamientos"
@@ -66,8 +68,10 @@ type AdminRow =
 
 const requestStatuses = ["Nuevo", "Contactado", "Agendado", "Finalizado", "Descartado"];
 const enrollmentStatuses = ["Pendiente", "Confirmado", "Cancelado", "Asistió"];
+const userRoles = ["superadmin", "doctor", "admin", "user"] as const;
 
 export function AdminCollectionPage({ module }: Props) {
+  const { role } = useAuth();
   const [rows, setRows] = useState<AdminRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -87,6 +91,23 @@ export function AdminCollectionPage({ module }: Props) {
   useEffect(load, [module]);
 
   const filteredRows = useMemo(() => filterRows(module, rows, filters), [filters, module, rows]);
+
+  if (module === "usuarios" && !canManageUsers(role)) {
+    return (
+      <div className="rounded-[28px] border border-[var(--color-border)] bg-white/70 p-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--color-accent-strong)]">
+          Acceso restringido
+        </p>
+        <h1 className="font-display mt-3 text-5xl font-semibold">
+          Solo el superusuario puede gestionar roles.
+        </h1>
+        <p className="mt-4 max-w-xl text-sm leading-7 text-[var(--color-copy)]">
+          Tu rol actual es {roleLabels[role]}. Puedes gestionar los módulos operativos,
+          pero no cambiar permisos de usuarios.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -249,14 +270,15 @@ function AdminListRow({
         )}
         {module === "usuarios" && "role" in row && (
           <select
-            defaultValue={row.role ?? "patient"}
+            defaultValue={row.role ?? "user"}
             onChange={(event) => void updateProfileRole(row.id, event.target.value).then(onRefresh)}
             className="rounded-full border border-[var(--color-border)] bg-white/70 px-3 py-2 text-sm"
           >
-            <option>admin</option>
-            <option>assistant</option>
-            <option>patient</option>
-            <option>student</option>
+            {userRoles.map((roleOption) => (
+              <option key={roleOption} value={roleOption}>
+                {roleLabels[roleOption]}
+              </option>
+            ))}
           </select>
         )}
       </div>
@@ -363,7 +385,9 @@ function getTitle(module: Module, row: AdminRow) {
 function getMeta(module: Module, row: AdminRow) {
   if (module === "solicitudes" && "interest_title" in row) return `${row.phone} · ${row.city ?? "Sin ciudad"} · ${row.interest_title ?? "General"}`;
   if (module === "inscripciones" && "courses" in row) return `${row.courses?.title ?? "Curso"} · ${row.phone ?? "Sin celular"} · ${row.status}`;
-  if (module === "usuarios" && "role" in row) return `${row.city ?? "Sin ciudad"} · ${row.role}`;
+  if (module === "usuarios" && "role" in row) {
+    return `${row.city ?? "Sin ciudad"} · ${roleLabels[(row.role as keyof typeof roleLabels) ?? "user"] ?? row.role}`;
+  }
   if ("city" in row && row.city) return row.city;
   if ("is_active" in row) return row.is_active ? "Activo" : "Inactivo";
   return "Registro";

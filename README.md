@@ -61,6 +61,21 @@ Generar tipos TypeScript desde la base local:
 npm run supabase:types
 ```
 
+## Roles del panel
+
+El sistema usa cuatro roles en `profiles.role`:
+
+- `superadmin`: superusuario, puede gestionar usuarios y roles.
+- `doctor`: doctora, puede entrar al panel y gestionar módulos clínicos/operativos.
+- `admin`: administradora, puede entrar al panel y gestionar módulos operativos.
+- `user`: usuario/paciente/estudiante, sin acceso al panel.
+
+Para crear el primer superusuario, registra una cuenta desde `/register` y luego ejecuta en Supabase Studio el snippet:
+
+```sql
+supabase/snippets/make-superadmin.sql
+```
+
 ## Build
 
 ```bash
