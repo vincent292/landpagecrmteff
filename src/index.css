@@ -1,0 +1,52 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Cormorant+Garamond:wght@500;600;700&display=swap");
+@import "tailwindcss";
+
+:root {
+  --color-base: #f7f2ec;
+  --color-surface-soft: #efe5da;
+  --color-surface: #fff9f4;
+  --color-beige: #d8c2ae;
+  --color-taupe: #b79c84;
+  --color-caramel: #9a6b43;
+  --color-mocha: #6e4a2f;
+  --color-chocolate: #3e2a1f;
+  --color-ink: #2b211b;
+  --color-copy: #6f5a4c;
+  --color-accent: #c6a27b;
+  --color-accent-strong: #b88a5a;
+  --color-border: rgba(198, 162, 123, 0.24);
+}
+
+html {
+  scroll-behavior: smooth;
+  background: var(--color-base);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  color: var(--color-ink);
+  background:
+    radial-gradient(circle at top left, rgba(198, 162, 123, 0.18), transparent 30%),
+    radial-gradient(circle at 82% 12%, rgba(183, 156, 132, 0.16), transparent 24%),
+    radial-gradient(circle at 60% 80%, rgba(255, 249, 244, 0.52), transparent 26%),
+    linear-gradient(180deg, var(--color-base) 0%, #f3ebe2 42%, var(--color-surface-soft) 100%);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+::selection {
+  color: var(--color-surface);
+  background: rgba(154, 107, 67, 0.78);
+}
+
+.font-display {
+  font-family: "Cormorant Garamond", "Times New Roman", serif;
+  letter-spacing: 0;
+}
