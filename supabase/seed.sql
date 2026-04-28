@@ -1,0 +1,2 @@
+-- Seed data for local Supabase development.
+-- Add insert statements here when the database schema is ready.

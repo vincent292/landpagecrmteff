@@ -5,6 +5,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 
 import { Footer } from "../components/layout/Footer";
 import { PremiumNavbar } from "../components/layout/PremiumNavbar";
+import { WhatsAppButton } from "../components/platform/WhatsAppButton";
 import { DoctorSection } from "../components/sections/DoctorSection";
 import { FinalCTA } from "../components/sections/FinalCTA";
 import { Hero } from "../components/sections/Hero";
@@ -95,6 +96,7 @@ export function HomePage() {
       <DoctorSection />
       <FinalCTA />
       <Footer />
+      <WhatsAppButton />
     </main>
   );
 }

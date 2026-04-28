@@ -50,3 +50,41 @@ body {
   font-family: "Cormorant Garamond", "Times New Roman", serif;
   letter-spacing: 0;
 }
+
+.premium-input {
+  width: 100%;
+  border-radius: 18px;
+  border: 1px solid var(--color-border);
+  background: rgba(255, 249, 244, 0.72);
+  padding: 0.9rem 1rem;
+  color: var(--color-ink);
+  outline: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.premium-input:focus {
+  border-color: rgba(154, 107, 67, 0.42);
+  box-shadow: 0 0 0 4px rgba(198, 162, 123, 0.14);
+}
+
+.fc {
+  color: var(--color-ink);
+  font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
+}
+
+.fc .fc-toolbar-title {
+  font-family: "Cormorant Garamond", "Times New Roman", serif;
+  font-size: 2rem;
+}
+
+.fc .fc-button-primary {
+  border-color: var(--color-mocha);
+  background: var(--color-mocha);
+}
+
+.fc .fc-daygrid-event {
+  border: 0;
+  border-radius: 999px;
+  background: rgba(154, 107, 67, 0.88);
+  padding: 2px 6px;
+}
