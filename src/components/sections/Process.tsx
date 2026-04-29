@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+﻿import { useEffect, useRef } from "react";
 
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -144,7 +144,7 @@ export function Process() {
                   <img
                     data-gsap="process-photo"
                     src={placeholder.process}
-                    alt="Escena clínica editorial"
+                    alt="Escena clÃ­nica editorial"
                     className="h-full min-h-[390px] w-full object-cover object-[50%_16%] lg:min-h-[600px]"
                   />
                 </div>
@@ -156,8 +156,8 @@ export function Process() {
                 Proceso guiado
               </p>
               <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">
-                Cada decisión estética se construye con criterio médico, escucha
-                real y una intención elegante.
+                Cada decisiÃ³n estÃ©tica se construye con criterio mÃ©dico, escucha
+                real y una intenciÃ³n elegante.
               </p>
               <div className="mt-4 flex gap-2">
                 {["01", "02", "03"].map((item) => (
@@ -177,23 +177,23 @@ export function Process() {
               data-gsap="process-badge"
               className="inline-flex items-center rounded-full border border-[var(--color-border)] bg-[rgba(255,249,244,0.52)] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)] backdrop-blur-xl"
             >
-              Cómo es el proceso
+              CÃ³mo es el proceso
             </div>
 
             <h2
               data-gsap="process-title"
               className="font-display mt-6 max-w-3xl text-5xl font-semibold leading-[0.92] text-[var(--color-ink)] md:text-6xl"
             >
-              Una experiencia guiada con calidez, precisión y elegancia serena.
+              Una experiencia guiada con calidez, precisiÃ³n y elegancia serena.
             </h2>
 
             <p
               data-gsap="process-body"
               className="mt-6 max-w-2xl text-base leading-8 text-[var(--color-copy)] md:text-lg"
             >
-              La consulta se vive como un proceso editorial y clínico a la vez:
-              sobrio, claro y cuidadosamente diseñado para que cada decisión tenga
-              intención, armonía y seguimiento real.
+              La consulta se vive como un proceso editorial y clÃ­nico a la vez:
+              sobrio, claro y cuidadosamente diseÃ±ado para que cada decisiÃ³n tenga
+              intenciÃ³n, armonÃ­a y seguimiento real.
             </p>
 
             <div className="mt-10 space-y-4">
@@ -223,10 +223,10 @@ export function Process() {
               data-gsap="process-cta"
               className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-center"
             >
-              <SoftButton href="/agendar">Agendar valoración</SoftButton>
+              <SoftButton href="/contacto">Agendar valoraciÃ³n</SoftButton>
               <p className="text-sm leading-7 text-[var(--color-copy)]">
                 Una primera cita bien guiada crea mejores decisiones y resultados
-                más elegantes.
+                mÃ¡s elegantes.
               </p>
             </div>
           </div>
@@ -235,3 +235,6 @@ export function Process() {
     </section>
   );
 }
+
+
+

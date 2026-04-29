@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+﻿import { useEffect, useRef } from "react";
 
 import { motion, useScroll, useTransform } from "framer-motion";
 import gsap from "gsap";
@@ -102,7 +102,7 @@ export function Hero() {
               className="mb-6 inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-[rgba(255,249,244,0.42)] px-4 py-2 text-xs uppercase tracking-[0.3em] text-[var(--color-accent-strong)] backdrop-blur-xl"
             >
               <Sparkles className="h-3.5 w-3.5" />
-              Medicina Estética Ortomolecular
+              Medicina EstÃ©tica Ortomolecular
             </motion.div>
 
             <motion.h1
@@ -120,8 +120,8 @@ export function Hero() {
               transition={{ duration: 0.9, delay: 0.1 }}
               className="mt-7 max-w-2xl text-lg leading-8 text-[var(--color-copy)] md:text-xl"
             >
-              Estética médica con visión integral: bienestar, armonía y belleza
-              natural en una experiencia clínica refinada, serena y profundamente
+              EstÃ©tica mÃ©dica con visiÃ³n integral: bienestar, armonÃ­a y belleza
+              natural en una experiencia clÃ­nica refinada, serena y profundamente
               personalizada.
             </motion.p>
 
@@ -131,7 +131,7 @@ export function Hero() {
               transition={{ duration: 0.9, delay: 0.15 }}
               className="mt-10 flex flex-col gap-4 sm:flex-row"
             >
-              <SoftButton href="/agendar">Reservar valoración</SoftButton>
+              <SoftButton href="/tratamientos">Reservar valoraciÃ³n</SoftButton>
               <SoftButton href="#servicios" variant="secondary">
                 Descubrir enfoque
               </SoftButton>
@@ -169,7 +169,7 @@ export function Hero() {
                   Enfoque 360
                 </div>
                 <p className="mt-2 text-sm leading-6 text-[var(--color-copy)]">
-                  Armonía facial, bienestar interno y criterio médico.
+                  ArmonÃ­a facial, bienestar interno y criterio mÃ©dico.
                 </p>
               </div>
 
@@ -196,3 +196,6 @@ export function Hero() {
     </section>
   );
 }
+
+
+

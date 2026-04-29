@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabaseClient";
 export type ProfileRow = {
   id: string;
   full_name: string | null;
+  email: string | null;
   phone: string | null;
   city: string | null;
   role: string | null;
@@ -26,5 +27,10 @@ export async function getProfiles() {
 
 export async function updateProfileRole(id: string, role: string) {
   const { error } = await supabase.from("profiles").update({ role }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function updateMyProfile(id: string, data: Partial<ProfileRow>) {
+  const { error } = await supabase.from("profiles").update(data).eq("id", id);
   if (error) throw error;
 }

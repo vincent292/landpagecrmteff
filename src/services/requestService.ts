@@ -19,6 +19,9 @@ export async function createInformationRequest(data: Omit<InformationRequestRow,
   const { privacy_accepted: _privacyAccepted, ...payload } = data;
   const { error } = await supabase.from("information_requests").insert({
     ...payload,
+    whatsapp: payload.phone,
+    interest: payload.interest_title ?? payload.interest_type ?? "General",
+    privacy_accepted: _privacyAccepted ?? true,
     status: "Nuevo",
   });
   if (error) throw error;

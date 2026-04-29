@@ -6,6 +6,8 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Footer } from "../components/layout/Footer";
 import { PremiumNavbar } from "../components/layout/PremiumNavbar";
 import { WhatsAppButton } from "../components/platform/WhatsAppButton";
+import { AgendaPreviewSection } from "../components/sections/AgendaPreviewSection";
+import { BooksPreviewSection } from "../components/sections/BooksPreviewSection";
 import { DoctorSection } from "../components/sections/DoctorSection";
 import { FinalCTA } from "../components/sections/FinalCTA";
 import { Hero } from "../components/sections/Hero";
@@ -92,7 +94,9 @@ export function HomePage() {
       <Hero />
       <Philosophy />
       <Services />
+      <BooksPreviewSection />
       <Process />
+      <AgendaPreviewSection />
       <DoctorSection />
       <FinalCTA />
       <Footer />

@@ -13,6 +13,7 @@ export type TreatmentRow = {
   care_instructions: string | null;
   expected_results: string | null;
   cover_image: string | null;
+  city: string | null;
   is_featured: boolean | null;
   is_active: boolean | null;
   created_at: string;

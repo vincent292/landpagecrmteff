@@ -1,13 +1,21 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 
 import { useAuth } from "../../hooks/useAuth";
-import { isStaffRole } from "../../lib/roles";
+import { isPortalRole, isStaffRole } from "../../lib/roles";
+import type { UserRole } from "../../types/platform";
+import { AccessDeniedPage } from "../../pages/public/AccessDeniedPage";
 
 type ProtectedRouteProps = {
   requireStaff?: boolean;
+  requirePortal?: boolean;
+  allowedRoles?: UserRole[];
 };
 
-export function ProtectedRoute({ requireStaff = false }: ProtectedRouteProps) {
+export function ProtectedRoute({
+  requireStaff = false,
+  requirePortal = false,
+  allowedRoles,
+}: ProtectedRouteProps) {
   const { user, loading, role } = useAuth();
   const location = useLocation();
 
@@ -23,22 +31,12 @@ export function ProtectedRoute({ requireStaff = false }: ProtectedRouteProps) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
-  if (requireStaff && !isStaffRole(role)) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--color-base)] px-6 text-center">
-        <div className="max-w-md rounded-[28px] border border-[var(--color-border)] bg-white/70 p-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--color-accent-strong)]">
-            Acceso denegado
-          </p>
-          <h1 className="font-display mt-3 text-4xl font-semibold text-[var(--color-ink)]">
-            Esta zona es solo para el equipo autorizado.
-          </h1>
-          <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
-            Inicia sesión con una cuenta de superusuario, doctora o administradora.
-          </p>
-        </div>
-      </div>
-    );
+  const roleAllowed = allowedRoles ? allowedRoles.includes(role) : true;
+  const staffAllowed = !requireStaff || isStaffRole(role);
+  const portalAllowed = !requirePortal || isPortalRole(role);
+
+  if (!roleAllowed || !staffAllowed || !portalAllowed) {
+    return <AccessDeniedPage />;
   }
 
   return <Outlet />;

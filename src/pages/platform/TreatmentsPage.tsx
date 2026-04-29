@@ -1,14 +1,16 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 
 import { Link } from "react-router-dom";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { InfoRequestModal } from "../../components/platform/InfoRequestModal";
+import { boliviaCities } from "../../data/cities";
 import { getTreatments, type TreatmentRow } from "../../services/treatmentService";
 
 export function TreatmentsPage() {
   const [interest, setInterest] = useState<TreatmentRow | null>(null);
   const [treatments, setTreatments] = useState<TreatmentRow[]>([]);
+  const [city, setCity] = useState("Todas");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -19,15 +21,18 @@ export function TreatmentsPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const filteredTreatments = useMemo(() => treatments.filter((treatment) => city === "Todas" || treatment.city === city || !treatment.city), [city, treatments]);
+
   return (
     <section className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24">
-      <PageIntro eyebrow="Tratamientos" title="Protocolos médicos diseñados para una belleza natural, elegante y segura." />
+      <PageIntro eyebrow="Tratamientos" title="Protocolos mÃ©dicos diseÃ±ados para una belleza natural, elegante y segura." />
+      <div className="mt-8 max-w-xs"><select value={city} onChange={(event) => setCity(event.target.value)} className="premium-input"><option>Todas</option>{boliviaCities.map((item) => <option key={item}>{item}</option>)}</select></div>
       <div className="mt-12">
         {loading && <LoadingState />}
         {error && <ErrorState />}
-        {!loading && !error && treatments.length === 0 && <EmptyState />}
+        {!loading && !error && filteredTreatments.length === 0 && <EmptyState />}
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-          {treatments.map((treatment) => (
+          {filteredTreatments.map((treatment) => (
             <article key={treatment.id} className="overflow-hidden rounded-[28px] border border-[var(--color-border)] bg-white/60 shadow-[0_18px_48px_rgba(110,74,47,0.08)]">
               <img src={treatment.cover_image ?? "/doctora/dra2.jpg"} alt={treatment.title} className="h-64 w-full object-cover" />
               <div className="p-6">
@@ -38,7 +43,7 @@ export function TreatmentsPage() {
                     Ver detalles
                   </Link>
                   <button type="button" onClick={() => setInterest(treatment)} className="rounded-full border border-[var(--color-border)] px-5 py-3 text-sm font-semibold">
-                    Necesito más información
+                    Necesito mÃ¡s informaciÃ³n
                   </button>
                 </div>
               </div>
@@ -66,3 +71,6 @@ export function PageIntro({ eyebrow, title, text }: { eyebrow: string; title: st
     </div>
   );
 }
+
+
+

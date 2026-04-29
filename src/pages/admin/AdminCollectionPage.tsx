@@ -43,6 +43,7 @@ import {
 import { slugify } from "../../utils/text";
 import { canManageUsers, roleLabels } from "../../lib/roles";
 import { useAuth } from "../../hooks/useAuth";
+import { boliviaCities } from "../../data/cities";
 
 type Module =
   | "tratamientos"
@@ -68,7 +69,7 @@ type AdminRow =
 
 const requestStatuses = ["Nuevo", "Contactado", "Agendado", "Finalizado", "Descartado"];
 const enrollmentStatuses = ["Pendiente", "Confirmado", "Cancelado", "Asistió"];
-const userRoles = ["superadmin", "doctor", "admin", "user"] as const;
+const userRoles = ["superadmin", "doctor", "admin", "assistant", "patient", "student", "user"] as const;
 
 export function AdminCollectionPage({ module }: Props) {
   const { role } = useAuth();
@@ -334,6 +335,11 @@ function AdminEntityForm({
                 <textarea value={String(values[field.name] ?? "")} onChange={(event) => setValue(field.name, event.target.value)} className="premium-input mt-2 min-h-28" />
               ) : field.type === "checkbox" ? (
                 <input type="checkbox" checked={Boolean(values[field.name])} onChange={(event) => setValue(field.name, event.target.checked)} className="mt-4 block" />
+              ) : field.name === "city" ? (
+                <select value={String(values[field.name] ?? "")} onChange={(event) => setValue(field.name, event.target.value)} className="premium-input mt-2">
+                  <option value="">Selecciona ciudad</option>
+                  {boliviaCities.map((city) => <option key={city}>{city}</option>)}
+                </select>
               ) : (
                 <input type={field.type} value={String(values[field.name] ?? "")} onChange={(event) => setValue(field.name, field.type === "number" ? Number(event.target.value) : event.target.value)} className="premium-input mt-2" />
               )}
@@ -414,6 +420,7 @@ function getFields(module: Exclude<Module, "inscripciones" | "solicitudes" | "us
     { name: "care_instructions", label: "Cuidados", type: "textarea" },
     { name: "expected_results", label: "Resultados esperados", type: "textarea" },
     { name: "cover_image", label: "Imagen principal URL", type: "text" },
+    { name: "city", label: "Ciudad", type: "text" },
     { name: "is_featured", label: "Destacado", type: "checkbox" },
     { name: "is_active", label: "Activo", type: "checkbox" },
   ];

@@ -146,7 +146,7 @@ export const calendarEventsMock: CalendarEvent[] = [
     date: "2026-06-02",
     time: "10:00",
     location: "Consultorio principal",
-    type: "Valoración",
+    type: "Valoracion",
     description: "Espacios limitados para diagnóstico facial y planificación personalizada.",
     imageUrl: spaImage,
     spots: 14,

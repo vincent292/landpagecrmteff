@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import { createInformationRequest } from "../../services/requestService";
 import { cn } from "../../lib/cn";
+import { boliviaCities } from "../../data/cities";
 
 const schema = z.object({
   full_name: z.string().min(3, "Escribe tu nombre completo"),
@@ -133,19 +134,16 @@ export function InfoRequestModal({
               <input {...register("phone")} className="premium-input" />
             </Field>
             <Field label="Ciudad" error={errors.city?.message}>
-              <input {...register("city")} className="premium-input" />
-            </Field>
-            <Field label="Tipo de interés" error={errors.interest_type?.message}>
-              <select {...register("interest_type")} className="premium-input">
-                <option>Tratamiento</option>
-                <option>Promoción</option>
-                <option>Curso</option>
-                <option>Evento</option>
-                <option>General</option>
+              <select {...register("city")} className="premium-input">
+                <option value="">Selecciona ciudad</option>
+                {boliviaCities.map((city) => <option key={city}>{city}</option>)}
               </select>
             </Field>
+            <Field label="Tipo de interés" error={errors.interest_type?.message}>
+              <input {...register("interest_type")} readOnly className="premium-input bg-white/50 text-[var(--color-copy)]" />
+            </Field>
             <Field label="Interés seleccionado" error={errors.interest_title?.message}>
-              <input {...register("interest_title")} className="premium-input" />
+              <input {...register("interest_title")} readOnly className="premium-input bg-white/50 text-[var(--color-copy)]" />
             </Field>
             <Field label="Preferencia de contacto" error={errors.contact_preference?.message}>
               <select {...register("contact_preference")} className="premium-input">

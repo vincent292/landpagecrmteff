@@ -1,4 +1,4 @@
-import { SectionReveal } from "../ui/SectionReveal";
+﻿import { SectionReveal } from "../ui/SectionReveal";
 import { SoftButton } from "../ui/SoftButton";
 
 export function FinalCTA() {
@@ -17,16 +17,16 @@ export function FinalCTA() {
           </p>
 
           <h2 className="font-display mt-5 text-5xl font-semibold leading-[0.94] text-[var(--color-ink)] md:text-6xl">
-            Un cuidado estético premium comienza con una valoración personalizada.
+            Un cuidado estÃ©tico premium comienza con una valoraciÃ³n personalizada.
           </h2>
 
           <p className="mt-6 text-base leading-8 text-[var(--color-copy)] md:text-lg">
-            Desde esta vista podrás elegir horario, realizar el pago por QR y subir
-            tu comprobante para validación manual.
+            Desde esta vista podrÃ¡s elegir horario, realizar el pago por QR y subir
+            tu comprobante para validaciÃ³n manual.
           </p>
 
           <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <SoftButton href="/agendar">Solicitar cita</SoftButton>
+            <SoftButton href="/contacto">Pedir información</SoftButton>
             <SoftButton href="#inicio" variant="secondary">
               Volver al inicio
             </SoftButton>
@@ -36,3 +36,6 @@ export function FinalCTA() {
     </SectionReveal>
   );
 }
+
+
+
