@@ -27,6 +27,9 @@ export function SectionReveal({
     if (!section || reduceMotion) return;
 
     const ctx = gsap.context(() => {
+      const q = gsap.utils.selector(section);
+      const revealItems = q("[data-reveal]");
+
       gsap.fromTo(
         section,
         { autoAlpha: 0, y: 34, filter: "blur(14px)" },
@@ -44,6 +47,28 @@ export function SectionReveal({
           },
         }
       );
+
+      if (revealItems.length > 0) {
+        gsap.fromTo(
+          revealItems,
+          { autoAlpha: 0, y: 30, scale: 0.985, filter: "blur(12px)" },
+          {
+            autoAlpha: 1,
+            y: 0,
+            scale: 1,
+            filter: "blur(0px)",
+            duration: 0.78,
+            delay: delay + 0.1,
+            stagger: 0.09,
+            ease: "power3.out",
+            scrollTrigger: {
+              trigger: section,
+              start: "top 78%",
+              once: true,
+            },
+          }
+        );
+      }
     }, section);
 
     return () => ctx.revert();

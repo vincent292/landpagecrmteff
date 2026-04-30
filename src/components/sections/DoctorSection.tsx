@@ -97,6 +97,8 @@ export function DoctorSection() {
                 data-gsap="doctor-main-photo"
                 src={placeholder.doctorAlt}
                 alt="Retrato editorial de la doctora"
+                loading="lazy"
+                decoding="async"
                 className="h-[560px] w-full object-cover object-[50%_18%] md:h-[650px]"
               />
             </div>
@@ -109,6 +111,8 @@ export function DoctorSection() {
             <img
               src={placeholder.doctor}
               alt="Detalle profesional de la doctora"
+              loading="lazy"
+              decoding="async"
               className="h-56 w-full object-cover object-[50%_18%] md:h-72"
             />
           </div>

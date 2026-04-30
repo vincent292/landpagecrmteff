@@ -145,6 +145,8 @@ export function Process() {
                     data-gsap="process-photo"
                     src={placeholder.process}
                     alt="Escena clínica editorial"
+                    loading="lazy"
+                    decoding="async"
                     className="h-full min-h-[390px] w-full object-cover object-[50%_16%] lg:min-h-[600px]"
                   />
                 </div>

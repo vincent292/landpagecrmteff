@@ -1,4 +1,3 @@
-import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 
 import { services } from "../../data/landing";
@@ -20,19 +19,11 @@ export function Services() {
       />
 
       <div className="mt-16 grid gap-6 lg:grid-cols-3">
-        {services.map((service, index) => {
+        {services.map((service) => {
           const Icon = service.icon;
 
           return (
-            <motion.div
-              key={service.title}
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-80px" }}
-              transition={{ duration: 0.7, delay: index * 0.1 }}
-              whileHover={{ y: -6 }}
-              className="group"
-            >
+            <div key={service.title} data-reveal className="group">
               <GlassCard className="h-full p-7 md:p-8">
                 <div className="flex h-full flex-col">
                   <div className="mb-8 flex h-14 w-14 items-center justify-center rounded-[20px] bg-[rgba(216,194,174,0.28)] shadow-[inset_6px_6px_14px_rgba(110,74,47,0.04),inset_-6px_-6px_14px_rgba(255,255,255,0.5)] transition-transform duration-300 group-hover:scale-105">
@@ -53,7 +44,7 @@ export function Services() {
                   </div>
                 </div>
               </GlassCard>
-            </motion.div>
+            </div>
           );
         })}
       </div>

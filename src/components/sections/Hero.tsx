@@ -1,6 +1,5 @@
 ﻿import { useEffect, useRef } from "react";
 
-import { motion, useScroll, useTransform } from "framer-motion";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { BadgeCheck, Sparkles } from "lucide-react";
@@ -13,14 +12,6 @@ gsap.registerPlugin(ScrollTrigger);
 export function Hero() {
   const ref = useRef<HTMLElement | null>(null);
 
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ["start start", "end start"],
-  });
-
-  const imageY = useTransform(scrollYProgress, [0, 1], ["0%", "18%"]);
-  const contentY = useTransform(scrollYProgress, [0, 1], ["0%", "8%"]);
-
   useEffect(() => {
     const section = ref.current;
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -29,6 +20,25 @@ export function Hero() {
 
     const ctx = gsap.context(() => {
       const q = gsap.utils.selector(section);
+
+      gsap.fromTo(
+        q("[data-gsap='hero-bg']"),
+        { scale: 1.12, autoAlpha: 0 },
+        { scale: 1.06, autoAlpha: 1, duration: 1.1, ease: "power2.out" }
+      );
+
+      gsap.fromTo(
+        q("[data-gsap='hero-copy']"),
+        { autoAlpha: 0, y: 34, filter: "blur(14px)" },
+        {
+          autoAlpha: 1,
+          y: 0,
+          filter: "blur(0px)",
+          duration: 0.9,
+          stagger: 0.1,
+          ease: "power3.out",
+        }
+      );
 
       gsap.fromTo(
         q("[data-gsap='hero-portrait']"),
@@ -58,6 +68,28 @@ export function Hero() {
         }
       );
 
+      gsap.to(q("[data-gsap='hero-bg']"), {
+        yPercent: 10,
+        ease: "none",
+        scrollTrigger: {
+          trigger: section,
+          start: "top top",
+          end: "bottom top",
+          scrub: 0.7,
+        },
+      });
+
+      gsap.to(q("[data-gsap='hero-grid']"), {
+        yPercent: 5,
+        ease: "none",
+        scrollTrigger: {
+          trigger: section,
+          start: "top top",
+          end: "bottom top",
+          scrub: 0.8,
+        },
+      });
+
       gsap.to(q("[data-gsap='hero-photo']"), {
         yPercent: -5,
         ease: "none",
@@ -79,63 +111,57 @@ export function Hero() {
       ref={ref}
       className="relative min-h-screen overflow-hidden bg-[var(--color-base)]"
     >
-      <motion.div style={{ y: imageY }} className="absolute inset-0 scale-[1.08]">
+      <div data-gsap="hero-bg" className="absolute inset-0 scale-[1.06]">
         <img
           src={placeholder.hero}
           alt="Imagen principal de la doctora"
+          loading="eager"
+          decoding="async"
           className="h-full w-full object-cover"
         />
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(247,242,236,0.16),rgba(255,249,244,0.56)_32%,rgba(239,229,218,0.84)_62%,var(--color-base)_100%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(255,249,244,0.40),transparent_30%),radial-gradient(circle_at_78%_24%,rgba(198,162,123,0.20),transparent_22%),radial-gradient(circle_at_62%_82%,rgba(183,156,132,0.20),transparent_34%)]" />
-      </motion.div>
+      </div>
 
       <div className="relative mx-auto flex min-h-screen max-w-7xl items-center px-6 pb-16 pt-32 md:px-8">
-        <motion.div
-          style={{ y: contentY }}
+        <div
+          data-gsap="hero-grid"
           className="grid w-full gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:items-end"
         >
           <div className="max-w-3xl">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8 }}
+            <div
+              data-gsap="hero-copy"
               className="mb-6 inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-[rgba(255,249,244,0.42)] px-4 py-2 text-xs uppercase tracking-[0.3em] text-[var(--color-accent-strong)] backdrop-blur-xl"
             >
               <Sparkles className="h-3.5 w-3.5" />
               Medicina Estética Ortomolecular
-            </motion.div>
+            </div>
 
-            <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.9, delay: 0.05 }}
+            <h1
+              data-gsap="hero-copy"
               className="font-display max-w-4xl text-6xl font-semibold leading-[0.88] text-[var(--color-ink)] md:text-8xl xl:text-[6.5rem]"
             >
               Dra. Estefany Ballesteros
-            </motion.h1>
+            </h1>
 
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.9, delay: 0.1 }}
+            <p
+              data-gsap="hero-copy"
               className="mt-7 max-w-2xl text-lg leading-8 text-[var(--color-copy)] md:text-xl"
             >
               Estética médica con visión integral: bienestar, armonía y belleza
               natural en una experiencia clínica refinada, serena y profundamente
               personalizada.
-            </motion.p>
+            </p>
 
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.9, delay: 0.15 }}
+            <div
+              data-gsap="hero-copy"
               className="mt-10 flex flex-col gap-4 sm:flex-row"
             >
               <SoftButton href="/tratamientos">Reservar valoración</SoftButton>
               <SoftButton href="#servicios" variant="secondary">
                 Descubrir enfoque
               </SoftButton>
-            </motion.div>
+            </div>
           </div>
 
           <div className="relative min-h-[520px] lg:min-h-[660px] lg:justify-self-end">
@@ -156,6 +182,8 @@ export function Hero() {
                   data-gsap="hero-photo"
                   src={placeholder.doctor}
                   alt="Retrato de la doctora"
+                  loading="eager"
+                  decoding="async"
                   className="h-[480px] w-full object-cover object-[50%_18%] md:h-[560px]"
                 />
               </div>
@@ -191,7 +219,7 @@ export function Hero() {
               </div>
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
     </section>
   );

@@ -12,20 +12,20 @@ export function FinalCTA() {
         <div className="absolute bottom-0 left-0 h-56 w-56 rounded-full bg-[rgba(198,162,123,0.16)] blur-3xl" />
 
         <div className="relative mx-auto max-w-3xl text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--color-accent-strong)]">
+          <p data-reveal className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--color-accent-strong)]">
             Agenda tu experiencia
           </p>
 
-          <h2 className="font-display mt-5 text-5xl font-semibold leading-[0.94] text-[var(--color-ink)] md:text-6xl">
+          <h2 data-reveal className="font-display mt-5 text-5xl font-semibold leading-[0.94] text-[var(--color-ink)] md:text-6xl">
             Un cuidado estético premium comienza con una valoración personalizada.
           </h2>
 
-          <p className="mt-6 text-base leading-8 text-[var(--color-copy)] md:text-lg">
+          <p data-reveal className="mt-6 text-base leading-8 text-[var(--color-copy)] md:text-lg">
             Desde esta vista podrás elegir horario, realizar el pago por QR y subir
             tu comprobante para validación manual.
           </p>
 
-          <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+          <div data-reveal className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <SoftButton href="/contacto">Pedir información</SoftButton>
             <SoftButton href="#inicio" variant="secondary">
               Volver al inicio
