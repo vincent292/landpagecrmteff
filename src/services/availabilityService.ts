@@ -93,7 +93,7 @@ export async function updateAvailabilityRule(id: string, data: Record<string, un
 }
 
 export async function deleteAvailabilityRule(id: string) {
-  const { error } = await supabase.from("doctor_availability_rules").delete().eq("id", id);
+  const { error } = await supabase.from("doctor_availability_rules").update({ is_active: false }).eq("id", id);
   if (error) throw error;
 }
 
@@ -128,7 +128,7 @@ export async function updateAvailabilityBlock(id: string, data: Record<string, u
 }
 
 export async function deleteAvailabilityBlock(id: string) {
-  const { error } = await supabase.from("availability_blocks").delete().eq("id", id);
+  const { error } = await supabase.from("availability_blocks").update({ is_active: false }).eq("id", id);
   if (error) throw error;
 }
 

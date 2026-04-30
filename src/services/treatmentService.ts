@@ -54,6 +54,6 @@ export async function updateTreatment(id: string, data: Record<string, unknown>)
 }
 
 export async function deleteTreatment(id: string) {
-  const { error } = await supabase.from(table).delete().eq("id", id);
+  const { error } = await supabase.from(table).update({ is_active: false }).eq("id", id);
   if (error) throw error;
 }

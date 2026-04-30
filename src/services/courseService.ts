@@ -49,6 +49,6 @@ export async function updateCourse(id: string, data: Record<string, unknown>) {
 }
 
 export async function deleteCourse(id: string) {
-  const { error } = await supabase.from("courses").delete().eq("id", id);
+  const { error } = await supabase.from("courses").update({ is_active: false }).eq("id", id);
   if (error) throw error;
 }

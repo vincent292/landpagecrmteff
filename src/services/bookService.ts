@@ -62,7 +62,7 @@ export async function updateBook(id: string, data: Record<string, unknown>) {
 }
 
 export async function deleteBook(id: string) {
-  const { error } = await supabase.from("books").delete().eq("id", id);
+  const { error } = await supabase.from("books").update({ is_active: false }).eq("id", id);
   if (error) throw error;
 }
 

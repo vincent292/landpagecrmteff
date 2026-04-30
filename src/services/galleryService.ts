@@ -43,6 +43,6 @@ export async function updateGalleryAlbum(id: string, data: Record<string, unknow
 }
 
 export async function deleteGalleryAlbum(id: string) {
-  const { error } = await supabase.from("gallery_albums").delete().eq("id", id);
+  const { error } = await supabase.from("gallery_albums").update({ is_active: false }).eq("id", id);
   if (error) throw error;
 }

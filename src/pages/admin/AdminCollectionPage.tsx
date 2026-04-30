@@ -69,6 +69,7 @@ type AdminRow =
 
 const requestStatuses = ["Nuevo", "Contactado", "Agendado", "Finalizado", "Descartado"];
 const enrollmentStatuses = ["Pendiente", "Confirmado", "Cancelado", "Asistió"];
+const eventTypes = ["Curso", "Procedimiento", "Cirugía", "Presentación", "Jornada", "Valoración"];
 const userRoles = ["superadmin", "doctor", "admin", "assistant", "patient", "student", "user"] as const;
 
 export function AdminCollectionPage({ module }: Props) {
@@ -299,6 +300,7 @@ function AdminEntityForm({
   onSaved: () => void;
 }) {
   const [values, setValues] = useState<Record<string, string | boolean | number>>(() => getInitialValues(module, row));
+  const [error, setError] = useState("");
   const fields = getFields(module);
 
   const setValue = (name: string, value: string | boolean | number) => {
@@ -308,13 +310,18 @@ function AdminEntityForm({
   };
 
   const submit = async () => {
-    const payload = normalizePayload(values);
-    if (row) {
-      await handleUpdate(module, row.id, payload);
-    } else {
-      await handleCreate(module, payload);
+    try {
+      setError("");
+      const payload = normalizePayload(module, values);
+      if (row) {
+        await handleUpdate(module, row.id, payload);
+      } else {
+        await handleCreate(module, payload);
+      }
+      onSaved();
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "No se pudo guardar el registro.");
     }
-    onSaved();
   };
 
   return (
@@ -335,6 +342,10 @@ function AdminEntityForm({
                 <textarea value={String(values[field.name] ?? "")} onChange={(event) => setValue(field.name, event.target.value)} className="premium-input mt-2 min-h-28" />
               ) : field.type === "checkbox" ? (
                 <input type="checkbox" checked={Boolean(values[field.name])} onChange={(event) => setValue(field.name, event.target.checked)} className="mt-4 block" />
+              ) : field.name === "event_type" ? (
+                <select value={String(values[field.name] ?? "")} onChange={(event) => setValue(field.name, event.target.value)} className="premium-input mt-2">
+                  {eventTypes.map((type) => <option key={type}>{type}</option>)}
+                </select>
               ) : field.name === "city" ? (
                 <select value={String(values[field.name] ?? "")} onChange={(event) => setValue(field.name, event.target.value)} className="premium-input mt-2">
                   <option value="">Selecciona ciudad</option>
@@ -346,6 +357,11 @@ function AdminEntityForm({
             </label>
           ))}
         </div>
+        {error && (
+          <div className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
+            {error}
+          </div>
+        )}
         <button onClick={() => void submit()} className="mt-8 inline-flex items-center gap-2 rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white">
           <Save className="h-4 w-4" />
           Guardar
@@ -479,12 +495,26 @@ function getFields(module: Exclude<Module, "inscripciones" | "solicitudes" | "us
 function getInitialValues(module: Exclude<Module, "inscripciones" | "solicitudes" | "usuarios">, row: AdminRow | null) {
   const base = row ? { ...row } as Record<string, string | boolean | number> : { title: "", slug: "", is_active: true };
   if (module === "tratamientos") return { is_featured: false, ...base };
+  if (module === "agenda") return { event_type: "Jornada", available_slots: 0, ...base };
   if (module === "galeria") return { is_featured: false, ...base };
   return base;
 }
 
-function normalizePayload(values: Record<string, string | boolean | number>) {
-  return Object.fromEntries(Object.entries(values).map(([key, value]) => [key, value === "" ? null : value]));
+function normalizePayload(
+  module: Exclude<Module, "inscripciones" | "solicitudes" | "usuarios">,
+  values: Record<string, string | boolean | number>
+) {
+  const payload = Object.fromEntries(Object.entries(values).map(([key, value]) => [key, value === "" ? null : value]));
+
+  if (module === "agenda") {
+    payload.date = payload.event_date;
+    payload.time = payload.start_time;
+    payload.active = payload.is_active ?? true;
+    payload.image_url = payload.cover_image;
+    payload.spots = payload.available_slots;
+  }
+
+  return payload;
 }
 
 async function handleCreate(module: Exclude<Module, "inscripciones" | "solicitudes" | "usuarios">, payload: Record<string, unknown>) {

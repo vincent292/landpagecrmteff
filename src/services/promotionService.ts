@@ -39,6 +39,6 @@ export async function updatePromotion(id: string, data: Record<string, unknown>)
 }
 
 export async function deletePromotion(id: string) {
-  const { error } = await supabase.from("promotions").delete().eq("id", id);
+  const { error } = await supabase.from("promotions").update({ is_active: false }).eq("id", id);
   if (error) throw error;
 }

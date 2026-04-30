@@ -102,7 +102,7 @@ export function BooksAdminPage() {
   };
 
   if (loading) return <LoadingState label="Cargando libros..." />;
-  if (error) return <ErrorState label="No pudimos cargar este modulo." />;
+  if (error) return <ErrorState label="No pudimos cargar este módulo." />;
 
   if (!isForm) {
     return (
@@ -110,7 +110,7 @@ export function BooksAdminPage() {
         <section className="flex flex-col gap-4 rounded-[32px] border border-[var(--color-border)] bg-white/75 p-6 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">Libros</p>
-            <h1 className="font-display mt-3 text-5xl font-semibold">Catalogo y activos digitales</h1>
+            <h1 className="font-display mt-3 text-5xl font-semibold">Catálogo y activos digitales</h1>
           </div>
           <Link to="/panel/libros/nuevo" className="rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white">
             Nuevo libro
@@ -134,7 +134,7 @@ export function BooksAdminPage() {
                       Editar
                     </Link>
                     <button onClick={() => void deleteBook(book.id).then(load)} className="rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-semibold">
-                      Eliminar
+                      Desactivar
                     </button>
                   </div>
                 </div>
@@ -152,7 +152,7 @@ export function BooksAdminPage() {
       <h1 className="font-display mt-3 text-5xl font-semibold">{current ? current.title : "Crear libro digital"}</h1>
 
       <div className="mt-8 grid gap-4 md:grid-cols-2">
-        <Field label="Titulo"><input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value, slug: current ? form.slug : slugify(event.target.value) })} className="premium-input mt-2" /></Field>
+        <Field label="Título"><input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value, slug: current ? form.slug : slugify(event.target.value) })} className="premium-input mt-2" /></Field>
         <Field label="Slug"><input value={form.slug} onChange={(event) => setForm({ ...form, slug: event.target.value })} className="premium-input mt-2" /></Field>
         <Field label="Autor"><input value={form.author} onChange={(event) => setForm({ ...form, author: event.target.value })} className="premium-input mt-2" /></Field>
         <Field label="Precio"><input type="number" value={String(form.price)} onChange={(event) => setForm({ ...form, price: Number(event.target.value) })} className="premium-input mt-2" /></Field>
@@ -162,7 +162,7 @@ export function BooksAdminPage() {
             <option value="multiple_use">multiple_use</option>
           </select>
         </Field>
-        <Field label="Maximo de usos"><input type="number" value={String(form.default_token_max_uses)} onChange={(event) => setForm({ ...form, default_token_max_uses: Number(event.target.value) })} className="premium-input mt-2" /></Field>
+        <Field label="Máximo de usos"><input type="number" value={String(form.default_token_max_uses)} onChange={(event) => setForm({ ...form, default_token_max_uses: Number(event.target.value) })} className="premium-input mt-2" /></Field>
         <Field label="Portada"><input type="file" accept="image/*" onChange={(event) => setCoverFile(event.target.files?.[0] ?? null)} className="premium-input mt-2" /></Field>
         <Field label="Archivo del libro"><input type="file" accept=".pdf,.epub" onChange={(event) => setBookFile(event.target.files?.[0] ?? null)} className="premium-input mt-2" /></Field>
         <Field label="QR de pago"><input type="file" accept="image/*" onChange={(event) => setQrFile(event.target.files?.[0] ?? null)} className="premium-input mt-2" /></Field>
@@ -170,7 +170,7 @@ export function BooksAdminPage() {
           <input type="checkbox" checked={form.is_active} onChange={(event) => setForm({ ...form, is_active: event.target.checked })} />
           <span className="text-sm font-semibold">Libro activo</span>
         </label>
-        <Field label="Descripcion" className="md:col-span-2">
+        <Field label="Descripción" className="md:col-span-2">
           <textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className="premium-input mt-2 min-h-28" />
         </Field>
       </div>

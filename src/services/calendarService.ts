@@ -46,6 +46,6 @@ export async function updateCalendarEvent(id: string, data: Record<string, unkno
 }
 
 export async function deleteCalendarEvent(id: string) {
-  const { error } = await supabase.from("calendar_events").delete().eq("id", id);
+  const { error } = await supabase.from("calendar_events").update({ is_active: false, active: false }).eq("id", id);
   if (error) throw error;
 }
