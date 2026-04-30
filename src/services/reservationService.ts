@@ -18,6 +18,7 @@ export type AppointmentReservationRow = {
   source: string;
   notes: string | null;
   created_by: string | null;
+  doctor_id?: string | null;
   created_at: string;
   updated_at: string;
   patients?: {
@@ -25,6 +26,12 @@ export type AppointmentReservationRow = {
     phone: string | null;
     email: string | null;
     city: string | null;
+  } | null;
+  doctor_profiles?: {
+    id: string;
+    full_name: string;
+    whatsapp: string | null;
+    email: string | null;
   } | null;
 };
 
@@ -39,7 +46,7 @@ export type ReservationFilters = {
 export async function getReservationsAdmin(filters: ReservationFilters = {}) {
   let query = supabase
     .from("appointment_reservations")
-    .select("*, patients(full_name, phone, email, city)")
+    .select("*, patients(full_name, phone, email, city), doctor_profiles(id, full_name, whatsapp, email)")
     .order("appointment_date", { ascending: true })
     .order("start_time", { ascending: true });
 
@@ -72,7 +79,7 @@ export async function getReservationsAdmin(filters: ReservationFilters = {}) {
 export async function getReservationById(id: string) {
   const { data, error } = await supabase
     .from("appointment_reservations")
-    .select("*, patients(full_name, phone, email, city)")
+    .select("*, patients(full_name, phone, email, city), doctor_profiles(id, full_name, whatsapp, email)")
     .eq("id", id)
     .maybeSingle();
   if (error) throw error;

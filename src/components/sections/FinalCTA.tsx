@@ -13,20 +13,19 @@ export function FinalCTA() {
 
         <div className="relative mx-auto max-w-3xl text-center">
           <p data-reveal className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--color-accent-strong)]">
-            Agenda tu experiencia
+            Encuentranos
           </p>
 
           <h2 data-reveal className="font-display mt-5 text-5xl font-semibold leading-[0.94] text-[var(--color-ink)] md:text-6xl">
-            Un cuidado estético premium comienza con una valoración personalizada.
+            Tu primera valoracion empieza con una ubicacion clara y un equipo listo para orientarte.
           </h2>
 
           <p data-reveal className="mt-6 text-base leading-8 text-[var(--color-copy)] md:text-lg">
-            Desde esta vista podrás elegir horario, realizar el pago por QR y subir
-            tu comprobante para validación manual.
+            Revisa la direccion del consultorio, abre Google Maps y confirma tus dudas antes de elegir tu horario.
           </p>
 
           <div data-reveal className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <SoftButton href="/contacto">Pedir información</SoftButton>
+            <SoftButton href="/contacto">Ver ubicacion</SoftButton>
             <SoftButton href="#inicio" variant="secondary">
               Volver al inicio
             </SoftButton>

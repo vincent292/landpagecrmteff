@@ -3,6 +3,7 @@
 import { Link } from "react-router-dom";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
+import { DoctorByline } from "../../components/platform/DoctorByline";
 import { InfoRequestModal } from "../../components/platform/InfoRequestModal";
 import { boliviaCities } from "../../data/cities";
 import { getTreatments, type TreatmentRow } from "../../services/treatmentService";
@@ -37,6 +38,7 @@ export function TreatmentsPage() {
               <img src={treatment.cover_image ?? "/doctora/dra2.jpg"} alt={treatment.title} className="h-64 w-full object-cover" />
               <div className="p-6">
                 <h2 className="text-2xl font-semibold">{treatment.title}</h2>
+                <DoctorByline doctor={treatment.doctor_profiles} />
                 <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">{treatment.short_description}</p>
                 <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                   <Link to={`/tratamientos/${treatment.slug}`} className="rounded-full bg-[var(--color-mocha)] px-5 py-3 text-center text-sm font-semibold text-white">

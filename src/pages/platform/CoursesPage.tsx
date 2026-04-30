@@ -3,6 +3,7 @@
 import { Link } from "react-router-dom";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
+import { DoctorByline } from "../../components/platform/DoctorByline";
 import { InfoRequestModal } from "../../components/platform/InfoRequestModal";
 import { boliviaCities } from "../../data/cities";
 import { getCourses, type CourseRow } from "../../services/courseService";
@@ -40,6 +41,7 @@ export function CoursesPage() {
               <div className="p-6">
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-accent-strong)]">{course.city} · {course.modality}</p>
                 <h2 className="mt-3 text-2xl font-semibold">{course.title}</h2>
+                <DoctorByline doctor={course.doctor_profiles} />
                 <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">{course.short_description}</p>
                 <div className="mt-5 grid gap-2 text-sm text-[var(--color-copy)] sm:grid-cols-2">
                   <span>{course.start_date} · {course.start_time}</span>

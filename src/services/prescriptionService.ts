@@ -4,6 +4,7 @@ export type PrescriptionRow = {
   id: string;
   patient_id: string;
   created_by: string | null;
+  profiles?: { full_name: string | null; email: string | null; role: string | null } | null;
   title: string;
   prescription_text: string;
   indications: string | null;
@@ -12,7 +13,7 @@ export type PrescriptionRow = {
 };
 
 export async function createPrescription(data: Record<string, unknown>) {
-  const { data: row, error } = await supabase.from("patient_prescriptions").insert(data).select("*").single();
+  const { data: row, error } = await supabase.from("patient_prescriptions").insert(data).select("*, profiles:created_by(full_name, email, role)").single();
   if (error) throw error;
   return row as PrescriptionRow;
 }
@@ -20,7 +21,7 @@ export async function createPrescription(data: Record<string, unknown>) {
 export async function getPrescriptionsByPatient(patientId: string) {
   const { data, error } = await supabase
     .from("patient_prescriptions")
-    .select("*")
+    .select("*, profiles:created_by(full_name, email, role)")
     .eq("patient_id", patientId)
     .order("created_at", { ascending: false });
   if (error) throw error;

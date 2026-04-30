@@ -284,6 +284,9 @@ export function PatientPhotosPage() {
                   </span>
                 </div>
                 <p className="mt-3 font-semibold">{item.treatment_name ?? item.photo_type}</p>
+                <p className="mt-1 text-xs font-semibold text-[var(--color-copy)]">
+                  Subida por {item.profiles?.full_name ?? item.profiles?.email ?? "equipo medico"}
+                </p>
                 <p className="mt-2 text-sm text-[var(--color-copy)]">{item.notes ?? "Sin notas"}</p>
                 <div className="mt-4 flex flex-wrap items-center gap-2">
                   <button

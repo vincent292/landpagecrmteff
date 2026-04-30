@@ -6,6 +6,7 @@ import interactionPlugin from "@fullcalendar/interaction";
 import { X } from "lucide-react";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
+import { DoctorByline } from "../../components/platform/DoctorByline";
 import { InfoRequestModal } from "../../components/platform/InfoRequestModal";
 import { getCalendarEvents } from "../../services/calendarService";
 import { getCourses } from "../../services/courseService";
@@ -14,9 +15,11 @@ import { PageIntro } from "./TreatmentsPage";
 
 type AgendaItem = {
   id: string;
+  request_id: string;
   title: string;
   city: string | null;
   event_type: string;
+  request_type: "Evento" | "Promoción" | "Curso";
   event_date: string | null;
   end_date?: string | null;
   start_time: string | null;
@@ -24,6 +27,11 @@ type AgendaItem = {
   description: string | null;
   cover_image: string | null;
   available_slots: number | null;
+  doctor_profiles?: {
+    full_name: string;
+    specialty: string | null;
+    photo_url: string | null;
+  } | null;
 };
 
 export function AgendaPage() {
@@ -41,9 +49,11 @@ export function AgendaPage() {
         setAllEvents([
           ...events.map((event) => ({
             id: event.id,
+            request_id: event.id,
             title: event.title,
             city: event.city,
             event_type: event.event_type ?? "Evento",
+            request_type: "Evento" as const,
             event_date: event.event_date,
             end_date: event.end_time ? event.event_date : null,
             start_time: event.start_time,
@@ -51,12 +61,15 @@ export function AgendaPage() {
             description: event.description,
             cover_image: event.cover_image,
             available_slots: event.available_slots,
+            doctor_profiles: event.doctor_profiles,
           })),
           ...promotions.map((promo) => ({
             id: `promo-${promo.id}`,
+            request_id: promo.id,
             title: promo.title,
             city: promo.city,
             event_type: "Promoción",
+            request_type: "Promoción" as const,
             event_date: promo.start_date,
             end_date: promo.end_date,
             start_time: null,
@@ -64,12 +77,15 @@ export function AgendaPage() {
             description: promo.description,
             cover_image: promo.cover_image,
             available_slots: promo.available_slots,
+            doctor_profiles: promo.doctor_profiles,
           })),
           ...courses.map((course) => ({
             id: `course-${course.id}`,
+            request_id: course.id,
             title: course.title,
             city: course.city,
             event_type: "Curso",
+            request_type: "Curso" as const,
             event_date: course.start_date,
             end_date: null,
             start_time: course.start_time,
@@ -77,6 +93,7 @@ export function AgendaPage() {
             description: course.short_description ?? course.description,
             cover_image: course.cover_image,
             available_slots: course.available_slots,
+            doctor_profiles: course.doctor_profiles,
           })),
         ]);
       })
@@ -152,6 +169,7 @@ export function AgendaPage() {
               <button onClick={() => setSelected(null)} className="float-right rounded-full border border-[var(--color-border)] p-2"><X className="h-5 w-5" /></button>
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-accent-strong)]">{selected.event_type} · {selected.city}</p>
               <h2 className="font-display mt-4 text-5xl font-semibold">{selected.title}</h2>
+              <DoctorByline doctor={selected.doctor_profiles} />
               <p className="mt-5 text-sm leading-7 text-[var(--color-copy)]">{selected.description}</p>
               <p className="mt-5 text-sm leading-7 text-[var(--color-copy)]">{selected.event_date} · {selected.start_time}<br />{selected.location}<br />{selected.available_slots ?? 0} cupos</p>
               <div className="mt-6 flex flex-wrap gap-3"><button onClick={() => setInterest(selected)} className="rounded-full bg-[var(--color-caramel)] px-6 py-3 text-sm font-semibold text-white">Pedir más información</button></div>
@@ -159,7 +177,7 @@ export function AgendaPage() {
           </div>
         </div>
       )}
-      <InfoRequestModal open={Boolean(interest)} interest={interest?.title ?? ""} interestId={interest?.id} interestType="Evento" onClose={() => setInterest(null)} />
+      <InfoRequestModal open={Boolean(interest)} interest={interest?.title ?? ""} interestId={interest?.request_id} interestType={interest?.request_type ?? "Evento"} onClose={() => setInterest(null)} />
     </section>
   );
 }

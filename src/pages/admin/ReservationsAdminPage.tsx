@@ -7,10 +7,12 @@ import { z } from "zod";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { getAvailableSlots, type AvailableSlot } from "../../services/availabilityService";
+import { getAdminDoctors, type DoctorProfileRow } from "../../services/doctorService";
 import { getPatients, type PatientRow } from "../../services/patientService";
 import {
   bookAppointmentSlot,
   getReservationsAdmin,
+  updateReservation,
   updateReservationStatus,
   type AppointmentReservationRow,
   type ReservationStatus,
@@ -33,6 +35,7 @@ type ManualForm = z.infer<typeof manualSchema>;
 export function ReservationsAdminPage() {
   const [rows, setRows] = useState<AppointmentReservationRow[]>([]);
   const [patients, setPatients] = useState<PatientRow[]>([]);
+  const [doctors, setDoctors] = useState<DoctorProfileRow[]>([]);
   const [slots, setSlots] = useState<AvailableSlot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null);
   const [filters, setFilters] = useState({ query: "", city: "Todas", status: "Todos", type: "Todos", date: "" });
@@ -66,10 +69,12 @@ export function ReservationsAdminPage() {
         query: filters.query,
       }),
       getPatients(),
+      getAdminDoctors(),
     ])
-      .then(([reservations, nextPatients]) => {
+      .then(([reservations, nextPatients, nextDoctors]) => {
         setRows(reservations);
         setPatients(nextPatients);
+        setDoctors(nextDoctors.filter((doctor) => doctor.is_active));
       })
       .catch((err) => setError(err.message ?? "No pudimos cargar las reservas."))
       .finally(() => setLoading(false));
@@ -236,7 +241,7 @@ export function ReservationsAdminPage() {
             {!loading && error && <ErrorState label={error} />}
             {!loading && !error && rows.length === 0 && <EmptyState label="No hay reservas con esos filtros." />}
             {!loading && rows.map((row) => (
-              <ReservationCard key={row.id} row={row} onChanged={load} />
+              <ReservationCard key={row.id} row={row} doctors={doctors} onChanged={load} />
             ))}
           </div>
         </section>
@@ -245,7 +250,7 @@ export function ReservationsAdminPage() {
   );
 }
 
-function ReservationCard({ row, onChanged }: { row: AppointmentReservationRow; onChanged: () => void }) {
+function ReservationCard({ row, doctors, onChanged }: { row: AppointmentReservationRow; doctors: DoctorProfileRow[]; onChanged: () => void }) {
   const phone = row.patients?.phone?.replace(/\D/g, "") ?? "";
   const message = `Hola ${row.patients?.full_name ?? ""}, te escribimos de parte de la Dra. Estefany sobre tu cita de ${row.appointment_type} del ${row.appointment_date} a las ${row.start_time}.`;
 
@@ -270,6 +275,14 @@ function ReservationCard({ row, onChanged }: { row: AppointmentReservationRow; o
             className="rounded-full border border-[var(--color-border)] bg-white/80 px-3 py-2 text-sm font-semibold"
           >
             {statuses.map((status) => <option key={status}>{status}</option>)}
+          </select>
+          <select
+            value={row.doctor_id ?? ""}
+            onChange={(event) => void updateReservation(row.id, { doctor_id: event.target.value || null }).then(onChanged)}
+            className="rounded-full border border-[var(--color-border)] bg-white/80 px-3 py-2 text-sm font-semibold"
+          >
+            <option value="">Sin doctora</option>
+            {doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.full_name}</option>)}
           </select>
           {phone && (
             <a href={`https://wa.me/${phone}?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer" className="rounded-full border border-[var(--color-border)] p-3">

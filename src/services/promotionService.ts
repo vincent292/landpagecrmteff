@@ -13,17 +13,23 @@ export type PromotionRow = {
   end_date: string | null;
   available_slots: number | null;
   is_active: boolean | null;
+  doctor_id: string | null;
+  doctor_profiles?: {
+    full_name: string;
+    specialty: string | null;
+    photo_url: string | null;
+  } | null;
   created_at: string;
 };
 
 export async function getActivePromotions() {
-  const { data, error } = await supabase.from("promotions").select("*").eq("is_active", true).order("created_at", { ascending: false });
+  const { data, error } = await supabase.from("promotions").select("*, doctor_profiles(full_name, specialty, photo_url)").eq("is_active", true).order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as PromotionRow[];
 }
 
 export async function getAdminPromotions() {
-  const { data, error } = await supabase.from("promotions").select("*").order("created_at", { ascending: false });
+  const { data, error } = await supabase.from("promotions").select("*, doctor_profiles(full_name, specialty, photo_url)").order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as PromotionRow[];
 }

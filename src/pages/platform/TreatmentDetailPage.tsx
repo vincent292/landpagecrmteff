@@ -5,6 +5,7 @@ import { Swiper, SwiperSlide } from "swiper/react";
 import "swiper/css";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
+import { DoctorByline } from "../../components/platform/DoctorByline";
 import { InfoRequestModal } from "../../components/platform/InfoRequestModal";
 import { getTreatmentBySlug, type TreatmentRow } from "../../services/treatmentService";
 import { listFromText } from "../../utils/text";
@@ -52,6 +53,7 @@ export function TreatmentDetailPage() {
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--color-accent-strong)]">Tratamiento</p>
           <h1 className="font-display mt-4 text-5xl font-semibold leading-[0.95] md:text-7xl">{treatment.title}</h1>
+          <DoctorByline doctor={treatment.doctor_profiles} />
           <p className="mt-6 text-base leading-8 text-[var(--color-copy)]">{treatment.description}</p>
           <p className="mt-5 rounded-2xl bg-white/60 p-4 text-sm text-[var(--color-copy)]">Duración aproximada: <strong className="text-[var(--color-ink)]">{treatment.duration}</strong></p>
           <button onClick={() => setOpen(true)} className="mt-8 rounded-full bg-[var(--color-caramel)] px-6 py-3.5 text-sm font-semibold text-white">

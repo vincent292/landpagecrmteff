@@ -13,7 +13,7 @@ const publicLinks = [
   { label: "Libros", href: "/libros" },
   { label: "Agenda", href: "/agenda" },
   { label: "Galería", href: "/galeria" },
-  { label: "Contacto", href: "/contacto" },
+  { label: "Doctoras", href: "/doctoras" },
 ];
 
 export function PremiumNavbar() {

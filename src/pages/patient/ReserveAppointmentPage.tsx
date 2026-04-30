@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CalendarCheck, Clock, MapPin } from "lucide-react";
+import { CalendarCheck, CalendarDays, Clock, MapPin } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Link, Navigate, useLocation } from "react-router-dom";
 import { z } from "zod";
@@ -30,7 +30,9 @@ export function ReserveAppointmentPage({ publicView = false }: { publicView?: bo
   const [slots, setSlots] = useState<AvailableSlot[]>([]);
   const [nextSlots, setNextSlots] = useState<AvailableSlot[]>([]);
   const [selected, setSelected] = useState<AvailableSlot | null>(null);
+  const requestedSlotKeyRef = useRef("");
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [loadingNextSlots, setLoadingNextSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -50,17 +52,21 @@ export function ReserveAppointmentPage({ publicView = false }: { publicView?: bo
 
   useEffect(() => {
     if (!watched.city || !watched.appointment_type) return;
+
     const from = new Date();
     const to = new Date();
     to.setDate(to.getDate() + 45);
+
+    setLoadingNextSlots(true);
     getAvailableSlots({
       city: watched.city,
       appointment_type: watched.appointment_type,
       date_from: from.toISOString().slice(0, 10),
       date_to: to.toISOString().slice(0, 10),
     })
-      .then((rows) => setNextSlots(rows.slice(0, 5)))
-      .catch(() => setNextSlots([]));
+      .then((rows) => setNextSlots(rows.slice(0, 12)))
+      .catch(() => setNextSlots([]))
+      .finally(() => setLoadingNextSlots(false));
   }, [watched.appointment_type, watched.city]);
 
   useEffect(() => {
@@ -78,7 +84,13 @@ export function ReserveAppointmentPage({ publicView = false }: { publicView?: bo
       date_from: watched.date,
       date_to: watched.date,
     })
-      .then(setSlots)
+      .then((rows) => {
+        setSlots(rows);
+        if (requestedSlotKeyRef.current) {
+          setSelected(rows.find((slot) => getSlotKey(slot) === requestedSlotKeyRef.current) ?? null);
+          requestedSlotKeyRef.current = "";
+        }
+      })
       .catch((err) => setError(err.message ?? "No pudimos cargar horarios disponibles."))
       .finally(() => setLoadingSlots(false));
   }, [canSearch, watched.appointment_type, watched.city, watched.date]);
@@ -89,6 +101,12 @@ export function ReserveAppointmentPage({ publicView = false }: { publicView?: bo
   if (!user) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
+
+  const selectUpcomingSlot = (slot: AvailableSlot) => {
+    requestedSlotKeyRef.current = getSlotKey(slot);
+    setSelected(slot);
+    form.setValue("date", slot.date, { shouldValidate: true, shouldDirty: true });
+  };
 
   const submit = async (values: ReservationForm) => {
     if (!selected) {
@@ -125,13 +143,13 @@ export function ReserveAppointmentPage({ publicView = false }: { publicView?: bo
 
       setSuccess("Tu solicitud de cita fue registrada. Te confirmaremos por WhatsApp.");
       setSelected(null);
-      const nextSlots = await getAvailableSlots({
+      const nextRows = await getAvailableSlots({
         city: values.city,
         appointment_type: values.appointment_type,
         date_from: values.date,
         date_to: values.date,
       });
-      setSlots(nextSlots);
+      setSlots(nextRows);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No pudimos registrar la cita.");
     } finally {
@@ -140,20 +158,22 @@ export function ReserveAppointmentPage({ publicView = false }: { publicView?: bo
   };
 
   return (
-    <section className={publicView ? "mx-auto max-w-6xl px-6 py-16 md:px-8 md:py-24" : "space-y-8"}>
-      <div className="rounded-[34px] border border-[var(--color-border)] bg-white/75 p-6 shadow-[0_24px_80px_rgba(62,42,31,0.08)] md:p-8">
+    <section className={publicView ? "mx-auto max-w-6xl px-4 py-12 sm:px-6 md:px-8 md:py-24" : "space-y-8"}>
+      <div className="rounded-[24px] border border-[var(--color-border)] bg-white/75 p-4 shadow-[0_24px_80px_rgba(62,42,31,0.08)] sm:rounded-[34px] sm:p-6 md:p-8">
         <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--color-accent-strong)]">
               Reserva inteligente
             </p>
-            <h1 className="font-display mt-3 text-5xl font-semibold">Reserva una valoración</h1>
+            <h1 className="font-display mt-3 text-4xl font-semibold leading-none sm:text-5xl">
+              Reserva una valoracion
+            </h1>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--color-copy)]">
-              Elige ciudad, tipo de cita y fecha. Solo veras horarios disponibles en tiempo real.
+              Elige ciudad y tipo de cita. Puedes escoger una fecha o tomar directamente uno de los proximos horarios disponibles.
             </p>
           </div>
           {!publicView && (
-            <Link to="/mi-panel/citas" className="rounded-full border border-[var(--color-border)] px-5 py-3 text-sm font-semibold">
+            <Link to="/mi-panel/citas" className="inline-flex w-full justify-center rounded-full border border-[var(--color-border)] px-5 py-3 text-sm font-semibold sm:w-auto">
               Ver mis citas
             </Link>
           )}
@@ -176,34 +196,45 @@ export function ReserveAppointmentPage({ publicView = false }: { publicView?: bo
               <input type="date" {...form.register("date")} className="premium-input" min={new Date().toISOString().slice(0, 10)} />
             </Field>
             <Field label="Notas opcionales">
-              <textarea {...form.register("notes")} className="premium-input min-h-28" placeholder="Cuéntanos si tienes alguna preferencia o duda." />
+              <textarea {...form.register("notes")} className="premium-input min-h-28" placeholder="Cuentanos si tienes alguna preferencia o duda." />
             </Field>
-            {nextSlots.length > 0 && (
-              <div className="rounded-[24px] border border-[var(--color-border)] bg-white/70 p-4">
+
+            <div className="rounded-[24px] border border-[var(--color-border)] bg-white/70 p-4">
+              <div className="flex items-center gap-2">
+                <CalendarDays className="h-4 w-4 text-[var(--color-mocha)]" />
                 <p className="text-sm font-semibold">Proximos horarios disponibles</p>
-                <div className="mt-3 grid gap-2">
-                  {nextSlots.map((slot) => (
-                    <button
-                      type="button"
-                      key={`${slot.rule_id}-${slot.date}-${slot.start_time}`}
-                      onClick={() => {
-                        form.setValue("date", slot.date, { shouldValidate: true });
-                        setSelected(slot);
-                      }}
-                      className="rounded-2xl border border-[var(--color-border)] bg-white/75 px-4 py-3 text-left text-sm font-semibold text-[var(--color-mocha)]"
-                    >
-                      {formatDate(slot.date)} · {slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)}
-                    </button>
-                  ))}
-                </div>
               </div>
-            )}
+              <p className="mt-2 text-xs leading-5 text-[var(--color-copy)]">
+                Toca una opcion y se elegira la fecha y hora automaticamente.
+              </p>
+              <div className="mt-3 grid max-h-[360px] gap-2 overflow-y-auto pr-1">
+                {loadingNextSlots && <LoadingState label="Buscando proximos horarios..." />}
+                {!loadingNextSlots && nextSlots.length === 0 && (
+                  <EmptyState label="No hay proximos horarios para esa ciudad y tipo de cita." />
+                )}
+                {!loadingNextSlots && nextSlots.map((slot) => (
+                  <button
+                    type="button"
+                    key={`${slot.rule_id}-${slot.date}-${slot.start_time}`}
+                    onClick={() => selectUpcomingSlot(slot)}
+                    className={`rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition ${
+                      selected && getSlotKey(selected) === getSlotKey(slot)
+                        ? "border-[var(--color-mocha)] bg-[var(--color-mocha)] text-white"
+                        : "border-[var(--color-border)] bg-white/75 text-[var(--color-mocha)]"
+                    }`}
+                  >
+                    {formatDate(slot.date)} · {slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)}
+                    <span className="mt-1 block text-xs font-medium opacity-75">{slot.location ?? slot.city}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
-          <div className="rounded-[28px] border border-[var(--color-border)] bg-[rgba(255,249,244,0.72)] p-5">
+          <div className="rounded-[24px] border border-[var(--color-border)] bg-[rgba(255,249,244,0.72)] p-4 sm:rounded-[28px] sm:p-5">
             <div className="flex items-center gap-3">
               <Clock className="h-5 w-5 text-[var(--color-mocha)]" />
-              <h2 className="text-2xl font-semibold">Horarios disponibles</h2>
+              <h2 className="text-xl font-semibold sm:text-2xl">Horarios disponibles</h2>
             </div>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -214,9 +245,14 @@ export function ReserveAppointmentPage({ publicView = false }: { publicView?: bo
                 <button
                   type="button"
                   key={`${slot.rule_id}-${slot.date}-${slot.start_time}`}
-                  onClick={() => setSelected(slot)}
+                  onClick={() => {
+                    requestedSlotKeyRef.current = "";
+                    setSelected(slot);
+                  }}
                   className={`rounded-[22px] border p-4 text-left transition ${
-                    selected === slot ? "border-[var(--color-mocha)] bg-[var(--color-mocha)] text-white" : "border-[var(--color-border)] bg-white/80"
+                    selected && getSlotKey(selected) === getSlotKey(slot)
+                      ? "border-[var(--color-mocha)] bg-[var(--color-mocha)] text-white"
+                      : "border-[var(--color-border)] bg-white/80"
                   }`}
                 >
                   <span className="text-lg font-semibold">{slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)}</span>
@@ -254,6 +290,10 @@ export function ReserveAppointmentPage({ publicView = false }: { publicView?: bo
       </div>
     </section>
   );
+}
+
+function getSlotKey(slot: AvailableSlot) {
+  return `${slot.rule_id}-${slot.date}-${slot.start_time}-${slot.end_time}`;
 }
 
 function Field({ label, error, children }: { label: string; error?: string; children: ReactNode }) {

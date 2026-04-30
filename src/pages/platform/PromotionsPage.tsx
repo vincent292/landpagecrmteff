@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
+import { DoctorByline } from "../../components/platform/DoctorByline";
 import { InfoRequestModal } from "../../components/platform/InfoRequestModal";
 import { boliviaCities } from "../../data/cities";
 import { getActivePromotions, type PromotionRow } from "../../services/promotionService";
@@ -38,6 +39,7 @@ export function PromotionsPage() {
               <div className="p-6">
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-accent-strong)]">{promo.city}</p>
                 <h2 className="mt-3 text-2xl font-semibold">{promo.title}</h2>
+                <DoctorByline doctor={promo.doctor_profiles} />
                 <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">{promo.description}</p>
                 <div className="mt-5 flex flex-wrap items-end gap-3">
                   {promo.old_price != null && <span className="text-sm text-[var(--color-copy)] line-through">{formatMoney(promo.old_price)}</span>}

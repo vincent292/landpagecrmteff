@@ -30,7 +30,9 @@ const lazyPage = <P extends object = Record<string, never>>(
 
 const AdminCollectionPage = lazyPage<{ module: AdminModule }>(() => import("./pages/admin/AdminCollectionPage"), "AdminCollectionPage");
 const AdminDashboard = lazyPage(() => import("./pages/admin/AdminDashboard"), "AdminDashboard");
+const AppointmentsCalendarPage = lazyPage(() => import("./pages/admin/AppointmentsCalendarPage"), "AppointmentsCalendarPage");
 const AvailabilityAdminPage = lazyPage(() => import("./pages/admin/AvailabilityAdminPage"), "AvailabilityAdminPage");
+const DoctorsAdminPage = lazyPage(() => import("./pages/admin/DoctorsAdminPage"), "DoctorsAdminPage");
 const BookOrdersAdminPage = lazyPage(() => import("./pages/admin/BookOrdersAdminPage"), "BookOrdersAdminPage");
 const BookTokensAdminPage = lazyPage(() => import("./pages/admin/BookTokensAdminPage"), "BookTokensAdminPage");
 const BooksAdminPage = lazyPage(() => import("./pages/admin/BooksAdminPage"), "BooksAdminPage");
@@ -42,6 +44,7 @@ const PatientPhotosPage = lazyPage(() => import("./pages/admin/PatientPhotosPage
 const PatientPrescriptionsAdminPage = lazyPage(() => import("./pages/admin/PatientPrescriptionsAdminPage"), "PatientPrescriptionsAdminPage");
 const PatientsPage = lazyPage(() => import("./pages/admin/PatientsPage"), "PatientsPage");
 const ReservationsAdminPage = lazyPage(() => import("./pages/admin/ReservationsAdminPage"), "ReservationsAdminPage");
+const SiteSettingsAdminPage = lazyPage(() => import("./pages/admin/SiteSettingsAdminPage"), "SiteSettingsAdminPage");
 const BookingPage = lazyPage(() => import("./pages/BookingPage"), "BookingPage");
 const HomePage = lazyPage(() => import("./pages/HomePage"), "HomePage");
 const PatientAppointmentsPage = lazyPage(() => import("./pages/patient/PatientAppointmentsPage"), "PatientAppointmentsPage");
@@ -67,6 +70,7 @@ const GalleryPage = lazyPage(() => import("./pages/platform/GalleryPage"), "Gall
 const PromotionsPage = lazyPage(() => import("./pages/platform/PromotionsPage"), "PromotionsPage");
 const TreatmentDetailPage = lazyPage(() => import("./pages/platform/TreatmentDetailPage"), "TreatmentDetailPage");
 const TreatmentsPage = lazyPage(() => import("./pages/platform/TreatmentsPage"), "TreatmentsPage");
+const DoctorsPage = lazyPage(() => import("./pages/platform/DoctorsPage"), "DoctorsPage");
 
 export default function App() {
   return (
@@ -89,6 +93,7 @@ export default function App() {
         <Route path="/agenda" element={<AgendaPage />} />
         <Route path="/galeria" element={<GalleryPage />} />
         <Route path="/galeria/:slug" element={<GalleryDetailPage />} />
+        <Route path="/doctoras" element={<DoctorsPage />} />
         <Route path="/sobre-la-doctora" element={<Navigate to="/#doctora" replace />} />
         <Route path="/contacto" element={<ContactPage />} />
         <Route path="/login" element={<LoginPage />} />
@@ -99,6 +104,7 @@ export default function App() {
         <Route path="/panel" element={<AdminLayout />}>
           <Route index element={<AdminDashboard />} />
           <Route path="pacientes" element={<PatientsPage />} />
+          <Route path="doctoras" element={<DoctorsAdminPage />} />
           <Route path="pacientes/:id" element={<PatientDetailPage />} />
           <Route path="pacientes/:id/historia-clinica" element={<PatientClinicalHistoryPage />} />
           <Route path="pacientes/:id/fotos" element={<PatientPhotosPage />} />
@@ -111,6 +117,7 @@ export default function App() {
           <Route path="inscripciones" element={<AdminCollectionPage module="inscripciones" />} />
           <Route path="solicitudes" element={<AdminCollectionPage module="solicitudes" />} />
           <Route path="agenda" element={<AdminCollectionPage module="agenda" />} />
+          <Route path="calendario-citas" element={<AppointmentsCalendarPage />} />
           <Route path="disponibilidad" element={<AvailabilityAdminPage />} />
           <Route path="citas" element={<ReservationsAdminPage />} />
           <Route path="libros" element={<BooksAdminPage />} />
@@ -120,6 +127,7 @@ export default function App() {
           <Route path="tokens-libros" element={<BookTokensAdminPage />} />
           <Route path="galeria" element={<AdminCollectionPage module="galeria" />} />
           <Route path="usuarios" element={<AdminCollectionPage module="usuarios" />} />
+          <Route path="configuracion" element={<SiteSettingsAdminPage />} />
         </Route>
       </Route>
 

@@ -9,7 +9,7 @@ import { z } from "zod";
 import { BrandSignature } from "../../components/common/BrandSignature";
 import { useAuth } from "../../hooks/useAuth";
 import { supabase } from "../../lib/supabaseClient";
-import { isStaffRole, normalizeRole } from "../../lib/roles";
+import { isPortalRole, isStaffRole, normalizeRole } from "../../lib/roles";
 
 const authSchema = z.object({
   email: z.string().email("Escribe un email valido"),
@@ -50,6 +50,17 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
   const from = (location.state as { from?: string } | null)?.from;
   const isLogin = mode === "login";
 
+  const getDashboardPath = (role: ReturnType<typeof normalizeRole>) => (isStaffRole(role) ? "/panel" : "/mi-panel");
+
+  const getSafeRedirectPath = (role: ReturnType<typeof normalizeRole>) => {
+    const dashboardPath = getDashboardPath(role);
+    if (!from) return dashboardPath;
+    if (from.startsWith("/panel") && isStaffRole(role)) return from;
+    if (from.startsWith("/mi-panel") && isPortalRole(role)) return from;
+    if (!from.startsWith("/panel") && !from.startsWith("/mi-panel")) return from;
+    return dashboardPath;
+  };
+
   const onSubmit = async (values: Values) => {
     setError("");
     setMessage("");
@@ -63,7 +74,7 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
           .eq("id", auth.user?.id ?? "")
           .maybeSingle();
         const role = normalizeRole(profile?.role);
-        navigate(from ?? (isStaffRole(role) ? "/panel" : "/mi-panel"), { replace: true });
+        navigate(getSafeRedirectPath(role), { replace: true });
       } else {
         const result = await signUp(values.email, values.password, values.fullName ?? "", {
           phone: values.phone,
@@ -81,7 +92,7 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
           return;
         }
 
-        navigate(from ?? "/mi-panel", { replace: true });
+        navigate(getSafeRedirectPath("patient"), { replace: true });
       }
     } catch (submitError) {
       const errorMessage = submitError instanceof Error ? submitError.message : "";

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
+import { DoctorByline } from "../../components/platform/DoctorByline";
 import { getCourseBySlug, type CourseRow } from "../../services/courseService";
 import { enrollToCourse } from "../../services/enrollmentService";
 import { useAuth } from "../../hooks/useAuth";
@@ -55,6 +56,9 @@ export function CourseDetailPage() {
         <div className="relative mx-auto flex min-h-[440px] max-w-7xl flex-col justify-end px-6 pb-12 text-white md:px-8">
           <p className="text-xs font-semibold uppercase tracking-[0.28em]">Curso</p>
           <h1 className="font-display mt-4 max-w-4xl text-6xl font-semibold leading-[0.9]">{course.title}</h1>
+          <div className="max-w-md text-[var(--color-ink)]">
+            <DoctorByline doctor={course.doctor_profiles} />
+          </div>
         </div>
       </div>
       <div className="mx-auto grid max-w-7xl gap-8 px-6 py-14 md:px-8 lg:grid-cols-[1fr_360px]">

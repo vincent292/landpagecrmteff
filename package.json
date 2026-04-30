@@ -12,6 +12,8 @@
     "supabase:stop": "supabase stop",
     "supabase:status": "supabase status",
     "supabase:reset": "supabase db reset",
+    "supabase:push": "supabase db push",
+    "supabase:deploy-functions": "supabase functions deploy create-doctor",
     "supabase:types": "supabase gen types typescript --local > src/lib/database.types.ts"
   },
   "dependencies": {

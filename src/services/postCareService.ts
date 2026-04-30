@@ -4,6 +4,7 @@ export type PostCareRow = {
   id: string;
   patient_id: string;
   created_by: string | null;
+  profiles?: { full_name: string | null; email: string | null; role: string | null } | null;
   title: string;
   treatment_name: string | null;
   care_instructions: string;
@@ -14,7 +15,7 @@ export type PostCareRow = {
 };
 
 export async function createPostTreatmentCare(data: Record<string, unknown>) {
-  const { data: row, error } = await supabase.from("post_treatment_cares").insert(data).select("*").single();
+  const { data: row, error } = await supabase.from("post_treatment_cares").insert(data).select("*, profiles:created_by(full_name, email, role)").single();
   if (error) throw error;
   return row as PostCareRow;
 }
@@ -22,7 +23,7 @@ export async function createPostTreatmentCare(data: Record<string, unknown>) {
 export async function getPostCaresByPatient(patientId: string) {
   const { data, error } = await supabase
     .from("post_treatment_cares")
-    .select("*")
+    .select("*, profiles:created_by(full_name, email, role)")
     .eq("patient_id", patientId)
     .order("created_at", { ascending: false });
   if (error) throw error;

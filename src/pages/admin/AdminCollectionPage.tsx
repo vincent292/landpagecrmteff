@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { MessageCircleMore, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
+import { PublicImageUpload } from "../../components/admin/PublicImageUpload";
 import {
   createCalendarEvent,
   deleteCalendarEvent,
@@ -340,6 +341,15 @@ function AdminEntityForm({
               <span className="text-sm font-semibold">{field.label}</span>
               {field.type === "textarea" ? (
                 <textarea value={String(values[field.name] ?? "")} onChange={(event) => setValue(field.name, event.target.value)} className="premium-input mt-2 min-h-28" />
+              ) : field.type === "image" ? (
+                <div className="mt-2">
+                  <PublicImageUpload
+                    label={field.label}
+                    value={String(values[field.name] ?? "")}
+                    folder={module}
+                    onChange={(url) => setValue(field.name, url)}
+                  />
+                </div>
               ) : field.type === "checkbox" ? (
                 <input type="checkbox" checked={Boolean(values[field.name])} onChange={(event) => setValue(field.name, event.target.checked)} className="mt-4 block" />
               ) : field.name === "event_type" ? (
@@ -435,7 +445,7 @@ function getFields(module: Exclude<Module, "inscripciones" | "solicitudes" | "us
     { name: "duration", label: "Duración", type: "text" },
     { name: "care_instructions", label: "Cuidados", type: "textarea" },
     { name: "expected_results", label: "Resultados esperados", type: "textarea" },
-    { name: "cover_image", label: "Imagen principal URL", type: "text" },
+    { name: "cover_image", label: "Imagen principal", type: "image" },
     { name: "city", label: "Ciudad", type: "text" },
     { name: "is_featured", label: "Destacado", type: "checkbox" },
     { name: "is_active", label: "Activo", type: "checkbox" },
@@ -443,7 +453,7 @@ function getFields(module: Exclude<Module, "inscripciones" | "solicitudes" | "us
   if (module === "promociones") return [
     ...common,
     { name: "description", label: "Descripción", type: "textarea" },
-    { name: "cover_image", label: "Imagen URL", type: "text" },
+    { name: "cover_image", label: "Imagen", type: "image" },
     { name: "old_price", label: "Precio anterior", type: "number" },
     { name: "promo_price", label: "Precio promocional", type: "number" },
     { name: "city", label: "Ciudad", type: "text" },
@@ -456,7 +466,7 @@ function getFields(module: Exclude<Module, "inscripciones" | "solicitudes" | "us
     ...common,
     { name: "short_description", label: "Descripción corta", type: "textarea" },
     { name: "description", label: "Descripción completa", type: "textarea" },
-    { name: "cover_image", label: "Imagen URL", type: "text" },
+    { name: "cover_image", label: "Imagen", type: "image" },
     { name: "city", label: "Ciudad", type: "text" },
     { name: "start_date", label: "Fecha", type: "date" },
     { name: "start_time", label: "Hora", type: "time" },
@@ -477,7 +487,7 @@ function getFields(module: Exclude<Module, "inscripciones" | "solicitudes" | "us
     { name: "end_time", label: "Hora fin", type: "time" },
     { name: "location", label: "Lugar", type: "text" },
     { name: "description", label: "Descripción", type: "textarea" },
-    { name: "cover_image", label: "Imagen URL", type: "text" },
+    { name: "cover_image", label: "Imagen", type: "image" },
     { name: "available_slots", label: "Cupos", type: "number" },
     { name: "is_active", label: "Activo", type: "checkbox" },
   ];
@@ -486,7 +496,7 @@ function getFields(module: Exclude<Module, "inscripciones" | "solicitudes" | "us
     { name: "city", label: "Ciudad", type: "text" },
     { name: "event_date", label: "Fecha", type: "date" },
     { name: "description", label: "Descripción", type: "textarea" },
-    { name: "cover_image", label: "Imagen principal URL", type: "text" },
+    { name: "cover_image", label: "Imagen principal", type: "image" },
     { name: "is_featured", label: "Destacado", type: "checkbox" },
     { name: "is_active", label: "Activo", type: "checkbox" },
   ];

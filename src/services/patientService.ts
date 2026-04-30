@@ -10,6 +10,7 @@ export type PatientRow = {
   birth_date: string | null;
   gender: string | null;
   emergency_contact: string | null;
+  assigned_doctor_id?: string | null;
   notes: string | null;
   created_at: string;
 };

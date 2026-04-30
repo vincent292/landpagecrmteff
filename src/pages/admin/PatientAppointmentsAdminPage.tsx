@@ -80,6 +80,9 @@ export function PatientAppointmentsAdminPage() {
                 <option>Cancelada</option>
               </select>
             </div>
+            <p className="mt-1 text-xs font-semibold text-[var(--color-copy)]">
+              Registrado por {item.profiles?.full_name ?? item.profiles?.email ?? "equipo medico"}
+            </p>
             <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">{item.appointment_date} · {item.start_time} · {item.city}</p>
           </div>
         ))}

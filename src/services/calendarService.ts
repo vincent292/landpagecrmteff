@@ -14,23 +14,29 @@ export type CalendarEventRow = {
   cover_image: string | null;
   available_slots: number | null;
   is_active: boolean | null;
+  doctor_id: string | null;
+  doctor_profiles?: {
+    full_name: string;
+    specialty: string | null;
+    photo_url: string | null;
+  } | null;
   created_at: string;
 };
 
 export async function getCalendarEvents() {
-  const { data, error } = await supabase.from("calendar_events").select("*").eq("is_active", true).order("event_date", { ascending: true });
+  const { data, error } = await supabase.from("calendar_events").select("*, doctor_profiles(full_name, specialty, photo_url)").eq("is_active", true).order("event_date", { ascending: true });
   if (error) throw error;
   return (data ?? []) as CalendarEventRow[];
 }
 
 export async function getCalendarEventBySlug(slug: string) {
-  const { data, error } = await supabase.from("calendar_events").select("*").eq("slug", slug).maybeSingle();
+  const { data, error } = await supabase.from("calendar_events").select("*, doctor_profiles(full_name, specialty, photo_url)").eq("slug", slug).maybeSingle();
   if (error) throw error;
   return data as CalendarEventRow | null;
 }
 
 export async function getAdminCalendarEvents() {
-  const { data, error } = await supabase.from("calendar_events").select("*").order("event_date", { ascending: false });
+  const { data, error } = await supabase.from("calendar_events").select("*, doctor_profiles(full_name, specialty, photo_url)").order("event_date", { ascending: false });
   if (error) throw error;
   return (data ?? []) as CalendarEventRow[];
 }

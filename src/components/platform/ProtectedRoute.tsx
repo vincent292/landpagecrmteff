@@ -35,6 +35,14 @@ export function ProtectedRoute({
   const staffAllowed = !requireStaff || isStaffRole(role);
   const portalAllowed = !requirePortal || isPortalRole(role);
 
+  if (requireStaff && !staffAllowed && isPortalRole(role)) {
+    return <Navigate to="/mi-panel" replace />;
+  }
+
+  if (requirePortal && !portalAllowed && isStaffRole(role)) {
+    return <Navigate to="/panel" replace />;
+  }
+
   if (!roleAllowed || !staffAllowed || !portalAllowed) {
     return <AccessDeniedPage />;
   }

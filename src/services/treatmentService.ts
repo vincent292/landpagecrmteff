@@ -16,29 +16,35 @@ export type TreatmentRow = {
   city: string | null;
   is_featured: boolean | null;
   is_active: boolean | null;
+  doctor_id: string | null;
+  doctor_profiles?: {
+    full_name: string;
+    specialty: string | null;
+    photo_url: string | null;
+  } | null;
   created_at: string;
 };
 
 export async function getTreatments() {
-  const { data, error } = await supabase.from(table).select("*").eq("is_active", true).order("created_at", { ascending: false });
+  const { data, error } = await supabase.from(table).select("*, doctor_profiles(full_name, specialty, photo_url)").eq("is_active", true).order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as TreatmentRow[];
 }
 
 export async function getFeaturedTreatments() {
-  const { data, error } = await supabase.from(table).select("*").eq("is_active", true).eq("is_featured", true).order("created_at", { ascending: false });
+  const { data, error } = await supabase.from(table).select("*, doctor_profiles(full_name, specialty, photo_url)").eq("is_active", true).eq("is_featured", true).order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as TreatmentRow[];
 }
 
 export async function getTreatmentBySlug(slug: string) {
-  const { data, error } = await supabase.from(table).select("*, treatment_images(*)").eq("slug", slug).maybeSingle();
+  const { data, error } = await supabase.from(table).select("*, treatment_images(*), doctor_profiles(full_name, specialty, photo_url)").eq("slug", slug).maybeSingle();
   if (error) throw error;
   return data as (TreatmentRow & { treatment_images?: { image_url: string; alt_text?: string | null }[] }) | null;
 }
 
 export async function getAdminTreatments() {
-  const { data, error } = await supabase.from(table).select("*").order("created_at", { ascending: false });
+  const { data, error } = await supabase.from(table).select("*, doctor_profiles(full_name, specialty, photo_url)").order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as TreatmentRow[];
 }

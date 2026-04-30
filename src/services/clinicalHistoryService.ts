@@ -4,6 +4,9 @@ export type ClinicalHistoryRow = {
   id: string;
   patient_id: string;
   created_by: string | null;
+  profiles?: { full_name: string | null; email: string | null; role: string | null } | null;
+  session_title: string | null;
+  session_date: string | null;
   reason_for_consultation: string | null;
   medical_history: string | null;
   allergies: string | null;
@@ -21,6 +24,7 @@ export type ClinicalEvolutionRow = {
   patient_id: string;
   clinical_history_id: string | null;
   created_by: string | null;
+  profiles?: { full_name: string | null; email: string | null; role: string | null } | null;
   title: string;
   description: string;
   treatment_performed: string | null;
@@ -31,7 +35,7 @@ export type ClinicalEvolutionRow = {
 export async function getClinicalHistoryByPatient(patientId: string) {
   const { data, error } = await supabase
     .from("clinical_histories")
-    .select("*")
+    .select("*, profiles:created_by(full_name, email, role)")
     .eq("patient_id", patientId)
     .order("updated_at", { ascending: false })
     .limit(1)
@@ -40,8 +44,19 @@ export async function getClinicalHistoryByPatient(patientId: string) {
   return data as ClinicalHistoryRow | null;
 }
 
+export async function getClinicalHistoriesByPatient(patientId: string) {
+  const { data, error } = await supabase
+    .from("clinical_histories")
+    .select("*, profiles:created_by(full_name, email, role)")
+    .eq("patient_id", patientId)
+    .order("session_date", { ascending: false })
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as ClinicalHistoryRow[];
+}
+
 export async function createClinicalHistory(data: Record<string, unknown>) {
-  const { data: row, error } = await supabase.from("clinical_histories").insert(data).select("*").single();
+  const { data: row, error } = await supabase.from("clinical_histories").insert(data).select("*, profiles:created_by(full_name, email, role)").single();
   if (error) throw error;
   return row as ClinicalHistoryRow;
 }
@@ -51,14 +66,14 @@ export async function updateClinicalHistory(id: string, data: Record<string, unk
     .from("clinical_histories")
     .update({ ...data, updated_at: new Date().toISOString() })
     .eq("id", id)
-    .select("*")
+    .select("*, profiles:created_by(full_name, email, role)")
     .single();
   if (error) throw error;
   return row as ClinicalHistoryRow;
 }
 
 export async function createClinicalEvolution(data: Record<string, unknown>) {
-  const { data: row, error } = await supabase.from("clinical_evolutions").insert(data).select("*").single();
+  const { data: row, error } = await supabase.from("clinical_evolutions").insert(data).select("*, profiles:created_by(full_name, email, role)").single();
   if (error) throw error;
   return row as ClinicalEvolutionRow;
 }
@@ -66,7 +81,7 @@ export async function createClinicalEvolution(data: Record<string, unknown>) {
 export async function getClinicalEvolutions(patientId: string) {
   const { data, error } = await supabase
     .from("clinical_evolutions")
-    .select("*")
+    .select("*, profiles:created_by(full_name, email, role)")
     .eq("patient_id", patientId)
     .order("created_at", { ascending: false });
   if (error) throw error;

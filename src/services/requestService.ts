@@ -8,6 +8,11 @@ export type InformationRequestRow = {
   interest_type: string | null;
   interest_id: string | null;
   interest_title: string | null;
+  doctor_id: string | null;
+  doctor_profiles?: {
+    full_name: string;
+    whatsapp: string | null;
+  } | null;
   contact_preference: string | null;
   message: string | null;
   status: string;
@@ -15,7 +20,12 @@ export type InformationRequestRow = {
   created_at: string;
 };
 
-export async function createInformationRequest(data: Omit<InformationRequestRow, "id" | "status" | "internal_notes" | "created_at"> & { privacy_accepted?: boolean }) {
+export async function createInformationRequest(
+  data: Omit<InformationRequestRow, "id" | "status" | "internal_notes" | "created_at" | "doctor_id" | "doctor_profiles"> & {
+    doctor_id?: string | null;
+    privacy_accepted?: boolean;
+  }
+) {
   const { privacy_accepted: _privacyAccepted, ...payload } = data;
   const { error } = await supabase.from("information_requests").insert({
     ...payload,
@@ -28,7 +38,7 @@ export async function createInformationRequest(data: Omit<InformationRequestRow,
 }
 
 export async function getInformationRequests() {
-  const { data, error } = await supabase.from("information_requests").select("*").order("created_at", { ascending: false });
+  const { data, error } = await supabase.from("information_requests").select("*, doctor_profiles(full_name, whatsapp)").order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as InformationRequestRow[];
 }

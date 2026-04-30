@@ -21,9 +21,9 @@ export function BrandSignature({
 }: BrandSignatureProps) {
   return (
     <Link to={to} className={cn("inline-flex max-w-full items-center gap-3", className)}>
-      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-[rgba(184,138,90,0.20)] bg-[rgba(255,249,244,0.84)] p-2 shadow-[0_10px_30px_rgba(110,74,47,0.10)] backdrop-blur-xl sm:h-14 sm:w-14">
+      <span className="flex h-14 w-14 shrink-0 items-center justify-center sm:h-16 sm:w-16">
         <img
-          src="/doctora/logodra.png"
+          src="/doctora/logodra.svg"
           alt="Logo Dra. Estefany"
           className={cn("h-full w-full object-contain", imageClassName)}
         />

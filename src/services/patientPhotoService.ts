@@ -8,6 +8,7 @@ export type PatientPhotoRow = {
   patient_id: string;
   clinical_history_id: string | null;
   uploaded_by: string | null;
+  profiles?: { full_name: string | null; email: string | null; role: string | null } | null;
   photo_type: string;
   treatment_name: string | null;
   image_path: string;
@@ -42,7 +43,7 @@ export async function uploadPatientPhoto(file: File, patientId: string, metadata
     ...metadata,
   };
 
-  const { data, error } = await supabase.from("patient_photos").insert(payload).select("*").single();
+  const { data, error } = await supabase.from("patient_photos").insert(payload).select("*, profiles:uploaded_by(full_name, email, role)").single();
   if (error) throw error;
   return data as PatientPhotoRow;
 }
@@ -50,7 +51,7 @@ export async function uploadPatientPhoto(file: File, patientId: string, metadata
 export async function getPatientPhotos(patientId: string) {
   const { data, error } = await supabase
     .from("patient_photos")
-    .select("*")
+    .select("*, profiles:uploaded_by(full_name, email, role)")
     .eq("patient_id", patientId)
     .order("created_at", { ascending: false });
   if (error) throw error;
