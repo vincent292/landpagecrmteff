@@ -25,7 +25,7 @@ type AuthContextValue = {
     password: string,
     fullName: string,
     extra?: { phone?: string; city?: string; role?: UserRole }
-  ) => Promise<void>;
+  ) => Promise<{ needsEmailConfirmation: boolean; alreadyRegistered: boolean }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 };
@@ -97,7 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       signUp: async (email, password, fullName, extra) => {
         const roleToUse = extra?.role ?? "patient";
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -110,6 +110,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           },
         });
         if (error) throw error;
+
+        return {
+          needsEmailConfirmation: Boolean(data.user && !data.session),
+          alreadyRegistered: Boolean(data.user && data.user.identities?.length === 0),
+        };
       },
       signOut: async () => {
         const { error } = await supabase.auth.signOut();

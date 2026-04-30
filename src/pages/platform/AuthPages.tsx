@@ -39,6 +39,7 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const {
     register,
     handleSubmit,
@@ -51,6 +52,7 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
 
   const onSubmit = async (values: Values) => {
     setError("");
+    setMessage("");
     try {
       if (isLogin) {
         await signIn(values.email, values.password);
@@ -63,15 +65,27 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
         const role = normalizeRole(profile?.role);
         navigate(from ?? (isStaffRole(role) ? "/panel" : "/mi-panel"), { replace: true });
       } else {
-        await signUp(values.email, values.password, values.fullName ?? "", {
+        const result = await signUp(values.email, values.password, values.fullName ?? "", {
           phone: values.phone,
           city: values.city,
           role: "patient",
         });
+
+        if (result.alreadyRegistered) {
+          setError("Ese correo ya está registrado. Inicia sesión o usa recuperar contraseña.");
+          return;
+        }
+
+        if (result.needsEmailConfirmation) {
+          setMessage("Cuenta creada. Revisa tu correo y confirma tu email antes de iniciar sesión.");
+          return;
+        }
+
         navigate(from ?? "/mi-panel", { replace: true });
       }
-    } catch {
-      setError("No pudimos completar el acceso. Revisa tus datos e intenta otra vez.");
+    } catch (submitError) {
+      const errorMessage = submitError instanceof Error ? submitError.message : "";
+      setError(getAuthErrorMessage(errorMessage));
     }
   };
 
@@ -92,18 +106,18 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
           </div>
 
           <h1 className="font-display mt-5 text-5xl font-semibold leading-[0.92] text-[var(--color-ink)] md:text-6xl">
-            {isLogin ? "Ingresa al panel con una experiencia clara y amable." : "Crea tu cuenta y continua tu proceso con calma."}
+            {isLogin ? "Ingresa al panel con una experiencia clara y amable." : "Crea tu cuenta y continúa tu proceso con calma."}
           </h1>
 
           <p className="mt-5 max-w-xl text-sm leading-7 text-[var(--color-copy)] md:text-base">
             {isLogin
-              ? "El acceso mantiene la misma atmosfera elegante de la pagina: limpio, privado y facil de usar desde celular o escritorio."
-              : "El registro esta pensado para sentirse ligero, cercano y ordenado, sin pasos innecesarios."}
+              ? "El acceso mantiene la misma atmósfera elegante de la página: limpio, privado y fácil de usar desde celular o escritorio."
+              : "El registro está pensado para sentirse ligero, cercano y ordenado, sin pasos innecesarios."}
           </p>
 
           <div className="mt-8 grid gap-3 sm:grid-cols-3">
             <InfoPill icon={<ShieldCheck className="h-4 w-4" />} text="Acceso seguro" />
-            <InfoPill icon={<Sparkles className="h-4 w-4" />} text="Diseno premium" />
+            <InfoPill icon={<Sparkles className="h-4 w-4" />} text="Diseño premium" />
             <InfoPill icon={<ArrowRight className="h-4 w-4" />} text="Flujo simple" />
           </div>
 
@@ -113,7 +127,7 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
                 Cuenta local lista
               </p>
               <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">
-                Ya deje una cuenta local creada para entrar al panel durante el desarrollo.
+                Ya dejé una cuenta local creada para entrar al panel durante el desarrollo.
               </p>
               <div className="mt-4 rounded-2xl bg-white/70 p-4 text-sm text-[var(--color-ink)]">
                 <div>{localAccess.email}</div>
@@ -168,12 +182,13 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
           </label>
 
           <label className="mt-5 block">
-            <span className="text-sm font-semibold text-[var(--color-ink)]">Contrasena</span>
+            <span className="text-sm font-semibold text-[var(--color-ink)]">Contraseña</span>
             <input type="password" {...register("password")} className="premium-input mt-2" />
             {errors.password && <span className="mt-1 block text-sm text-red-700">{errors.password.message}</span>}
           </label>
 
           {error && <p className="mt-4 rounded-2xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+          {message && <p className="mt-4 rounded-2xl bg-emerald-50 p-3 text-sm text-emerald-800">{message}</p>}
 
           <button
             disabled={isSubmitting}
@@ -184,7 +199,7 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
           </button>
 
           <p className="mt-5 text-center text-sm text-[var(--color-copy)]">
-            {isLogin ? "No tienes cuenta?" : "Ya tienes cuenta?"}{" "}
+            {isLogin ? "¿No tienes cuenta?" : "¿Ya tienes cuenta?"}{" "}
             <Link to={isLogin ? "/register" : "/login"} className="font-semibold text-[var(--color-mocha)]">
               {isLogin ? "Crear cuenta" : "Iniciar sesión"}
             </Link>
@@ -207,4 +222,30 @@ function InfoPill({ icon, text }: { icon: React.ReactNode; text: string }) {
       <span>{text}</span>
     </div>
   );
+}
+
+function getAuthErrorMessage(message: string) {
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes("email not confirmed")) {
+    return "Tu correo todavía no está confirmado. Revisa tu email o pide al equipo que confirme tu cuenta en Supabase.";
+  }
+
+  if (normalized.includes("invalid login credentials")) {
+    return "Correo o contraseña incorrectos.";
+  }
+
+  if (normalized.includes("user already registered") || normalized.includes("already registered")) {
+    return "Ese correo ya está registrado. Inicia sesión o usa recuperar contraseña.";
+  }
+
+  if (normalized.includes("signup is disabled")) {
+    return "El registro de usuarios está desactivado en Supabase Auth.";
+  }
+
+  if (normalized.includes("rate limit")) {
+    return "Supabase limitó temporalmente los intentos. Espera unos minutos e intenta otra vez.";
+  }
+
+  return message || "No pudimos completar el acceso. Revisa tus datos e intenta otra vez.";
 }
