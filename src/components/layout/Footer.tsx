@@ -16,7 +16,7 @@ export function Footer() {
             imageClassName="scale-[1.06]"
           />
           <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">
-            Una experiencia clinica sobria, cercana y pensada para sentirse impecable en cualquier pantalla.
+            Una experiencia clínica sobria, cercana y pensada para sentirse impecable en cualquier pantalla.
           </p>
         </div>
 

@@ -84,9 +84,9 @@ export function PatientsPage() {
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">Pacientes</p>
-            <h1 className="font-display mt-3 text-5xl font-semibold">Base clinica de pacientes</h1>
+            <h1 className="font-display mt-3 text-5xl font-semibold">Base clínica de pacientes</h1>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-[var(--color-copy)]">
-              Un panel pensado para encontrar rapido a cada paciente, entrar a su ficha y continuar el seguimiento clinico sin perder contexto.
+              Un panel pensado para encontrar rápido a cada paciente, entrar a su ficha y continuar el seguimiento clínico sin perder contexto.
             </p>
           </div>
 
@@ -121,7 +121,7 @@ export function PatientsPage() {
       {loading && <LoadingState label="Cargando pacientes..." />}
       {error && <ErrorState label="No pudimos cargar los pacientes. Intenta de nuevo en un momento." />}
       {!loading && !error && filtered.length === 0 && (
-        <EmptyState label={rows.length === 0 ? "Todavia no hay pacientes vinculados." : "No encontramos pacientes con esos filtros."} />
+        <EmptyState label={rows.length === 0 ? "Todavía no hay pacientes vinculados." : "No encontramos pacientes con esos filtros."} />
       )}
 
       {!loading && !error && filtered.length > 0 && (
@@ -174,7 +174,7 @@ export function PatientsPage() {
             className="w-full max-w-2xl rounded-[32px] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-[0_30px_90px_rgba(43,33,27,0.25)]"
           >
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">Nuevo paciente</p>
-            <h2 className="font-display mt-3 text-4xl font-semibold">Crear ficha rapida</h2>
+            <h2 className="font-display mt-3 text-4xl font-semibold">Crear ficha rápida</h2>
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               <Field label="Nombre completo" error={errors.full_name?.message}>
                 <input {...register("full_name")} className="premium-input mt-2" />

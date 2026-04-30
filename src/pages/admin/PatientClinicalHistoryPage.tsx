@@ -28,8 +28,8 @@ const historySchema = z.object({
 });
 
 const evolutionSchema = z.object({
-  title: z.string().min(3, "Escribe un titulo"),
-  description: z.string().min(6, "Describe la evolucion"),
+  title: z.string().min(3, "Escribe un título"),
+  description: z.string().min(6, "Describe la evolución"),
   treatment_performed: z.string().optional(),
   recommendations: z.string().optional(),
 });
@@ -98,7 +98,7 @@ export function PatientClinicalHistoryPage() {
       }
       setEvolutions(evolutionRows);
     } catch {
-      setStatus({ type: "error", text: "No pudimos cargar la historia clinica." });
+      setStatus({ type: "error", text: "No pudimos cargar la historia clínica." });
     } finally {
       setLoading(false);
     }
@@ -120,7 +120,7 @@ export function PatientClinicalHistoryPage() {
         setHistoryId(created.id);
         setUpdatedAt(created.updated_at);
       }
-      setStatus({ type: "success", text: "Historia clinica guardada correctamente." });
+      setStatus({ type: "success", text: "Historia clínica guardada correctamente." });
     } catch {
       setStatus({ type: "error", text: "No pudimos guardar los cambios." });
     } finally {
@@ -142,23 +142,23 @@ export function PatientClinicalHistoryPage() {
       setStatus({ type: "success", text: "Evolucion registrada." });
       await load();
     } catch {
-      setStatus({ type: "error", text: "No pudimos registrar la evolucion." });
+      setStatus({ type: "error", text: "No pudimos registrar la evolución." });
     } finally {
       setSavingEvolution(false);
     }
   });
 
-  if (loading) return <LoadingState label="Cargando historia clinica..." />;
+  if (loading) return <LoadingState label="Cargando historia clínica..." />;
 
   return (
     <div className="space-y-8">
       <section className="rounded-[28px] border border-[var(--color-border)] bg-white/75 p-6 shadow-[0_18px_50px_rgba(62,42,31,0.08)]">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">Historia clinica</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">Historia clínica</p>
         <div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h1 className="font-display text-5xl font-semibold">Evaluacion medica y seguimiento</h1>
+            <h1 className="font-display text-5xl font-semibold">Evaluación médica y seguimiento</h1>
             <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
-              Organizada por secciones para que el criterio clinico y la documentacion se lean con calma.
+              Organizada por secciones para que el criterio clínico y la documentación se lean con calma.
             </p>
           </div>
           {updatedAt ? (
@@ -177,7 +177,7 @@ export function PatientClinicalHistoryPage() {
         <form onSubmit={saveHistory} className="mt-8 grid gap-5">
           {[
             ["Motivo de consulta", "reason_for_consultation"],
-            ["Antecedentes medicos", "medical_history"],
+            ["Antecedentes médicos", "medical_history"],
             ["Alergias", "allergies"],
             ["Medicamentos actuales", "current_medications"],
             ["Procedimientos previos", "previous_procedures"],
@@ -203,7 +203,7 @@ export function PatientClinicalHistoryPage() {
       </section>
 
       <section className="rounded-[28px] border border-[var(--color-border)] bg-white/75 p-6 shadow-[0_18px_50px_rgba(62,42,31,0.08)]">
-        <h2 className="text-xl font-semibold">Evoluciones clinicas</h2>
+        <h2 className="text-xl font-semibold">Evoluciones clínicas</h2>
         <form onSubmit={saveEvolution} className="mt-5 grid gap-4 md:grid-cols-2">
           <label>
             <span className="text-sm font-semibold">Titulo</span>
@@ -224,13 +224,13 @@ export function PatientClinicalHistoryPage() {
             <textarea {...evolutionForm.register("recommendations")} className="premium-input mt-2 min-h-24" />
           </label>
           <button disabled={savingEvolution} className="w-fit rounded-full border border-[var(--color-border)] px-6 py-3 text-sm font-semibold">
-            {savingEvolution ? "Guardando..." : "Registrar evolucion"}
+            {savingEvolution ? "Guardando..." : "Registrar evolución"}
           </button>
         </form>
 
         <div className="mt-8 space-y-4">
           {evolutions.length === 0 ? (
-            <EmptyState label="Todavia no hay evoluciones clinicas registradas." />
+            <EmptyState label="Todavía no hay evoluciones clínicas registradas." />
           ) : (
             evolutions.map((item) => (
               <div key={item.id} className="relative rounded-[24px] bg-[rgba(247,242,236,0.78)] p-5 pl-8">

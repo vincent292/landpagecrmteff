@@ -102,7 +102,7 @@ export function Hero() {
               className="mb-6 inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-[rgba(255,249,244,0.42)] px-4 py-2 text-xs uppercase tracking-[0.3em] text-[var(--color-accent-strong)] backdrop-blur-xl"
             >
               <Sparkles className="h-3.5 w-3.5" />
-              Medicina EstÃ©tica Ortomolecular
+              Medicina Estética Ortomolecular
             </motion.div>
 
             <motion.h1
@@ -120,8 +120,8 @@ export function Hero() {
               transition={{ duration: 0.9, delay: 0.1 }}
               className="mt-7 max-w-2xl text-lg leading-8 text-[var(--color-copy)] md:text-xl"
             >
-              EstÃ©tica mÃ©dica con visiÃ³n integral: bienestar, armonÃ­a y belleza
-              natural en una experiencia clÃ­nica refinada, serena y profundamente
+              Estética médica con visión integral: bienestar, armonía y belleza
+              natural en una experiencia clínica refinada, serena y profundamente
               personalizada.
             </motion.p>
 
@@ -131,7 +131,7 @@ export function Hero() {
               transition={{ duration: 0.9, delay: 0.15 }}
               className="mt-10 flex flex-col gap-4 sm:flex-row"
             >
-              <SoftButton href="/tratamientos">Reservar valoraciÃ³n</SoftButton>
+              <SoftButton href="/tratamientos">Reservar valoración</SoftButton>
               <SoftButton href="#servicios" variant="secondary">
                 Descubrir enfoque
               </SoftButton>
@@ -169,7 +169,7 @@ export function Hero() {
                   Enfoque 360
                 </div>
                 <p className="mt-2 text-sm leading-6 text-[var(--color-copy)]">
-                  ArmonÃ­a facial, bienestar interno y criterio mÃ©dico.
+                  Armonía facial, bienestar interno y criterio médico.
                 </p>
               </div>
 

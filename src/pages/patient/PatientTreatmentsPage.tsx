@@ -45,7 +45,7 @@ export function PatientTreatmentsPage() {
       </section>
 
       {comparisons.length === 0 && photos.length === 0 ? (
-        <EmptyState label="Aun no hay seguimiento visual visible para tu cuenta." />
+        <EmptyState label="Aún no hay seguimiento visual visible para tu cuenta." />
       ) : null}
 
       {comparisons.length > 0 ? (

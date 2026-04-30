@@ -56,7 +56,7 @@ export function AgendaPage() {
             id: `promo-${promo.id}`,
             title: promo.title,
             city: promo.city,
-            event_type: "Promocion",
+            event_type: "Promoción",
             event_date: promo.start_date,
             end_date: promo.end_date,
             start_time: null,
@@ -103,12 +103,12 @@ export function AgendaPage() {
         <select value={type} onChange={(event) => setType(event.target.value)} className="premium-input sm:max-w-xs">
           <option>Todos</option>
           <option>Curso</option>
-          <option>Promocion</option>
+          <option>Promoción</option>
           <option>Procedimiento</option>
-          <option>CirugÃ­a</option>
-          <option>PresentaciÃ³n</option>
+          <option>Cirugía</option>
+          <option>Presentación</option>
           <option>Jornada</option>
-          <option>ValoraciÃ³n</option>
+          <option>Valoración</option>
         </select>
       </div>
       <div className="mt-10">
@@ -132,12 +132,12 @@ export function AgendaPage() {
               />
             </div>
             <aside className="space-y-4">
-              <h2 className="text-2xl font-semibold">PrÃ³ximas actividades</h2>
+              <h2 className="text-2xl font-semibold">Próximas actividades</h2>
               {events.map((event) => (
                 <button key={event.id} onClick={() => setSelected(event)} className="w-full rounded-[24px] border border-[var(--color-border)] bg-white/60 p-5 text-left">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-accent-strong)]">{event.event_type} Â· {event.city}</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-accent-strong)]">{event.event_type} · {event.city}</p>
                   <h3 className="mt-2 text-lg font-semibold">{event.title}</h3>
-                  <p className="mt-2 text-sm text-[var(--color-copy)]">{event.event_date} Â· {event.start_time}</p>
+                  <p className="mt-2 text-sm text-[var(--color-copy)]">{event.event_date} · {event.start_time}</p>
                 </button>
               ))}
             </aside>
@@ -150,11 +150,11 @@ export function AgendaPage() {
             <img src={selected.cover_image ?? "/doctora/dra3.jpg"} alt={selected.title} className="h-full min-h-80 w-full object-cover" />
             <div className="p-6 md:p-8">
               <button onClick={() => setSelected(null)} className="float-right rounded-full border border-[var(--color-border)] p-2"><X className="h-5 w-5" /></button>
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-accent-strong)]">{selected.event_type} Â· {selected.city}</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-accent-strong)]">{selected.event_type} · {selected.city}</p>
               <h2 className="font-display mt-4 text-5xl font-semibold">{selected.title}</h2>
               <p className="mt-5 text-sm leading-7 text-[var(--color-copy)]">{selected.description}</p>
-              <p className="mt-5 text-sm leading-7 text-[var(--color-copy)]">{selected.event_date} Â· {selected.start_time}<br />{selected.location}<br />{selected.available_slots ?? 0} cupos</p>
-              <div className="mt-6 flex flex-wrap gap-3"><button onClick={() => setInterest(selected)} className="rounded-full bg-[var(--color-caramel)] px-6 py-3 text-sm font-semibold text-white">Pedir mas informacion</button></div>
+              <p className="mt-5 text-sm leading-7 text-[var(--color-copy)]">{selected.event_date} · {selected.start_time}<br />{selected.location}<br />{selected.available_slots ?? 0} cupos</p>
+              <div className="mt-6 flex flex-wrap gap-3"><button onClick={() => setInterest(selected)} className="rounded-full bg-[var(--color-caramel)] px-6 py-3 text-sm font-semibold text-white">Pedir más información</button></div>
             </div>
           </div>
         </div>

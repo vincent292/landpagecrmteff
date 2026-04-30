@@ -38,7 +38,7 @@ export function BookTokensAdminPage() {
 
       {loading && <LoadingState label="Cargando tokens..." />}
       {error && <ErrorState label="No pudimos cargar los tokens." />}
-      {!loading && !error && rows.length === 0 && <EmptyState label="Todavia no hay tokens creados." />}
+      {!loading && !error && rows.length === 0 && <EmptyState label="Todavía no hay tokens creados." />}
 
       {!loading && !error && rows.length > 0 && (
         <div className="grid gap-4">

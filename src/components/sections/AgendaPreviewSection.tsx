@@ -17,7 +17,7 @@ export function AgendaPreviewSection() {
       <SectionHeading
         eyebrow="Agenda"
         title="Ciudades, jornadas y actividades visibles en tiempo real."
-        description="La agenda publica se alimenta desde el panel, para que el equipo publique valoraciones, cursos y jornadas sin tocar codigo."
+        description="La agenda pública se alimenta desde el panel, para que el equipo publique valoraciones, cursos y jornadas sin tocar código."
         align="center"
       />
 

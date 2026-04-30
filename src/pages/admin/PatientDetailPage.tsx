@@ -81,9 +81,9 @@ export function PatientDetailPage() {
           detail={nextAppointment ? `${formatDate(nextAppointment.appointment_date)} · ${nextAppointment.start_time}` : "No hay actividad programada."}
         />
         <SummaryCard
-          title="Ultima evolucion"
-          value={lastEvolution?.title ?? "Sin evolucion"}
-          detail={lastEvolution?.treatment_performed ?? "Aun no hay seguimiento clinico cargado."}
+          title="Última evolución"
+          value={lastEvolution?.title ?? "Sin evolución"}
+          detail={lastEvolution?.treatment_performed ?? "Aún no hay seguimiento clínico cargado."}
         />
         <SummaryCard
           title="Ultima receta"
@@ -98,21 +98,21 @@ export function PatientDetailPage() {
         <SummaryCard
           title="Fotos recientes"
           value={String(data.photos.length)}
-          detail={data.photos.length ? "La galeria clinica tiene material reciente." : "Todavia no hay fotos registradas."}
+          detail={data.photos.length ? "La galería clínica tiene material reciente." : "Todavía no hay fotos registradas."}
         />
       </section>
 
       <section className="rounded-[28px] border border-[var(--color-border)] bg-white/75 p-6">
-        <h2 className="text-xl font-semibold">Resumen de historia clinica</h2>
+        <h2 className="text-xl font-semibold">Resumen de historia clínica</h2>
         <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
-          {data.history?.diagnosis ?? data.history?.reason_for_consultation ?? "Todavia no hay historia clinica cargada."}
+          {data.history?.diagnosis ?? data.history?.reason_for_consultation ?? "Todavía no hay historia clínica cargada."}
         </p>
       </section>
 
       <section className="rounded-[28px] border border-[var(--color-border)] bg-white/75 p-6">
         <h2 className="text-xl font-semibold">Fotos recientes</h2>
         {data.photos.length === 0 ? (
-          <EmptyState label="No hay fotos clinicas registradas." />
+          <EmptyState label="No hay fotos clínicas registradas." />
         ) : (
           <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {data.photos.slice(0, 4).map((photo) => (

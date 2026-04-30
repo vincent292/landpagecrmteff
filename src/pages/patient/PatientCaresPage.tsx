@@ -20,7 +20,7 @@ export function PatientCaresPage() {
 
   if (loading) return <LoadingState label="Cargando cuidados..." />;
   if (error) return <ErrorState label="No pudimos cargar tus cuidados." />;
-  if (items.length === 0) return <EmptyState label="Aun no tienes cuidados postratamiento visibles." />;
+  if (items.length === 0) return <EmptyState label="Aún no tienes cuidados postratamiento visibles." />;
 
   return (
     <div className="grid gap-4">

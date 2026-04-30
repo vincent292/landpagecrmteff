@@ -27,7 +27,7 @@ const uploadSchema = z.object({
 
 const comparisonSchema = z.object({
   before_photo_id: z.string().min(1, "Selecciona la foto antes"),
-  after_photo_id: z.string().min(1, "Selecciona la foto despues"),
+  after_photo_id: z.string().min(1, "Selecciona la foto después"),
   treatment_name: z.string().min(2, "Escribe el tratamiento"),
   notes: z.string().optional(),
   is_visible_to_patient: z.boolean(),
@@ -153,19 +153,19 @@ export function PatientPhotosPage() {
       setState({ type: "success", text: "Comparacion guardada." });
       await load();
     } catch {
-      setState({ type: "error", text: "No pudimos crear la comparacion." });
+      setState({ type: "error", text: "No pudimos crear la comparación." });
     } finally {
       setCreatingComparison(false);
     }
   });
 
-  if (loading) return <LoadingState label="Cargando fotos clinicas..." />;
+  if (loading) return <LoadingState label="Cargando fotos clínicas..." />;
   if (error) return <ErrorState label="No pudimos cargar las fotos del paciente." />;
 
   return (
     <div className="space-y-8">
       <section className="rounded-[28px] border border-[var(--color-border)] bg-white/75 p-6 shadow-[0_18px_50px_rgba(62,42,31,0.08)]">
-        <h1 className="font-display text-5xl font-semibold">Fotos antes, despues y evolucion</h1>
+        <h1 className="font-display text-5xl font-semibold">Fotos antes, después y evolución</h1>
         <p className="mt-4 max-w-2xl text-sm leading-7 text-[var(--color-copy)]">
           Todas las imagenes se guardan en storage privado y se muestran con signed URLs temporales.
         </p>
@@ -184,8 +184,8 @@ export function PatientPhotosPage() {
             <span className="text-sm font-semibold">Tipo</span>
             <select {...uploadForm.register("photo_type")} className="premium-input mt-2">
               <option value="antes">Antes</option>
-              <option value="despues">Despues</option>
-              <option value="evolucion">Evolucion</option>
+              <option value="despues">Después</option>
+              <option value="evolucion">Evolución</option>
               <option value="otro">Otro</option>
             </select>
           </label>
@@ -214,7 +214,7 @@ export function PatientPhotosPage() {
       </section>
 
       <section className="rounded-[28px] border border-[var(--color-border)] bg-white/75 p-6 shadow-[0_18px_50px_rgba(62,42,31,0.08)]">
-        <h2 className="text-xl font-semibold">Crear comparacion antes y despues</h2>
+        <h2 className="text-xl font-semibold">Crear comparación antes y después</h2>
         <form onSubmit={createComparisonRow} className="mt-5 grid gap-4 md:grid-cols-2">
           <label>
             <span className="text-sm font-semibold">Foto antes</span>
@@ -225,9 +225,9 @@ export function PatientPhotosPage() {
             {comparisonForm.formState.errors.before_photo_id ? <span className="mt-1 block text-sm text-red-700">{comparisonForm.formState.errors.before_photo_id.message}</span> : null}
           </label>
           <label>
-            <span className="text-sm font-semibold">Foto despues</span>
+            <span className="text-sm font-semibold">Foto después</span>
             <select {...comparisonForm.register("after_photo_id")} className="premium-input mt-2">
-              <option value="">Selecciona foto despues</option>
+              <option value="">Selecciona foto después</option>
               {photos.map((item) => <option key={item.id} value={item.id}>{item.photo_type} · {item.treatment_name ?? item.id}</option>)}
             </select>
             {comparisonForm.formState.errors.after_photo_id ? <span className="mt-1 block text-sm text-red-700">{comparisonForm.formState.errors.after_photo_id.message}</span> : null}
@@ -246,7 +246,7 @@ export function PatientPhotosPage() {
             <textarea {...comparisonForm.register("notes")} className="premium-input mt-2 min-h-24" />
           </label>
           <button disabled={creatingComparison} className="w-fit rounded-full border border-[var(--color-border)] px-6 py-3 text-sm font-semibold">
-            {creatingComparison ? "Guardando..." : "Guardar comparacion"}
+            {creatingComparison ? "Guardando..." : "Guardar comparación"}
           </button>
         </form>
       </section>
@@ -256,8 +256,8 @@ export function PatientPhotosPage() {
           <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)} className="premium-input md:max-w-xs">
             <option>Todos</option>
             <option>antes</option>
-            <option>despues</option>
-            <option>evolucion</option>
+            <option value="despues">Después</option>
+            <option value="evolucion">Evolución</option>
             <option>otro</option>
           </select>
           <select value={treatmentFilter} onChange={(event) => setTreatmentFilter(event.target.value)} className="premium-input md:max-w-xs">
@@ -315,7 +315,7 @@ export function PatientPhotosPage() {
 
       <section className="space-y-4">
         {comparisons.length === 0 ? (
-          <EmptyState label="Todavia no hay comparaciones antes y despues." />
+          <EmptyState label="Todavía no hay comparaciones antes y después." />
         ) : (
           comparisons.map((item) => (
             <div key={item.id} className="rounded-[28px] border border-[var(--color-border)] bg-white/75 p-5 shadow-[0_18px_50px_rgba(62,42,31,0.08)]">
@@ -331,7 +331,7 @@ export function PatientPhotosPage() {
                   <img src={item.before_photo?.signed_url ?? ""} alt="Antes" className="h-56 w-full rounded-[18px] object-cover" />
                 </div>
                 <div>
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-accent-strong)]">Despues</p>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-accent-strong)]">Después</p>
                   <img src={item.after_photo?.signed_url ?? ""} alt="Despues" className="h-56 w-full rounded-[18px] object-cover" />
                 </div>
               </div>

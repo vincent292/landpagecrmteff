@@ -62,19 +62,19 @@ type StepMeta = {
 const serviceOptions: ServiceOption[] = [
   {
     id: "valoracion-integral",
-    name: "Valoracion estetica integral",
+    name: "Valoración estética integral",
     duration: "45 min",
     amount: "Bs. 180",
     description:
-      "Consulta inicial para revisar objetivos, armonia facial o corporal y definir un protocolo medico personalizado.",
+      "Consulta inicial para revisar objetivos, armonía facial o corporal y definir un protocolo médico personalizado.",
   },
   {
     id: "valoracion-ortomolecular",
-    name: "Valoracion ortomolecular",
+    name: "Valoración ortomolecular",
     duration: "50 min",
     amount: "Bs. 220",
     description:
-      "Enfoque clinico orientado a bienestar, energia, balance interno y acompanamiento preventivo.",
+      "Enfoque clínico orientado a bienestar, energía, balance interno y acompañamiento preventivo.",
   },
 ];
 
@@ -86,7 +86,7 @@ const scheduleDays: ScheduleDay[] = [
   },
   {
     id: "miercoles",
-    label: "Miercoles 14",
+    label: "Miércoles 14",
     slots: ["10:00", "12:30", "16:30"],
   },
   {
@@ -100,12 +100,12 @@ const promoItems: PromoItem[] = [
   {
     id: "hydraglow",
     title: "Hydraglow de bienvenida",
-    benefit: "Incluye diagnostico facial y beneficio especial en protocolo de hidratacion.",
+    benefit: "Incluye diagnóstico facial y beneficio especial en protocolo de hidratación.",
     videoLabel: "Ver testimonio",
   },
   {
     id: "wellness",
-    title: "Evaluacion wellness premium",
+    title: "Evaluación wellness premium",
     benefit: "Ideal para pacientes que quieren iniciar un plan integral de bienestar y belleza natural.",
     videoLabel: "Ver experiencia",
   },
@@ -126,25 +126,25 @@ const steps: StepMeta[] = [
     id: "intro",
     label: "Inicio",
     eyebrow: "Paso 1",
-    title: "Antes de agendar, revisa si alguna promocion acompana mejor tu valoracion.",
+    title: "Antes de agendar, revisa si alguna promoción acompaña mejor tu valoración.",
     description:
       "Puedes continuar sin promo, pero si eliges una la dejamos asociada a tu solicitud para que el equipo la considere al validar tu cita.",
   },
   {
     id: "service",
-    label: "Valoracion",
+    label: "Valoración",
     eyebrow: "Paso 2",
-    title: "Elige el tipo de valoracion que mejor se ajusta a lo que deseas trabajar.",
+    title: "Elige el tipo de valoración que mejor se ajusta a lo que deseas trabajar.",
     description:
-      "Aqui definimos el enfoque de la consulta y el monto que debera validarse antes de confirmar el espacio en agenda.",
+      "Aquí definimos el enfoque de la consulta y el monto que deberá validarse antes de confirmar el espacio en agenda.",
   },
   {
     id: "schedule",
     label: "Agenda",
     eyebrow: "Paso 3",
-    title: "Selecciona un dia y un horario disponible para tu primera visita.",
+    title: "Selecciona un día y un horario disponible para tu primera visita.",
     description:
-      "El espacio quedara reservado de forma provisional hasta que el administrador valide el pago y confirme por WhatsApp.",
+      "El espacio quedará reservado de forma provisional hasta que el administrador valide el pago y confirme por WhatsApp.",
   },
   {
     id: "details",
@@ -152,7 +152,7 @@ const steps: StepMeta[] = [
     eyebrow: "Paso 4",
     title: "Comparte tus datos para que el equipo pueda ubicarte y darte seguimiento.",
     description:
-      "Solo pedimos lo necesario para confirmar la valoracion y contactarte con una experiencia simple y elegante.",
+      "Solo pedimos lo necesario para confirmar la valoración y contactarte con una experiencia simple y elegante.",
   },
   {
     id: "payment",
@@ -160,7 +160,7 @@ const steps: StepMeta[] = [
     eyebrow: "Paso 5",
     title: "Revisa el costo, paga al QR y sube tu comprobante para enviar la solicitud.",
     description:
-      "Cuando el pago sea verificado, el equipo aprobara la cita en la agenda del doctor y te enviara la confirmacion a tu WhatsApp.",
+      "Cuando el pago sea verificado, el equipo aprobará la cita en la agenda del doctor y te enviará la confirmación a tu WhatsApp.",
   },
 ];
 
@@ -330,7 +330,7 @@ export function BookingPage() {
             data-step-animate
             className="font-display mt-4 max-w-2xl text-4xl font-semibold leading-[0.95] text-[var(--color-ink)] md:text-5xl"
           >
-            Estamos registrando tu valoracion y dejando el pago listo para revision.
+            Estamos registrando tu valoración y dejando el pago listo para revisión.
           </h2>
 
           <p
@@ -359,15 +359,15 @@ export function BookingPage() {
             data-step-animate
             className="font-display mt-6 max-w-3xl text-4xl font-semibold leading-[0.94] text-[var(--color-ink)] md:text-6xl"
           >
-            Tu valoracion quedo pendiente de confirmacion.
+            Tu valoración quedó pendiente de confirmación.
           </h2>
 
           <p
             data-step-animate
             className="mt-5 max-w-2xl text-base leading-8 text-[var(--color-copy)]"
           >
-            El equipo revisara el comprobante, comparara el pago y, si todo esta correcto,
-            aprobara tu cita en agenda. La confirmacion final llegara al numero de WhatsApp
+            El equipo revisará el comprobante, comparará el pago y, si todo está correcto,
+            aprobará tu cita en agenda. La confirmación final llegará al número de WhatsApp
             que compartiste.
           </p>
 
@@ -379,7 +379,7 @@ export function BookingPage() {
               </p>
             </GlassCard>
             <GlassCard className="p-5">
-              <p className="text-sm text-[var(--color-copy)]">Valoracion</p>
+              <p className="text-sm text-[var(--color-copy)]">Valoración</p>
               <p className="mt-2 text-lg font-semibold text-[var(--color-ink)]">
                 {selectedService.name}
               </p>
@@ -445,9 +445,9 @@ export function BookingPage() {
                 data-step-animate
                 className="mt-5 max-w-2xl text-sm leading-7 text-[var(--color-copy)] md:text-base"
               >
-                Primero te mostramos una promo opcional, luego eliges la valoracion,
-                despues el horario, y al final te mostramos el costo junto al QR para
-                completar la solicitud con una experiencia mas fluida.
+                Primero te mostramos una promo opcional, luego eliges la valoración,
+                después el horario, y al final te mostramos el costo junto al QR para
+                completar la solicitud con una experiencia más fluida.
               </p>
             </div>
 
@@ -501,7 +501,7 @@ export function BookingPage() {
                 <div className="flex items-center gap-3">
                   <ShieldCheck className="h-5 w-5 text-[var(--color-accent-strong)]" />
                   <span className="text-sm font-semibold text-[var(--color-ink)]">
-                    Revision manual
+                    Revisión manual
                   </span>
                 </div>
                 <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">
@@ -512,11 +512,11 @@ export function BookingPage() {
                 <div className="flex items-center gap-3">
                   <MessageCircleMore className="h-5 w-5 text-[var(--color-accent-strong)]" />
                   <span className="text-sm font-semibold text-[var(--color-ink)]">
-                    Confirmacion por WhatsApp
+                    Confirmación por WhatsApp
                   </span>
                 </div>
                 <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">
-                  Cuando todo este verificado, te confirmaremos directamente al numero registrado.
+                  Cuando todo esté verificado, te confirmaremos directamente al número registrado.
                 </p>
               </GlassCard>
             </div>
@@ -531,14 +531,14 @@ export function BookingPage() {
                 data-step-animate
                 className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--color-accent-strong)]"
               >
-                Tipo de valoracion
+                Tipo de valoración
               </p>
 
               <h2
                 data-step-animate
                 className="font-display mt-4 max-w-3xl text-4xl font-semibold leading-[0.95] text-[var(--color-ink)] md:text-5xl"
               >
-                Elige una valoracion alineada con tu objetivo estetico o de bienestar.
+                Elige una valoración alineada con tu objetivo estético o de bienestar.
               </h2>
             </div>
 
@@ -642,7 +642,7 @@ export function BookingPage() {
                 <CalendarDays className="mt-1 h-5 w-5 text-[var(--color-accent-strong)]" />
                 <div>
                   <p className="text-sm font-semibold text-[var(--color-ink)]">
-                    La agenda se confirma despues de revisar tu pago.
+                    La agenda se confirma después de revisar tu pago.
                   </p>
                   <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">
                     Mientras tanto, dejamos el horario como solicitud prioritaria para el
@@ -669,7 +669,7 @@ export function BookingPage() {
                 data-step-animate
                 className="font-display mt-4 max-w-3xl text-4xl font-semibold leading-[0.95] text-[var(--color-ink)] md:text-5xl"
               >
-                Dejanos tus datos para terminar la solicitud sin hacerla pesada.
+                Déjanos tus datos para terminar la solicitud sin hacerla pesada.
               </h2>
             </div>
 
@@ -719,7 +719,7 @@ export function BookingPage() {
                   value={patientForm.notes}
                   onChange={handleFieldChange("notes")}
                   className="w-full rounded-[24px] border border-[var(--color-border)] bg-[rgba(255,249,244,0.62)] px-4 py-3 text-[var(--color-ink)] outline-none transition focus:border-[rgba(184,138,90,0.34)]"
-                  placeholder="Cuentanos si buscas armonizacion, bienestar integral o si deseas aplicar una promocion especifica."
+                  placeholder="Cuéntanos si buscas armonización, bienestar integral o si deseas aplicar una promoción específica."
                 />
               </label>
             </div>
@@ -729,7 +729,7 @@ export function BookingPage() {
                 data-step-animate
                 className="text-sm leading-7 text-[var(--color-copy)]"
               >
-                Para continuar solo necesitamos tu nombre y tu numero de WhatsApp.
+                Para continuar solo necesitamos tu nombre y tu número de WhatsApp.
               </p>
             )}
           </div>
@@ -750,7 +750,7 @@ export function BookingPage() {
                 data-step-animate
                 className="font-display mt-4 max-w-3xl text-4xl font-semibold leading-[0.95] text-[var(--color-ink)] md:text-5xl"
               >
-                Ultimo paso: paga al QR y sube tu comprobante.
+                Último paso: paga al QR y sube tu comprobante.
               </h2>
             </div>
 
@@ -761,7 +761,7 @@ export function BookingPage() {
                   {selectedService.amount}
                 </p>
                 <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
-                  Incluye revision clinica inicial, criterio medico y reserva provisional del
+                  Incluye revisión clínica inicial, criterio médico y reserva provisional del
                   espacio solicitado.
                 </p>
 
@@ -772,7 +772,7 @@ export function BookingPage() {
                         QR de pago
                       </p>
                       <p className="mt-2 text-sm text-[var(--color-copy)]">
-                        Aqui luego conectamos el QR real del consultorio.
+                        Aquí luego conectamos el QR real del consultorio.
                       </p>
                     </div>
                     <QrCode className="h-6 w-6 text-[var(--color-accent-strong)]" />
@@ -819,7 +819,7 @@ export function BookingPage() {
                     Haz clic para subir tu comprobante
                   </p>
                   <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">
-                    Acepta imagen o PDF. El administrador comparara este archivo con el
+                    Acepta imagen o PDF. El administrador comparará este archivo con el
                     pago antes de aceptar la cita.
                   </p>
                   <input type="file" className="hidden" onChange={handleFileChange} />
@@ -863,7 +863,7 @@ export function BookingPage() {
 
             <div className="hidden items-center gap-2 rounded-full border border-[var(--color-border)] bg-[rgba(255,249,244,0.48)] px-4 py-2 text-xs uppercase tracking-[0.28em] text-[var(--color-accent-strong)] backdrop-blur-xl md:inline-flex">
               <ShieldCheck className="h-4 w-4" />
-              Pago con validacion manual
+              Pago con validación manual
             </div>
           </div>
 
@@ -875,12 +875,12 @@ export function BookingPage() {
               </div>
 
               <h1 className="font-display mt-6 max-w-4xl text-5xl font-semibold leading-[0.92] text-[var(--color-ink)] md:text-7xl">
-                Agenda tu valoracion en pasos cortos, fluidos y mucho mas claros.
+                Agenda tu valoración en pasos cortos, fluidos y mucho más claros.
               </h1>
 
               <p className="mt-6 max-w-2xl text-base leading-8 text-[var(--color-copy)] md:text-lg">
                 Reorganizamos la experiencia para que no se sienta pesada: eliges promo,
-                tipo de valoracion, horario, datos y al final haces el pago con QR antes
+                tipo de valoración, horario, datos y al final haces el pago con QR antes
                 de enviar la solicitud.
               </p>
             </div>
@@ -912,8 +912,8 @@ export function BookingPage() {
                   <div className="flex items-start gap-3 rounded-[22px] bg-[rgba(255,249,244,0.56)] p-4">
                     <CalendarDays className="mt-0.5 h-5 w-5 text-[var(--color-accent-strong)]" />
                     <p className="text-sm leading-7 text-[var(--color-copy)]">
-                      Luego eliges valoracion y horario antes de llenar tus datos, para
-                      que el proceso se sienta mas natural.
+                      Luego eliges valoración y horario antes de llenar tus datos, para
+                      que el proceso se sienta más natural.
                     </p>
                   </div>
                   <div className="flex items-start gap-3 rounded-[22px] bg-[rgba(255,249,244,0.56)] p-4">
@@ -989,7 +989,7 @@ export function BookingPage() {
                         <div className="grid gap-3 xl:hidden">
                           <div className="grid gap-3 sm:grid-cols-2">
                             <div className="rounded-[22px] bg-[rgba(255,249,244,0.56)] p-4">
-                              <p className="text-sm text-[var(--color-copy)]">Valoracion</p>
+                              <p className="text-sm text-[var(--color-copy)]">Valoración</p>
                               <p className="mt-2 text-base font-semibold text-[var(--color-ink)]">
                                 {selectedService.name}
                               </p>
@@ -1099,14 +1099,14 @@ export function BookingPage() {
 
                     <div className="mt-6 space-y-4">
                       <div className="rounded-[24px] bg-[rgba(255,249,244,0.56)] p-5">
-                        <p className="text-sm text-[var(--color-copy)]">Promocion</p>
+                        <p className="text-sm text-[var(--color-copy)]">Promoción</p>
                         <p className="mt-2 text-lg font-semibold text-[var(--color-ink)]">
-                          {selectedPromo?.title ?? "Sin promocion asociada"}
+                          {selectedPromo?.title ?? "Sin promoción asociada"}
                         </p>
                       </div>
 
                       <div className="rounded-[24px] bg-[rgba(255,249,244,0.56)] p-5">
-                        <p className="text-sm text-[var(--color-copy)]">Valoracion</p>
+                        <p className="text-sm text-[var(--color-copy)]">Valoración</p>
                         <p className="mt-2 text-lg font-semibold text-[var(--color-ink)]">
                           {selectedService.name}
                         </p>

@@ -20,7 +20,7 @@ export function PatientPrescriptionsPage() {
 
   if (loading) return <LoadingState label="Cargando recetas..." />;
   if (error) return <ErrorState label="No pudimos cargar tus recetas." />;
-  if (items.length === 0) return <EmptyState label="Todavia no tienes recetas visibles." />;
+  if (items.length === 0) return <EmptyState label="Todavía no tienes recetas visibles." />;
 
   return (
     <div className="grid gap-4">

@@ -19,7 +19,7 @@ const adminLinks = [
   ["Libros", "/panel/libros"],
   ["Pedidos libros", "/panel/pedidos-libros"],
   ["Tokens libros", "/panel/tokens-libros"],
-  ["Galeria", "/panel/galeria"],
+  ["Galería", "/panel/galeria"],
   ["Usuarios", "/panel/usuarios"],
 ];
 
@@ -65,7 +65,7 @@ export function AdminLayout() {
           onClick={() => void signOut()}
           className="mt-8 w-full rounded-full border border-[var(--color-border)] px-4 py-3 text-sm font-semibold"
         >
-          Cerrar sesion
+          Cerrar sesión
         </button>
       </aside>
 

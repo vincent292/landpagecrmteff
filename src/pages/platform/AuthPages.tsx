@@ -81,7 +81,7 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
       <div className="relative mx-auto grid min-h-[78vh] max-w-7xl gap-8 lg:grid-cols-[0.92fr_1.08fr] lg:items-center">
         <div className="rounded-[36px] border border-[rgba(198,162,123,0.18)] bg-[rgba(255,249,244,0.66)] p-6 shadow-[0_24px_80px_rgba(62,42,31,0.10)] backdrop-blur-2xl md:p-8">
           <BrandSignature
-            subtitle="Estetica medica premium"
+            subtitle="Estética médica premium"
             textClassName="text-[1.8rem] sm:text-[2rem]"
             subtitleClassName="tracking-[0.18em]"
           />
@@ -138,7 +138,7 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
           className="w-full rounded-[36px] border border-[var(--color-border)] bg-[rgba(255,249,244,0.88)] p-6 shadow-[0_28px_90px_rgba(62,42,31,0.12)] backdrop-blur-2xl md:p-8"
         >
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">
-            {isLogin ? "Iniciar sesion" : "Crear cuenta"}
+            {isLogin ? "Iniciar sesión" : "Crear cuenta"}
           </p>
           <h2 className="font-display mt-3 text-4xl font-semibold text-[var(--color-ink)] md:text-5xl">
             {isLogin ? "Bienvenido de nuevo" : "Un registro corto y elegante"}
@@ -186,7 +186,7 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
           <p className="mt-5 text-center text-sm text-[var(--color-copy)]">
             {isLogin ? "No tienes cuenta?" : "Ya tienes cuenta?"}{" "}
             <Link to={isLogin ? "/register" : "/login"} className="font-semibold text-[var(--color-mocha)]">
-              {isLogin ? "Crear cuenta" : "Iniciar sesion"}
+              {isLogin ? "Crear cuenta" : "Iniciar sesión"}
             </Link>
           </p>
           <p className="mt-3 text-center text-sm text-[var(--color-copy)]">

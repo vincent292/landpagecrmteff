@@ -147,7 +147,7 @@ export function ReserveAppointmentPage({ publicView = false }: { publicView?: bo
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--color-accent-strong)]">
               Reserva inteligente
             </p>
-            <h1 className="font-display mt-3 text-5xl font-semibold">Reserva una valoracion</h1>
+            <h1 className="font-display mt-3 text-5xl font-semibold">Reserva una valoración</h1>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--color-copy)]">
               Elige ciudad, tipo de cita y fecha. Solo veras horarios disponibles en tiempo real.
             </p>

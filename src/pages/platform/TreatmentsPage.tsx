@@ -25,7 +25,7 @@ export function TreatmentsPage() {
 
   return (
     <section className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24">
-      <PageIntro eyebrow="Tratamientos" title="Protocolos mÃ©dicos diseÃ±ados para una belleza natural, elegante y segura." />
+      <PageIntro eyebrow="Tratamientos" title="Protocolos médicos diseñados para una belleza natural, elegante y segura." />
       <div className="mt-8 max-w-xs"><select value={city} onChange={(event) => setCity(event.target.value)} className="premium-input"><option>Todas</option>{boliviaCities.map((item) => <option key={item}>{item}</option>)}</select></div>
       <div className="mt-12">
         {loading && <LoadingState />}
@@ -43,7 +43,7 @@ export function TreatmentsPage() {
                     Ver detalles
                   </Link>
                   <button type="button" onClick={() => setInterest(treatment)} className="rounded-full border border-[var(--color-border)] px-5 py-3 text-sm font-semibold">
-                    Necesito mÃ¡s informaciÃ³n
+                    Necesito más información
                   </button>
                 </div>
               </div>

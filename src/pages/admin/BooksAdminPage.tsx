@@ -118,7 +118,7 @@ export function BooksAdminPage() {
         </section>
 
         {rows.length === 0 ? (
-          <EmptyState label="Todavia no hay libros creados." />
+          <EmptyState label="Todavía no hay libros creados." />
         ) : (
           <div className="grid gap-4">
             {rows.map((book) => (

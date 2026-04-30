@@ -25,7 +25,7 @@ export function PromotionsPage() {
 
   return (
     <section className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24">
-      <PageIntro eyebrow="Promociones" title="Beneficios activos para iniciar tu experiencia estÃ©tica con claridad." />
+      <PageIntro eyebrow="Promociones" title="Beneficios activos para iniciar tu experiencia estética con claridad." />
       <div className="mt-8 max-w-xs"><select value={city} onChange={(event) => setCity(event.target.value)} className="premium-input"><option>Todas</option>{boliviaCities.map((item) => <option key={item}>{item}</option>)}</select></div>
       <div className="mt-12">
         {loading && <LoadingState />}
@@ -43,9 +43,9 @@ export function PromotionsPage() {
                   {promo.old_price != null && <span className="text-sm text-[var(--color-copy)] line-through">{formatMoney(promo.old_price)}</span>}
                   {promo.promo_price != null && <span className="text-3xl font-semibold text-[var(--color-mocha)]">{formatMoney(promo.promo_price)}</span>}
                 </div>
-                <p className="mt-4 text-sm text-[var(--color-copy)]">Vigente hasta {promo.end_date ?? "por confirmar"} Â· {promo.available_slots ?? 0} cupos</p>
+                <p className="mt-4 text-sm text-[var(--color-copy)]">Vigente hasta {promo.end_date ?? "por confirmar"} · {promo.available_slots ?? 0} cupos</p>
                 <button onClick={() => setInterest(promo)} className="mt-6 rounded-full bg-[var(--color-caramel)] px-6 py-3 text-sm font-semibold text-white">
-                  Solicitar promociÃ³n
+                  Solicitar promoción
                 </button>
               </div>
             </article>

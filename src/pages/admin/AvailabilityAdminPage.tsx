@@ -381,7 +381,7 @@ export function AvailabilityAdminPage() {
 
           <form onSubmit={blockForm.handleSubmit(createBlock)} className="rounded-[30px] border border-[var(--color-border)] bg-white/75 p-6">
             <h2 className="text-2xl font-semibold">Bloquear horario</h2>
-            <p className="mt-1 text-sm text-[var(--color-copy)]">Usalo para viajes, cirugias o dias sin atencion.</p>
+            <p className="mt-1 text-sm text-[var(--color-copy)]">Úsalo para viajes, cirugías o días sin atención.</p>
             <div className="mt-5 grid gap-4">
               <Field label="Fecha" error={blockForm.formState.errors.block_date?.message}>
                 <input type="date" {...blockForm.register("block_date")} className="premium-input" />
@@ -419,7 +419,7 @@ export function AvailabilityAdminPage() {
           title="Disponibilidades"
           loading={loading}
           error={error}
-          empty="Todavia no hay disponibilidades."
+          empty="Todavía no hay disponibilidades."
           rows={rules}
           render={(rule) => (
             <div key={rule.id} className="rounded-[24px] border border-[var(--color-border)] bg-white/70 p-5">
@@ -454,7 +454,7 @@ export function AvailabilityAdminPage() {
           title="Bloqueos"
           loading={loading}
           error={error}
-          empty="Todavia no hay bloqueos."
+          empty="Todavía no hay bloqueos."
           rows={blocks}
           render={(block) => (
             <div key={block.id} className="rounded-[24px] border border-[var(--color-border)] bg-white/70 p-5">

@@ -60,7 +60,7 @@ export function PatientDownloadsPage() {
       </section>
 
       {items.length === 0 ? (
-        <EmptyState label="Aun no tienes tokens activos de descarga." />
+        <EmptyState label="Aún no tienes tokens activos de descarga." />
       ) : (
         <div className="grid gap-4">
           {items.map((item) => (

@@ -25,7 +25,7 @@ export function BooksPage() {
       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">Libros</p>
       <h1 className="font-display mt-3 text-5xl font-semibold md:text-6xl">Biblioteca digital para pacientes y estudiantes</h1>
       <p className="mt-5 max-w-2xl text-sm leading-7 text-[var(--color-copy)] md:text-base">
-        Materiales cuidados con la misma sensibilidad de la clinica: utiles, claros y listos para comprar desde tu cuenta.
+        Materiales cuidados con la misma sensibilidad de la clínica: útiles, claros y listos para comprar desde tu cuenta.
       </p>
 
       <div className="mt-8 rounded-[30px] border border-[var(--color-border)] bg-white/75 p-5 shadow-[0_18px_50px_rgba(62,42,31,0.08)]">
@@ -50,7 +50,7 @@ export function BooksPage() {
       <div className="mt-10">
         {loading && <LoadingState label="Cargando libros..." />}
         {error && <ErrorState label="No pudimos cargar los libros." />}
-        {!loading && !error && items.length === 0 && <EmptyState label="Todavia no hay libros activos." />}
+        {!loading && !error && items.length === 0 && <EmptyState label="Todavía no hay libros activos." />}
         {!loading && !error && items.length > 0 && (
           <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
             {items.map((book) => (

@@ -80,7 +80,7 @@ export function PatientDashboardPage() {
 
       <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <div className="rounded-[28px] border border-[var(--color-border)] bg-white/75 p-6">
-          <h2 className="text-xl font-semibold">Tu proxima actividad</h2>
+          <h2 className="text-xl font-semibold">Tu próxima actividad</h2>
           {summary.nextAppointment ? (
             <div className="mt-5 rounded-[22px] bg-[rgba(247,242,236,0.78)] p-5">
               <p className="text-sm font-semibold text-[var(--color-ink)]">{summary.nextAppointment.title}</p>
@@ -91,7 +91,7 @@ export function PatientDashboardPage() {
               </p>
             </div>
           ) : (
-            <EmptyState label="Todavia no tienes una cita programada." />
+            <EmptyState label="Todavía no tienes una cita programada." />
           )}
         </div>
 

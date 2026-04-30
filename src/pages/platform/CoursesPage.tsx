@@ -27,7 +27,7 @@ export function CoursesPage() {
 
   return (
     <section className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24">
-      <PageIntro eyebrow="Cursos" title="FormaciÃ³n clÃ­nica premium para profesionales y estudiantes del Ã¡rea estÃ©tica." />
+      <PageIntro eyebrow="Cursos" title="Formación clínica premium para profesionales y estudiantes del área estética." />
       <div className="mt-8 max-w-xs"><select value={city} onChange={(event) => setCity(event.target.value)} className="premium-input"><option>Todas</option>{boliviaCities.map((item) => <option key={item}>{item}</option>)}</select></div>
       <div className="mt-12">
         {loading && <LoadingState />}
@@ -38,19 +38,19 @@ export function CoursesPage() {
             <article key={course.id} className="overflow-hidden rounded-[30px] border border-[var(--color-border)] bg-white/60">
               <img src={course.cover_image ?? "/doctora/dra3.jpg"} alt={course.title} className="h-72 w-full object-cover" />
               <div className="p-6">
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-accent-strong)]">{course.city} Â· {course.modality}</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-accent-strong)]">{course.city} · {course.modality}</p>
                 <h2 className="mt-3 text-2xl font-semibold">{course.title}</h2>
                 <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">{course.short_description}</p>
                 <div className="mt-5 grid gap-2 text-sm text-[var(--color-copy)] sm:grid-cols-2">
-                  <span>{course.start_date} Â· {course.start_time}</span>
-                  <span>{formatMoney(course.price)} Â· {course.available_slots ?? 0} cupos</span>
+                  <span>{course.start_date} · {course.start_time}</span>
+                  <span>{formatMoney(course.price)} · {course.available_slots ?? 0} cupos</span>
                 </div>
                 <div className="mt-6 flex flex-wrap gap-3">
                   <Link to={`/cursos/${course.slug}`} className="inline-flex rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white">
                     Ver curso
                   </Link>
                   <button type="button" onClick={() => setInterest(course)} className="rounded-full border border-[var(--color-border)] px-6 py-3 text-sm font-semibold">
-                    Mas informacion
+                    Más información
                   </button>
                 </div>
               </div>

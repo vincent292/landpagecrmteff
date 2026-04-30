@@ -26,7 +26,7 @@ export function PatientAppointmentsPage() {
 
   if (loading) return <LoadingState label="Cargando tus citas..." />;
   if (error) return <ErrorState label="No pudimos cargar tus citas." />;
-  if (items.length === 0 && reservations.length === 0) return <EmptyState label="Todavia no tienes citas registradas." />;
+  if (items.length === 0 && reservations.length === 0) return <EmptyState label="Todavía no tienes citas registradas." />;
 
   return (
     <div className="grid gap-4">

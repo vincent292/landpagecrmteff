@@ -51,7 +51,7 @@ export function AdminDashboard() {
         <div className="mt-4 grid gap-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-end">
           <div>
             <h1 className="font-display text-5xl font-semibold leading-[0.92] text-[var(--color-ink)] md:text-6xl">
-              Una vista clara para mover el dia a dia de la clinica con elegancia.
+              Una vista clara para mover el día a día de la clínica con elegancia.
             </h1>
             <p className="mt-5 max-w-2xl text-sm leading-7 text-[var(--color-copy)] md:text-base">
               Aqui concentramos solicitudes, inscripciones, actividades y tratamientos
@@ -84,7 +84,7 @@ export function AdminDashboard() {
                   <th className="py-3">Nombre</th>
                   <th>Celular</th>
                   <th>Ciudad</th>
-                  <th>Interes</th>
+                  <th>Interés</th>
                   <th>Estado</th>
                   <th>Fecha</th>
                 </tr>

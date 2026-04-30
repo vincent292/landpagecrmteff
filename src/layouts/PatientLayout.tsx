@@ -57,7 +57,7 @@ export function PatientLayout() {
           onClick={() => void signOut()}
           className="mt-8 w-full rounded-full border border-[var(--color-border)] px-4 py-3 text-sm font-semibold"
         >
-          Cerrar sesion
+          Cerrar sesión
         </button>
       </aside>
 
@@ -68,7 +68,7 @@ export function PatientLayout() {
               {profile?.full_name ?? user?.email ?? "Paciente"}
             </p>
             <p className="text-xs text-[var(--color-copy)]">
-              Tu informacion y documentos privados viven aqui.
+              Tu información y documentos privados viven aquí.
             </p>
           </div>
         </header>

@@ -11,7 +11,7 @@ export function AccessDeniedPage() {
           Esta area esta reservada para otro tipo de perfil.
         </h1>
         <p className="mt-5 text-sm leading-7 text-[var(--color-copy)] md:text-base">
-          La informacion clinica, administrativa y privada se muestra segun los permisos de tu cuenta para proteger la experiencia de pacientes y equipo medico.
+          La información clínica, administrativa y privada se muestra según los permisos de tu cuenta para proteger la experiencia de pacientes y equipo médico.
         </p>
         <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
           <Link to="/" className="rounded-full border border-[var(--color-border)] px-6 py-3 text-sm font-semibold text-[var(--color-ink)]">
