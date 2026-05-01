@@ -17,14 +17,21 @@
   --color-border: rgba(198, 162, 123, 0.24);
 }
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 html {
   scroll-behavior: smooth;
   background: var(--color-base);
+  overflow-x: hidden;
 }
 
 body {
   margin: 0;
-  min-height: 100vh;
+  min-height: 100svh;
   overflow-x: hidden;
   font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
   color: var(--color-ink);
@@ -39,7 +46,16 @@ body {
 }
 
 #root {
-  min-height: 100vh;
+  min-height: 100svh;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
 }
 
 ::selection {
@@ -66,6 +82,36 @@ body {
 .premium-input:focus {
   border-color: rgba(154, 107, 67, 0.42);
   box-shadow: 0 0 0 4px rgba(198, 162, 123, 0.14);
+}
+
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(216, 194, 174, 0.22), rgba(255, 249, 244, 0.74), rgba(216, 194, 174, 0.22));
+  background-size: 220% 100%;
+  animation: skeleton-shimmer 1.3s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 120% 0;
+  }
+
+  100% {
+    background-position: -120% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }
 
 .fc {
