@@ -12,6 +12,7 @@ const publicLinks = [
   { label: "Libros", href: "/libros" },
   { label: "Agenda", href: "/agenda" },
   { label: "Galeria", href: "/galeria" },
+  { label: "Doctoras", href: "/doctoras" },
   { label: "Contacto", href: "/contacto" },
 ];
 
