@@ -11,6 +11,7 @@ export type SiteSettingsRow = {
   city: string | null;
   maps_url: string | null;
   maps_embed_url: string | null;
+  business_hours?: string | null;
   footer_text: string | null;
   updated_at: string;
 };
@@ -26,17 +27,43 @@ const fallbackSettings: SiteSettingsRow = {
   city: "Cochabamba",
   maps_url: null,
   maps_embed_url: null,
+  business_hours: null,
   footer_text: "Una experiencia clinica sobria, cercana y pensada para sentirse impecable en cualquier pantalla.",
   updated_at: new Date().toISOString(),
 };
 
+function shouldRetryRequest(message: string) {
+  const normalized = message.toLowerCase();
+
+  return normalized.includes("failed to fetch") || normalized.includes("service unavailable");
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function getSiteSettings() {
-  const { data, error } = await supabase.from("site_settings").select("*").eq("id", true).maybeSingle();
-  if (error) {
+  let lastError: unknown = null;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const { data, error } = await supabase.from("site_settings").select("*").eq("id", true).maybeSingle();
+
+    if (!error) {
+      return (data ?? fallbackSettings) as SiteSettingsRow;
+    }
+
     if (error.code === "42P01") return fallbackSettings;
-    throw error;
+
+    lastError = error;
+
+    if (!shouldRetryRequest(error.message) || attempt === 2) {
+      throw error;
+    }
+
+    await sleep(350 * (attempt + 1));
   }
-  return (data ?? fallbackSettings) as SiteSettingsRow;
+
+  throw lastError instanceof Error ? lastError : new Error("No se pudieron cargar los ajustes del sitio.");
 }
 
 export async function updateSiteSettings(data: Partial<SiteSettingsRow>) {

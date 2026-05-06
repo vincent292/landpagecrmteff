@@ -1,23 +1,24 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CheckCircle2, X } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { createInformationRequest } from "../../services/requestService";
-import { cn } from "../../lib/cn";
 import { boliviaCities } from "../../data/cities";
+import { cn } from "../../lib/cn";
+import { createInformationRequest } from "../../services/requestService";
 
 const schema = z.object({
   full_name: z.string().min(3, "Escribe tu nombre completo"),
-  phone: z.string().min(7, "Escribe un WhatsApp válido"),
+  phone: z.string().min(7, "Escribe un WhatsApp valido"),
   city: z.string().min(2, "Indica tu ciudad"),
   interest_type: z.enum(["Tratamiento", "Promoción", "Curso", "Evento", "General"]),
-  interest_title: z.string().min(2, "Indica el interés"),
+  interest_title: z.string().min(2, "Indica el interes"),
   contact_preference: z.enum(["WhatsApp", "Llamada", "Correo"]),
   message: z.string().optional(),
-  privacy_accepted: z.boolean().refine(Boolean, "Debes aceptar la política de privacidad"),
+  privacy_accepted: z.boolean().refine(Boolean, "Debes aceptar la politica de privacidad"),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -56,6 +57,7 @@ export function InfoRequestModal({
 
   useEffect(() => {
     if (!open) return;
+
     setSent(false);
     setSubmitError("");
     reset({
@@ -70,7 +72,18 @@ export function InfoRequestModal({
     });
   }, [interest, interestType, open, reset]);
 
-  if (!open) return null;
+  useEffect(() => {
+    if (!open) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
+
+  if (!open || typeof document === "undefined") return null;
 
   const onSubmit = async (values: FormValues) => {
     setSubmitError("");
@@ -89,12 +102,12 @@ export function InfoRequestModal({
       setSent(true);
       window.setTimeout(onClose, 1400);
     } catch {
-      setSubmitError("No pudimos registrar la solicitud. Inténtalo otra vez.");
+      setSubmitError("No pudimos registrar la solicitud. Intentalo otra vez.");
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[rgba(43,33,27,0.42)] px-4 py-8 backdrop-blur-sm">
+  return createPortal(
+    <div className="fixed inset-0 z-[120] flex min-h-screen items-center justify-center bg-[rgba(43,33,27,0.42)] px-4 py-8 backdrop-blur-md">
       <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[32px] border border-[var(--color-border)] bg-[rgba(255,249,244,0.96)] p-5 shadow-[0_30px_90px_rgba(43,33,27,0.28)] md:p-8">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -102,7 +115,7 @@ export function InfoRequestModal({
               Solicitud privada
             </p>
             <h2 className="font-display mt-3 text-4xl font-semibold text-[var(--color-ink)]">
-              Te contactaremos con una orientación personalizada.
+              Te contactaremos con una orientacion personalizada.
             </h2>
           </div>
           <button
@@ -122,7 +135,7 @@ export function InfoRequestModal({
               Solicitud enviada.
             </h3>
             <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">
-              El equipo revisará tu mensaje y te contactará por el canal elegido.
+              El equipo revisara tu mensaje y te contactara por el canal elegido.
             </p>
           </div>
         ) : (
@@ -136,13 +149,15 @@ export function InfoRequestModal({
             <Field label="Ciudad" error={errors.city?.message}>
               <select {...register("city")} className="premium-input">
                 <option value="">Selecciona ciudad</option>
-                {boliviaCities.map((city) => <option key={city}>{city}</option>)}
+                {boliviaCities.map((city) => (
+                  <option key={city}>{city}</option>
+                ))}
               </select>
             </Field>
-            <Field label="Tipo de interés" error={errors.interest_type?.message}>
+            <Field label="Tipo de interes" error={errors.interest_type?.message}>
               <input {...register("interest_type")} readOnly className="premium-input bg-white/50 text-[var(--color-copy)]" />
             </Field>
-            <Field label="Interés seleccionado" error={errors.interest_title?.message}>
+            <Field label="Interes seleccionado" error={errors.interest_title?.message}>
               <input {...register("interest_title")} readOnly className="premium-input bg-white/50 text-[var(--color-copy)]" />
             </Field>
             <Field label="Preferencia de contacto" error={errors.contact_preference?.message}>
@@ -159,12 +174,12 @@ export function InfoRequestModal({
             </div>
             <label className="flex gap-3 text-sm leading-6 text-[var(--color-copy)] md:col-span-2">
               <input type="checkbox" {...register("privacy_accepted")} className="mt-1" />
-              Acepto la política de privacidad y autorizo el contacto para recibir información.
+              Acepto la politica de privacidad y autorizo el contacto para recibir informacion.
             </label>
-            {errors.privacy_accepted?.message && (
+            {errors.privacy_accepted?.message ? (
               <p className="text-sm text-red-700 md:col-span-2">{errors.privacy_accepted.message}</p>
-            )}
-            {submitError && <p className="text-sm text-red-700 md:col-span-2">{submitError}</p>}
+            ) : null}
+            {submitError ? <p className="text-sm text-red-700 md:col-span-2">{submitError}</p> : null}
             <button
               type="submit"
               disabled={isSubmitting}
@@ -178,7 +193,8 @@ export function InfoRequestModal({
           </form>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -195,7 +211,7 @@ function Field({
     <label className="block">
       <span className="text-sm font-semibold text-[var(--color-ink)]">{label}</span>
       <div className="mt-2">{children}</div>
-      {error && <span className="mt-1 block text-sm text-red-700">{error}</span>}
+      {error ? <span className="mt-1 block text-sm text-red-700">{error}</span> : null}
     </label>
   );
 }

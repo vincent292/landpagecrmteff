@@ -80,6 +80,11 @@ export function SiteSettingsAdminPage() {
             </Field>
           </div>
           <div className="md:col-span-2">
+            <Field label="Horarios">
+              <textarea value={values.business_hours ?? ""} onChange={(event) => setValue("business_hours", event.target.value)} className="premium-input min-h-24" />
+            </Field>
+          </div>
+          <div className="md:col-span-2">
             <Field label="Texto footer">
               <textarea value={values.footer_text ?? ""} onChange={(event) => setValue("footer_text", event.target.value)} className="premium-input min-h-24" />
             </Field>

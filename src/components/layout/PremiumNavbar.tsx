@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
-
 import { Menu, X } from "lucide-react";
 import { Link, NavLink } from "react-router-dom";
 
-import { BrandSignature } from "../common/BrandSignature";
 import { cn } from "../../lib/cn";
+import { BrandSignature } from "../common/BrandSignature";
 
 const publicLinks = [
   { label: "Tratamientos", href: "/tratamientos" },
@@ -12,8 +11,8 @@ const publicLinks = [
   { label: "Cursos", href: "/cursos" },
   { label: "Libros", href: "/libros" },
   { label: "Agenda", href: "/agenda" },
-  { label: "Galería", href: "/galeria" },
-  { label: "Doctoras", href: "/doctoras" },
+  { label: "Galeria", href: "/galeria" },
+  { label: "Contacto", href: "/contacto" },
 ];
 
 export function PremiumNavbar() {
@@ -63,14 +62,16 @@ export function PremiumNavbar() {
           )}
         >
           <div className="flex items-center justify-between gap-4 px-4 py-3 sm:px-5 md:px-7">
-            <BrandSignature
-              className="min-w-0 pr-2"
-              subtitle="Medicina estetica"
-              textClassName="text-[1.55rem] sm:text-[1.8rem] lg:text-[1.95rem]"
-              subtitleClassName="hidden sm:block"
-            />
+            <Link to="/" className="min-w-0 pr-2">
+              <BrandSignature
+                className="min-w-0"
+                subtitle="Medicina estetica"
+                textClassName="text-[1.55rem] sm:text-[1.8rem] lg:text-[1.95rem]"
+                subtitleClassName="hidden sm:block"
+              />
+            </Link>
 
-            <nav className="hidden items-center gap-7 lg:flex">
+            <nav className="hidden items-center gap-6 lg:flex">
               {publicLinks.map((item) => (
                 <NavLink
                   key={item.href}
@@ -106,7 +107,7 @@ export function PremiumNavbar() {
             </div>
           </div>
 
-          {menuOpen && (
+          {menuOpen ? (
             <div className="border-t border-[rgba(184,138,90,0.12)] px-5 pb-5 pt-4 lg:hidden">
               <nav className="grid gap-2">
                 {publicLinks.map((item) => (
@@ -133,7 +134,7 @@ export function PremiumNavbar() {
                 </Link>
               </nav>
             </div>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

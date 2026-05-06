@@ -32,6 +32,18 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function isInvalidStoredSession(message: string) {
+  const normalized = message.toLowerCase();
+
+  return (
+    normalized.includes("refresh token") &&
+    (normalized.includes("invalid") ||
+      normalized.includes("not found") ||
+      normalized.includes("already used") ||
+      normalized.includes("revoked"))
+  );
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<UserRole>("user");
@@ -65,12 +77,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (!active) return;
-      setSession(data.session);
-      void loadProfile(data.session?.user.id);
-      setLoading(false);
-    });
+    supabase.auth
+      .getSession()
+      .then(async ({ data, error }) => {
+        if (!active) return;
+
+        if (error && isInvalidStoredSession(error.message)) {
+          await supabase.auth.signOut({ scope: "local" });
+          setSession(null);
+          setProfile(null);
+          setRole("user");
+          setLoading(false);
+          return;
+        }
+
+        setSession(data.session);
+        void loadProfile(data.session?.user.id);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (!active) return;
+        setSession(null);
+        setProfile(null);
+        setRole("user");
+        setLoading(false);
+      });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);

@@ -28,6 +28,16 @@ export async function getActivePromotions() {
   return (data ?? []) as PromotionRow[];
 }
 
+export async function getPromotionBySlug(slug: string) {
+  const { data, error } = await supabase
+    .from("promotions")
+    .select("*, doctor_profiles(full_name, specialty, photo_url)")
+    .eq("slug", slug)
+    .maybeSingle();
+  if (error) throw error;
+  return data as PromotionRow | null;
+}
+
 export async function getAdminPromotions() {
   const { data, error } = await supabase.from("promotions").select("*, doctor_profiles(full_name, specialty, photo_url)").order("created_at", { ascending: false });
   if (error) throw error;

@@ -8,10 +8,21 @@ export type GalleryAlbumRow = {
   event_date: string | null;
   description: string | null;
   cover_image: string | null;
+  category?: string | null;
+  video_url?: string | null;
+  treatment_name?: string | null;
+  is_public?: boolean | null;
   is_featured: boolean | null;
   is_active: boolean | null;
   created_at: string;
-  gallery_images?: { image_url: string; alt_text?: string | null }[];
+  gallery_images?: {
+    image_url: string;
+    alt_text?: string | null;
+    media_type?: string | null;
+    caption?: string | null;
+    thumbnail_url?: string | null;
+    display_order?: number | null;
+  }[];
 };
 
 export async function getGalleryAlbums() {
@@ -21,7 +32,11 @@ export async function getGalleryAlbums() {
 }
 
 export async function getGalleryAlbumBySlug(slug: string) {
-  const { data, error } = await supabase.from("gallery_albums").select("*, gallery_images(*)").eq("slug", slug).maybeSingle();
+  const { data, error } = await supabase
+    .from("gallery_albums")
+    .select("*, gallery_images(*)")
+    .eq("slug", slug)
+    .maybeSingle();
   if (error) throw error;
   return data as GalleryAlbumRow | null;
 }

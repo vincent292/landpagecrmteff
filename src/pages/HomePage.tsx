@@ -10,10 +10,12 @@ import { AgendaPreviewSection } from "../components/sections/AgendaPreviewSectio
 import { BooksPreviewSection } from "../components/sections/BooksPreviewSection";
 import { DoctorSection } from "../components/sections/DoctorSection";
 import { FinalCTA } from "../components/sections/FinalCTA";
+import { GalleryPreviewSection } from "../components/sections/GalleryPreviewSection";
 import { Hero } from "../components/sections/Hero";
 import { Philosophy } from "../components/sections/Philosophy";
 import { Process } from "../components/sections/Process";
 import { Services } from "../components/sections/Services";
+import { TestimonialsSection } from "../components/sections/TestimonialsSection";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -94,6 +96,8 @@ export function HomePage() {
       <Hero />
       <Philosophy />
       <Services />
+      <TestimonialsSection />
+      <GalleryPreviewSection />
       <BooksPreviewSection />
       <Process />
       <AgendaPreviewSection />

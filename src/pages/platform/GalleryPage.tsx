@@ -1,13 +1,19 @@
-import { useEffect, useState } from "react";
-
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
+import { boliviaCities } from "../../data/cities";
 import { getGalleryAlbums, type GalleryAlbumRow } from "../../services/galleryService";
+import { getMediaKind } from "../../services/mediaStorageService";
+import { formatPublicDate, getDisplayCity } from "../../utils/publicContent";
 import { PageIntro } from "./TreatmentsPage";
+
+const galleryCategories = ["Todas", "Eventos", "Tratamientos", "Cursos", "Testimonios", "Antes y despues autorizados", "Videos"];
 
 export function GalleryPage() {
   const [albums, setAlbums] = useState<GalleryAlbumRow[]>([]);
+  const [category, setCategory] = useState("Todas");
+  const [city, setCity] = useState("Todas");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -18,24 +24,69 @@ export function GalleryPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const filteredAlbums = useMemo(
+    () =>
+      albums.filter((album) => {
+        const cityOk = city === "Todas" || getDisplayCity(album.city) === city;
+        const albumCategory = album.category ?? (album.video_url ? "Videos" : "Eventos");
+        const categoryOk = category === "Todas" || albumCategory === category;
+        return cityOk && categoryOk;
+      }),
+    [albums, category, city]
+  );
+
   return (
     <section className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24">
-      <PageIntro eyebrow="Galería" title="Book visual de jornadas, cursos y experiencias de la doctora." />
-      <div className="mt-12">
-        {loading && <LoadingState />}
-        {error && <ErrorState />}
-        {!loading && !error && albums.length === 0 && <EmptyState />}
-        <div className="grid gap-6 md:grid-cols-2">
-          {albums.map((album) => (
-            <Link key={album.id} to={`/galeria/${album.slug}`} className="group overflow-hidden rounded-[30px] border border-[var(--color-border)] bg-white/60">
-              <img src={album.cover_image ?? "/doctora/dra5.jpg"} alt={album.title} className="h-80 w-full object-cover transition duration-700 group-hover:scale-105" />
-              <div className="p-6">
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-accent-strong)]">{album.city} · {album.event_date}</p>
-                <h2 className="mt-3 text-2xl font-semibold">{album.title}</h2>
-                <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">{album.description}</p>
-              </div>
-            </Link>
+      <PageIntro
+        eyebrow="Galeria"
+        title="Contenido público organizado por categorías, ciudades y material autorizado."
+        text="La galería distingue jornadas, cursos, tratamientos y material audiovisual publicado para el frente público."
+      />
+
+      <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+        <select value={category} onChange={(event) => setCategory(event.target.value)} className="premium-input sm:max-w-xs">
+          {galleryCategories.map((item) => (
+            <option key={item}>{item}</option>
           ))}
+        </select>
+        <select value={city} onChange={(event) => setCity(event.target.value)} className="premium-input sm:max-w-xs">
+          <option>Todas</option>
+          {boliviaCities.map((item) => (
+            <option key={item}>{item}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="mt-12">
+        {loading ? <LoadingState label="Cargando galeria..." /> : null}
+        {error ? <ErrorState label="No pudimos cargar la galeria pública." /> : null}
+        {!loading && !error && filteredAlbums.length === 0 ? <EmptyState label="Todavía no hay álbumes públicos para estos filtros." /> : null}
+        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {filteredAlbums.map((album) => {
+            const previewMedia = album.video_url ?? album.cover_image;
+            const isVideo = getMediaKind(previewMedia) === "video";
+
+            return (
+              <Link key={album.id} to={`/galeria/${album.slug}`} className="group overflow-hidden rounded-[30px] border border-[var(--color-border)] bg-white/60 shadow-[0_18px_48px_rgba(110,74,47,0.08)]">
+                {isVideo && previewMedia ? (
+                  <video src={previewMedia} className="h-80 w-full object-cover transition duration-700 group-hover:scale-[1.02]" muted playsInline preload="metadata" />
+                ) : (
+                  <img src={album.cover_image ?? "/doctora/dra5.jpg"} alt={album.title} className="h-80 w-full object-cover transition duration-700 group-hover:scale-[1.02]" />
+                )}
+                <div className="p-6">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-accent-strong)]">
+                    {album.category ?? (album.video_url ? "Videos" : "Eventos")} · {getDisplayCity(album.city)}
+                  </p>
+                  <h2 className="mt-3 text-2xl font-semibold text-[var(--color-ink)]">{album.title}</h2>
+                  <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">{album.description}</p>
+                  <div className="mt-4 flex flex-wrap gap-3 text-sm text-[var(--color-copy)]">
+                    <span>{formatPublicDate(album.event_date)}</span>
+                    {album.treatment_name ? <span>{album.treatment_name}</span> : null}
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
         </div>
       </div>
     </section>

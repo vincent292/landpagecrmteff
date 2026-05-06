@@ -1,5 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
-
+import { useEffect, useMemo, useState } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
@@ -8,9 +7,18 @@ import { X } from "lucide-react";
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { DoctorByline } from "../../components/platform/DoctorByline";
 import { InfoRequestModal } from "../../components/platform/InfoRequestModal";
+import { boliviaCities } from "../../data/cities";
 import { getCalendarEvents } from "../../services/calendarService";
 import { getCourses } from "../../services/courseService";
 import { getActivePromotions } from "../../services/promotionService";
+import {
+  formatDateTimeLine,
+  formatPublicDate,
+  getDisplayCity,
+  matchesAgendaType,
+  normalizeAgendaType,
+  publicAgendaTypes,
+} from "../../utils/publicContent";
 import { PageIntro } from "./TreatmentsPage";
 
 type AgendaItem = {
@@ -46,7 +54,7 @@ export function AgendaPage() {
   useEffect(() => {
     Promise.all([getCalendarEvents(), getActivePromotions(), getCourses()])
       .then(([events, promotions, courses]) => {
-        setAllEvents([
+        const merged: AgendaItem[] = [
           ...events.map((event) => ({
             id: event.id,
             request_id: event.id,
@@ -95,7 +103,11 @@ export function AgendaPage() {
             available_slots: course.available_slots,
             doctor_profiles: course.doctor_profiles,
           })),
-        ]);
+        ]
+          .filter((item) => Boolean(item.event_date))
+          .sort((a, b) => String(a.event_date).localeCompare(String(b.event_date)));
+
+        setAllEvents(merged);
       })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
@@ -104,44 +116,52 @@ export function AgendaPage() {
   const events = useMemo(
     () =>
       allEvents.filter(
-        (event) => (city === "Todas" || event.city === city) && (type === "Todos" || event.event_type === type)
+        (event) =>
+          (city === "Todas" || getDisplayCity(event.city) === city) &&
+          (type === "Todos" || matchesAgendaType(event.event_type, type))
       ),
     [allEvents, city, type]
   );
 
+  const upcomingEvents = events.slice(0, 7);
+
   return (
     <section className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24">
-      <PageIntro eyebrow="Agenda" title="Calendario de actividades, cursos y jornadas especiales." />
+      <PageIntro
+        eyebrow="Agenda"
+        title="Calendario de actividades, cursos, promociones y jornadas especiales."
+        text="Mantuvimos la vista de calendario con previsualización lateral para revisar fechas y abrir el detalle desde el mismo flujo."
+      />
       <div className="mt-8 flex flex-col gap-3 sm:flex-row">
         <select value={city} onChange={(event) => setCity(event.target.value)} className="premium-input sm:max-w-xs">
           <option>Todas</option>
-          {[...new Set(allEvents.map((event) => event.city).filter(Boolean))].map((item) => <option key={item}>{item}</option>)}
+          {boliviaCities.map((item) => (
+            <option key={item}>{item}</option>
+          ))}
         </select>
         <select value={type} onChange={(event) => setType(event.target.value)} className="premium-input sm:max-w-xs">
           <option>Todos</option>
-          <option>Curso</option>
           <option>Promoción</option>
-          <option>Procedimiento</option>
-          <option>Cirugía</option>
-          <option>Presentación</option>
-          <option>Jornada</option>
-          <option>Valoración</option>
+          {publicAgendaTypes.map((item) => (
+            <option key={item}>{item}</option>
+          ))}
         </select>
       </div>
       <div className="mt-10">
-        {loading && <LoadingState />}
-        {error && <ErrorState />}
-        {!loading && !error && events.length === 0 && <EmptyState />}
-        {!loading && !error && events.length > 0 && (
+        {loading ? <LoadingState label="Cargando agenda..." /> : null}
+        {error ? <ErrorState label="No pudimos cargar la agenda pública." /> : null}
+        {!loading && !error && events.length === 0 ? <EmptyState label="Todavía no hay actividades publicadas para esos filtros." /> : null}
+        {!loading && !error && events.length > 0 ? (
           <div className="grid gap-8 lg:grid-cols-[1fr_380px]">
-            <div className="rounded-[28px] border border-[var(--color-border)] bg-white/70 p-4">
+            <div className="rounded-[28px] border border-[var(--color-border)] bg-white/70 p-4 shadow-[0_18px_50px_rgba(62,42,31,0.08)]">
               <FullCalendar
                 plugins={[dayGridPlugin, interactionPlugin]}
                 initialView="dayGridMonth"
                 height="auto"
+                locale="es"
                 events={events.map((event) => ({
                   id: event.id,
-                  title: `${event.event_type}: ${event.title}`,
+                  title: `${normalizeAgendaType(event.event_type)}: ${event.title}`,
                   start: event.event_date ?? undefined,
                   end: event.end_date ?? undefined,
                 }))}
@@ -149,38 +169,63 @@ export function AgendaPage() {
               />
             </div>
             <aside className="space-y-4">
-              <h2 className="text-2xl font-semibold">Próximas actividades</h2>
-              {events.map((event) => (
-                <button key={event.id} onClick={() => setSelected(event)} className="w-full rounded-[24px] border border-[var(--color-border)] bg-white/60 p-5 text-left">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-accent-strong)]">{event.event_type} · {event.city}</p>
-                  <h3 className="mt-2 text-lg font-semibold">{event.title}</h3>
-                  <p className="mt-2 text-sm text-[var(--color-copy)]">{event.event_date} · {event.start_time}</p>
+              <h2 className="text-2xl font-semibold text-[var(--color-ink)]">Próximas actividades</h2>
+              {upcomingEvents.map((event) => (
+                <button
+                  key={event.id}
+                  type="button"
+                  onClick={() => setSelected(event)}
+                  className="w-full rounded-[24px] border border-[var(--color-border)] bg-white/60 p-5 text-left shadow-[0_18px_42px_rgba(62,42,31,0.06)]"
+                >
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-accent-strong)]">
+                    {normalizeAgendaType(event.event_type)} · {getDisplayCity(event.city)}
+                  </p>
+                  <h3 className="mt-2 text-lg font-semibold text-[var(--color-ink)]">{event.title}</h3>
+                  <p className="mt-2 text-sm text-[var(--color-copy)]">{formatDateTimeLine(event.event_date, event.start_time)}</p>
                 </button>
               ))}
             </aside>
           </div>
-        )}
+        ) : null}
       </div>
-      {selected && (
+
+      {selected ? (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
           <div className="grid max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-[32px] bg-[var(--color-surface)] md:grid-cols-[0.9fr_1.1fr]">
             <img src={selected.cover_image ?? "/doctora/dra3.jpg"} alt={selected.title} className="h-full min-h-80 w-full object-cover" />
             <div className="p-6 md:p-8">
-              <button onClick={() => setSelected(null)} className="float-right rounded-full border border-[var(--color-border)] p-2"><X className="h-5 w-5" /></button>
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-accent-strong)]">{selected.event_type} · {selected.city}</p>
-              <h2 className="font-display mt-4 text-5xl font-semibold">{selected.title}</h2>
+              <button type="button" onClick={() => setSelected(null)} className="float-right rounded-full border border-[var(--color-border)] p-2">
+                <X className="h-5 w-5" />
+              </button>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-accent-strong)]">
+                {normalizeAgendaType(selected.event_type)} · {getDisplayCity(selected.city)}
+              </p>
+              <h2 className="font-display mt-4 text-4xl font-semibold text-[var(--color-ink)]">{selected.title}</h2>
               <DoctorByline doctor={selected.doctor_profiles} />
               <p className="mt-5 text-sm leading-7 text-[var(--color-copy)]">{selected.description}</p>
-              <p className="mt-5 text-sm leading-7 text-[var(--color-copy)]">{selected.event_date} · {selected.start_time}<br />{selected.location}<br />{selected.available_slots ?? 0} cupos</p>
-              <div className="mt-6 flex flex-wrap gap-3"><button onClick={() => setInterest(selected)} className="rounded-full bg-[var(--color-caramel)] px-6 py-3 text-sm font-semibold text-white">Pedir más información</button></div>
+              <div className="mt-5 space-y-2 text-sm leading-7 text-[var(--color-copy)]">
+                <p>{formatDateTimeLine(selected.event_date, selected.start_time)}</p>
+                <p>{selected.location ?? getDisplayCity(selected.city)}</p>
+                <p>{selected.available_slots ?? 0} cupos disponibles</p>
+                <p>Vigencia: {formatPublicDate(selected.event_date)}</p>
+              </div>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button onClick={() => setInterest(selected)} className="rounded-full bg-[var(--color-caramel)] px-6 py-3 text-sm font-semibold text-white">
+                  {selected.request_type === "Promoción" ? "Pedir información" : "Reservar"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      )}
-      <InfoRequestModal open={Boolean(interest)} interest={interest?.title ?? ""} interestId={interest?.request_id} interestType={interest?.request_type ?? "Evento"} onClose={() => setInterest(null)} />
+      ) : null}
+
+      <InfoRequestModal
+        open={Boolean(interest)}
+        interest={interest?.title ?? ""}
+        interestId={interest?.request_id}
+        interestType={interest?.request_type ?? "Evento"}
+        onClose={() => setInterest(null)}
+      />
     </section>
   );
 }
-
-
-

@@ -67,6 +67,7 @@ const CourseDetailPage = lazyPage(() => import("./pages/platform/CourseDetailPag
 const CoursesPage = lazyPage(() => import("./pages/platform/CoursesPage"), "CoursesPage");
 const GalleryDetailPage = lazyPage(() => import("./pages/platform/GalleryDetailPage"), "GalleryDetailPage");
 const GalleryPage = lazyPage(() => import("./pages/platform/GalleryPage"), "GalleryPage");
+const PromotionDetailPage = lazyPage(() => import("./pages/platform/PromotionDetailPage"), "PromotionDetailPage");
 const PromotionsPage = lazyPage(() => import("./pages/platform/PromotionsPage"), "PromotionsPage");
 const TreatmentDetailPage = lazyPage(() => import("./pages/platform/TreatmentDetailPage"), "TreatmentDetailPage");
 const TreatmentsPage = lazyPage(() => import("./pages/platform/TreatmentsPage"), "TreatmentsPage");
@@ -84,6 +85,7 @@ export default function App() {
         <Route path="/tratamientos" element={<TreatmentsPage />} />
         <Route path="/tratamientos/:slug" element={<TreatmentDetailPage />} />
         <Route path="/promociones" element={<PromotionsPage />} />
+        <Route path="/promociones/:slug" element={<PromotionDetailPage />} />
         <Route path="/cursos" element={<CoursesPage />} />
         <Route path="/cursos/:slug" element={<CourseDetailPage />} />
         <Route path="/libros" element={<BooksPage />} />

@@ -1,54 +1,250 @@
+import { useEffect, useMemo, useState } from "react";
 import { ArrowRight } from "lucide-react";
+import { Link } from "react-router-dom";
 
-import { services } from "../../data/landing";
+import { InfoRequestModal } from "../platform/InfoRequestModal";
 import { AnimatedCard } from "../ui/AnimatedCard";
-import { GlassCard } from "../ui/GlassCard";
+import { ImageWithSkeleton } from "../ui/ImageWithSkeleton";
 import { SectionHeading } from "../ui/SectionHeading";
 import { SectionReveal } from "../ui/SectionReveal";
+import { getActivePromotions, type PromotionRow } from "../../services/promotionService";
+import { getCourses, type CourseRow } from "../../services/courseService";
+import {
+  getFeaturedTreatments,
+  getTreatments,
+  type TreatmentRow,
+} from "../../services/treatmentService";
+import { formatMoney } from "../../utils/text";
+import { formatDateTimeLine, getDisplayCity, isCurrentPromotion, normalizeAgendaType } from "../../utils/publicContent";
+
+type HighlightCard =
+  | {
+      kind: "Tratamiento";
+      id: string;
+      title: string;
+      description: string;
+      image: string | null;
+      category: string;
+      primaryLabel: string;
+      moreHref: string;
+      interestType: "Tratamiento";
+      payload: TreatmentRow;
+    }
+  | {
+      kind: "Promocion";
+      id: string;
+      title: string;
+      description: string;
+      image: string | null;
+      category: string;
+      primaryLabel: string;
+      moreHref: string;
+      interestType: "Promoción";
+      payload: PromotionRow;
+    }
+  | {
+      kind: "Curso";
+      id: string;
+      title: string;
+      description: string;
+      image: string | null;
+      category: string;
+      primaryLabel: string;
+      moreHref: string;
+      interestType: "Curso";
+      payload: CourseRow;
+    };
 
 export function Services() {
+  const [interest, setInterest] = useState<HighlightCard | null>(null);
+  const [cards, setCards] = useState<HighlightCard[]>([]);
+
+  useEffect(() => {
+    let active = true;
+
+    Promise.all([
+      getFeaturedTreatments().then((rows) => rows[0] ?? null).catch(async () => (await getTreatments())[0] ?? null),
+      getActivePromotions().then((rows) => rows.find((item) => isCurrentPromotion(item.end_date)) ?? rows[0] ?? null),
+      getCourses().then((rows) => rows[0] ?? null),
+    ])
+      .then(([treatment, promotion, course]) => {
+        if (!active) return;
+
+        const nextCards: HighlightCard[] = [];
+
+        if (treatment) {
+          nextCards.push({
+            kind: "Tratamiento",
+            id: treatment.id,
+            title: treatment.title,
+            description: treatment.short_description ?? treatment.description ?? "Informacion disponible en el detalle del tratamiento.",
+            image: treatment.cover_image,
+            category: treatment.city ? `Tratamiento · ${getDisplayCity(treatment.city)}` : "Tratamiento destacado",
+            primaryLabel: "Pedir informacion",
+            moreHref: `/tratamientos/${treatment.slug}`,
+            interestType: "Tratamiento",
+            payload: treatment,
+          });
+        }
+
+        if (promotion) {
+          nextCards.push({
+            kind: "Promocion",
+            id: promotion.id,
+            title: promotion.title,
+            description: promotion.description ?? "Consulta la vigencia y las condiciones de esta promocion desde el detalle.",
+            image: promotion.cover_image,
+            category: `Promocion · ${getDisplayCity(promotion.city)}`,
+            primaryLabel: "Pedir informacion",
+            moreHref: `/promociones/${promotion.slug}`,
+            interestType: "Promoción",
+            payload: promotion,
+          });
+        }
+
+        if (course) {
+          nextCards.push({
+            kind: "Curso",
+            id: course.id,
+            title: course.title,
+            description: course.short_description ?? course.description ?? "Revisa el contenido, la modalidad y la fecha del curso.",
+            image: course.cover_image,
+            category: `${getDisplayCity(course.city)} · ${normalizeAgendaType(course.modality ?? "Curso")}`,
+            primaryLabel: "Inscribirme",
+            moreHref: `/cursos/${course.slug}`,
+            interestType: "Curso",
+            payload: course,
+          });
+        }
+
+        setCards(nextCards);
+      })
+      .catch(() => setCards([]));
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const actionLinks = useMemo(
+    () => [
+      { href: "/tratamientos", label: "Ver tratamientos" },
+      { href: "/promociones", label: "Ver promociones" },
+      { href: "/cursos", label: "Ver cursos" },
+    ],
+    []
+  );
+
+  if (cards.length === 0) {
+    return (
+      <SectionReveal id="servicios" className="mx-auto max-w-7xl px-6 py-28 md:px-8 md:py-36">
+        <SectionHeading
+          eyebrow="Servicios"
+          title="Tratamientos, promociones y cursos conectados al panel de forma centralizada."
+          description="Cuando el equipo publique nuevo contenido desde administración, se mostrará aquí automáticamente."
+          align="center"
+        />
+      </SectionReveal>
+    );
+  }
+
   return (
-    <SectionReveal
-      id="servicios"
-      className="mx-auto max-w-7xl px-6 py-28 md:px-8 md:py-36"
-    >
+    <SectionReveal id="servicios" className="mx-auto max-w-7xl px-6 py-28 md:px-8 md:py-36">
       <SectionHeading
         eyebrow="Servicios"
-        title="Enfoques diseñados para realzar, equilibrar y acompañar."
-        description="Una propuesta clínica premium que combina medicina estética y ortomolecular desde una mirada elegante, actual y personalizada."
+        title="Tratamientos, promociones y cursos destacados según la actividad actual del consultorio."
+        description="La sección se actualiza con el contenido activo publicado desde el panel para mantener una vista pública consistente y vigente."
         align="center"
       />
 
-      <div className="mt-16 grid min-w-0 gap-5 sm:gap-6 lg:grid-cols-3">
-        {services.map((service, index) => {
-          const Icon = service.icon;
+      <div className={`mt-16 grid gap-6 ${cards.length > 1 ? "lg:grid-cols-3" : "max-w-3xl mx-auto"}`}>
+        {cards.map((card, index) => (
+          <AnimatedCard key={`${card.kind}-${card.id}`} index={index} className="group h-full">
+            <article className="flex h-full flex-col overflow-hidden rounded-[30px] border border-[var(--color-border)] bg-[rgba(255,249,244,0.78)] shadow-[0_20px_58px_rgba(62,42,31,0.08)] transition-shadow duration-300 group-hover:shadow-[0_26px_68px_rgba(62,42,31,0.12)]">
+              <ImageWithSkeleton
+                src={card.image ?? "/doctora/dra2.jpg"}
+                alt={card.title}
+                wrapperClassName="h-72 w-full"
+              />
+              <div className="flex flex-1 flex-col p-6">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-accent-strong)]">
+                  {card.category}
+                </p>
+                <h3 className="mt-3 text-[1.7rem] font-semibold leading-tight text-[var(--color-ink)]">
+                  {card.title}
+                </h3>
+                <p className="mt-4 flex-1 text-sm leading-7 text-[var(--color-copy)]">{card.description}</p>
 
-          return (
-            <AnimatedCard key={service.title} index={index} className="group h-full">
-              <GlassCard className="h-full min-w-0 overflow-hidden p-6 transition-shadow duration-300 group-hover:shadow-[0_24px_62px_rgba(110,74,47,0.13)] sm:p-7 md:p-8">
-                <div className="flex h-full min-w-0 flex-col">
-                  <div className="mb-8 flex h-14 w-14 items-center justify-center rounded-[20px] bg-[rgba(216,194,174,0.28)] shadow-[inset_6px_6px_14px_rgba(110,74,47,0.04),inset_-6px_-6px_14px_rgba(255,255,255,0.5)] transition-transform duration-300 group-hover:scale-105">
-                    <Icon className="h-6 w-6 text-[var(--color-ink)]" />
+                {card.kind === "Promocion" ? (
+                  <div className="mt-5 flex items-center gap-3 text-sm text-[var(--color-copy)]">
+                    {card.payload.old_price != null ? (
+                      <span className="line-through">{formatMoney(card.payload.old_price)}</span>
+                    ) : null}
+                    {card.payload.promo_price != null ? (
+                      <span className="text-lg font-semibold text-[var(--color-mocha)]">
+                        {formatMoney(card.payload.promo_price)}
+                      </span>
+                    ) : null}
                   </div>
+                ) : null}
 
-                  <h3 className="break-words text-2xl font-semibold tracking-tight text-[var(--color-ink)]">
-                    {service.title}
-                  </h3>
-
-                  <p className="mt-5 flex-1 break-words text-base leading-8 text-[var(--color-copy)]">
-                    {service.description}
+                {card.kind === "Curso" ? (
+                  <p className="mt-5 text-sm text-[var(--color-copy)]">
+                    {formatDateTimeLine(card.payload.start_date, card.payload.start_time)}
                   </p>
+                ) : null}
 
-                  <div className="mt-8 flex min-w-0 items-center gap-2 text-sm font-medium text-[var(--color-ink)]">
-                    <span>Próximamente integrable a citas</span>
-                    <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-                  </div>
+                <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                  {card.kind === "Curso" ? (
+                    <Link
+                      to={card.moreHref}
+                      className="rounded-full bg-[var(--color-mocha)] px-5 py-3 text-center text-sm font-semibold text-white"
+                    >
+                      {card.primaryLabel}
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setInterest(card)}
+                      className="rounded-full bg-[var(--color-mocha)] px-5 py-3 text-sm font-semibold text-white"
+                    >
+                      {card.primaryLabel}
+                    </button>
+                  )}
+                  <Link
+                    to={card.moreHref}
+                    className="inline-flex items-center justify-center gap-2 rounded-full border border-[var(--color-border)] px-5 py-3 text-sm font-semibold text-[var(--color-ink)]"
+                  >
+                    Ver mas
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
                 </div>
-              </GlassCard>
-            </AnimatedCard>
-          );
-        })}
+              </div>
+            </article>
+          </AnimatedCard>
+        ))}
       </div>
+
+      <div className="mt-10 flex flex-wrap justify-center gap-3">
+        {actionLinks.map((item) => (
+          <Link
+            key={item.href}
+            data-reveal
+            to={item.href}
+            className="rounded-full border border-[var(--color-border)] px-5 py-3 text-sm font-semibold text-[var(--color-ink)]"
+          >
+            {item.label}
+          </Link>
+        ))}
+      </div>
+
+      <InfoRequestModal
+        open={Boolean(interest)}
+        interest={interest?.title ?? ""}
+        interestId={interest?.id}
+        interestType={interest?.interestType ?? "General"}
+        onClose={() => setInterest(null)}
+      />
     </SectionReveal>
   );
 }
