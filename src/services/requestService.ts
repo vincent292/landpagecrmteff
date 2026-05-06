@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabaseClient";
+import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
 
-export type InformationRequestRow = {
+export type InformationRequestRow = DeletionMetadata & {
   id: string;
   full_name: string;
   phone: string;
@@ -37,8 +38,11 @@ export async function createInformationRequest(
   if (error) throw error;
 }
 
-export async function getInformationRequests() {
-  const { data, error } = await supabase.from("information_requests").select("*, doctor_profiles(full_name, whatsapp)").order("created_at", { ascending: false });
+export async function getInformationRequests(includeDeleted = false) {
+  let query = supabase.from("information_requests").select("*, doctor_profiles(full_name, whatsapp)").order("created_at", { ascending: false });
+  const filter = getVisibleDeletionFilter("information_requests", includeDeleted);
+  if (filter.column) query = query.eq(filter.column, filter.value);
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as InformationRequestRow[];
 }

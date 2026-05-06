@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
+import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteActions";
+import { useAuth } from "../../hooks/useAuth";
+import { hardDeleteRecord, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
 import {
   createBook,
-  deleteBook,
   getBookById,
   getBooksAdmin,
   updateBook,
@@ -16,6 +18,7 @@ import {
 import { formatMoney, slugify } from "../../utils/text";
 
 export function BooksAdminPage() {
+  const { role, profile, user } = useAuth();
   const { id } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -43,7 +46,7 @@ export function BooksAdminPage() {
 
   const load = () => {
     setLoading(true);
-    Promise.all([getBooksAdmin(), id ? getBookById(id) : Promise.resolve(null)])
+    Promise.all([getBooksAdmin(role === "superadmin"), id ? getBookById(id) : Promise.resolve(null)])
       .then(([books, selected]) => {
         setRows(books);
         setCurrent(selected);
@@ -67,7 +70,7 @@ export function BooksAdminPage() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(load, [id]);
+  useEffect(load, [id, role]);
 
   const submit = async () => {
     let coverImage = form.cover_image;
@@ -128,14 +131,28 @@ export function BooksAdminPage() {
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-accent-strong)]">{book.author}</p>
                     <h2 className="mt-2 text-2xl font-semibold">{book.title}</h2>
                     <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">{formatMoney(book.price)} · {book.is_active ? "Activo" : "Inactivo"}</p>
+                    <DeletedStatusNote row={book} />
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Link to={`/panel/libros/${book.id}/editar`} className="rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-semibold">
                       Editar
                     </Link>
-                    <button onClick={() => void deleteBook(book.id).then(load)} className="rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-semibold">
-                      Desactivar
-                    </button>
+                    <DeleteActions
+                      role={role}
+                      row={book}
+                      onSoftDelete={() =>
+                        void softDeleteRecord({
+                          table: "books",
+                          id: book.id,
+                          actorId: profile?.id ?? user?.id ?? null,
+                          actorRole: role,
+                          actorName: profile?.full_name ?? user?.user_metadata.full_name ?? null,
+                          actorEmail: profile?.email ?? user?.email ?? null,
+                        }).then(load)
+                      }
+                      onRestore={() => void restoreRecord("books", book.id).then(load)}
+                      onHardDelete={() => void hardDeleteRecord("books", book.id).then(load)}
+                    />
                   </div>
                 </div>
               </div>

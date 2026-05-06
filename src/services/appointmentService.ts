@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabaseClient";
+import { type DeletionMetadata } from "./adminDeletionService";
 
-export type AppointmentRow = {
+export type AppointmentRow = DeletionMetadata & {
   id: string;
   patient_id: string;
   created_by: string | null;
@@ -27,6 +28,7 @@ export async function getAppointmentsByPatient(patientId: string) {
     .from("appointments")
     .select("*, profiles:created_by(full_name, email, role)")
     .eq("patient_id", patientId)
+    .eq("is_deleted", false)
     .order("appointment_date", { ascending: true });
   if (error) throw error;
   return (data ?? []) as AppointmentRow[];
@@ -37,6 +39,7 @@ export async function getMyAppointments(userId: string) {
     .from("appointments")
     .select("*, patients!inner(profile_id)")
     .eq("patients.profile_id", userId)
+    .eq("is_deleted", false)
     .order("appointment_date", { ascending: true });
   if (error) throw error;
   return (data ?? []) as AppointmentRow[];

@@ -1,8 +1,9 @@
 import { supabase } from "../lib/supabaseClient";
+import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
 
 const table = "treatments";
 
-export type TreatmentRow = {
+export type TreatmentRow = DeletionMetadata & {
   id: string;
   title: string;
   slug: string;
@@ -26,25 +27,28 @@ export type TreatmentRow = {
 };
 
 export async function getTreatments() {
-  const { data, error } = await supabase.from(table).select("*, doctor_profiles(full_name, specialty, photo_url)").eq("is_active", true).order("created_at", { ascending: false });
+  const { data, error } = await supabase.from(table).select("*, doctor_profiles(full_name, specialty, photo_url)").eq("is_active", true).is("deleted_at", null).order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as TreatmentRow[];
 }
 
 export async function getFeaturedTreatments() {
-  const { data, error } = await supabase.from(table).select("*, doctor_profiles(full_name, specialty, photo_url)").eq("is_active", true).eq("is_featured", true).order("created_at", { ascending: false });
+  const { data, error } = await supabase.from(table).select("*, doctor_profiles(full_name, specialty, photo_url)").eq("is_active", true).eq("is_featured", true).is("deleted_at", null).order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as TreatmentRow[];
 }
 
 export async function getTreatmentBySlug(slug: string) {
-  const { data, error } = await supabase.from(table).select("*, treatment_images(*), doctor_profiles(full_name, specialty, photo_url)").eq("slug", slug).maybeSingle();
+  const { data, error } = await supabase.from(table).select("*, treatment_images(*), doctor_profiles(full_name, specialty, photo_url)").eq("slug", slug).is("deleted_at", null).maybeSingle();
   if (error) throw error;
   return data as (TreatmentRow & { treatment_images?: { image_url: string; alt_text?: string | null }[] }) | null;
 }
 
-export async function getAdminTreatments() {
-  const { data, error } = await supabase.from(table).select("*, doctor_profiles(full_name, specialty, photo_url)").order("created_at", { ascending: false });
+export async function getAdminTreatments(includeDeleted = false) {
+  let query = supabase.from(table).select("*, doctor_profiles(full_name, specialty, photo_url)").order("created_at", { ascending: false });
+  const filter = getVisibleDeletionFilter("treatments", includeDeleted);
+  if (filter.column) query = query.is(filter.column, filter.value);
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as TreatmentRow[];
 }

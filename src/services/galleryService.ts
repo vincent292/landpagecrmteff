@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabaseClient";
+import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
 
-export type GalleryAlbumRow = {
+export type GalleryAlbumRow = DeletionMetadata & {
   id: string;
   title: string;
   slug: string;
@@ -26,7 +27,7 @@ export type GalleryAlbumRow = {
 };
 
 export async function getGalleryAlbums() {
-  const { data, error } = await supabase.from("gallery_albums").select("*").eq("is_active", true).order("event_date", { ascending: false });
+  const { data, error } = await supabase.from("gallery_albums").select("*").eq("is_active", true).is("deleted_at", null).order("event_date", { ascending: false });
   if (error) throw error;
   return (data ?? []) as GalleryAlbumRow[];
 }
@@ -36,13 +37,17 @@ export async function getGalleryAlbumBySlug(slug: string) {
     .from("gallery_albums")
     .select("*, gallery_images(*)")
     .eq("slug", slug)
+    .is("deleted_at", null)
     .maybeSingle();
   if (error) throw error;
   return data as GalleryAlbumRow | null;
 }
 
-export async function getAdminGalleryAlbums() {
-  const { data, error } = await supabase.from("gallery_albums").select("*, gallery_images(id)").order("created_at", { ascending: false });
+export async function getAdminGalleryAlbums(includeDeleted = false) {
+  let query = supabase.from("gallery_albums").select("*, gallery_images(id)").order("created_at", { ascending: false });
+  const filter = getVisibleDeletionFilter("gallery_albums", includeDeleted);
+  if (filter.column) query = query.is(filter.column, filter.value);
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as GalleryAlbumRow[];
 }

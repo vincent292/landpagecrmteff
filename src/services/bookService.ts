@@ -1,11 +1,12 @@
 import { slugify } from "../utils/text";
 import { supabase } from "../lib/supabaseClient";
 import { uploadPrivateFile, uploadPublicFile } from "./storageService";
+import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
 
 const coversBucket = "book-covers-public";
 const filesBucket = "book-files-private";
 
-export type BookRow = {
+export type BookRow = DeletionMetadata & {
   id: string;
   title: string;
   slug: string;
@@ -26,13 +27,14 @@ export async function getActiveBooks() {
     .from("books")
     .select("*")
     .eq("is_active", true)
+    .is("deleted_at", null)
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as BookRow[];
 }
 
 export async function getBookBySlug(slug: string) {
-  const { data, error } = await supabase.from("books").select("*").eq("slug", slug).maybeSingle();
+  const { data, error } = await supabase.from("books").select("*").eq("slug", slug).is("deleted_at", null).maybeSingle();
   if (error) throw error;
   return data as BookRow | null;
 }
@@ -43,8 +45,11 @@ export async function getBookById(id: string) {
   return data as BookRow | null;
 }
 
-export async function getBooksAdmin() {
-  const { data, error } = await supabase.from("books").select("*").order("created_at", { ascending: false });
+export async function getBooksAdmin(includeDeleted = false) {
+  let query = supabase.from("books").select("*").order("created_at", { ascending: false });
+  const filter = getVisibleDeletionFilter("books", includeDeleted);
+  if (filter.column) query = query.is(filter.column, filter.value);
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as BookRow[];
 }

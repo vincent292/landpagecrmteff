@@ -1,7 +1,8 @@
 import { supabase } from "../lib/supabaseClient";
 import { getSignedUrl } from "./storageService";
+import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
 
-export type BookTokenRow = {
+export type BookTokenRow = DeletionMetadata & {
   id: string;
   book_id: string;
   order_id: string;
@@ -48,30 +49,36 @@ export async function generateBookToken(orderId: string, options?: { maxUses?: n
 }
 
 export async function getTokensByOrder(orderId: string) {
-  const { data, error } = await supabase
+  let query = supabase
     .from("book_download_tokens")
     .select("*, books(title), book_orders(full_name)")
     .eq("order_id", orderId)
     .order("created_at", { ascending: false });
+  const filter = getVisibleDeletionFilter("book_download_tokens", false);
+  if (filter.column) query = query.is(filter.column, filter.value);
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as BookTokenRow[];
 }
 
 export async function getMyTokens(userId: string) {
-  const { data, error } = await supabase
+  let query = supabase
     .from("book_download_tokens")
     .select("*, books(title)")
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
+  const filter = getVisibleDeletionFilter("book_download_tokens", false);
+  if (filter.column) query = query.is(filter.column, filter.value);
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as BookTokenRow[];
 }
 
-export async function getAllTokensAdmin() {
-  const { data, error } = await supabase
-    .from("book_download_tokens")
-    .select("*, books(title), book_orders(full_name)")
-    .order("created_at", { ascending: false });
+export async function getAllTokensAdmin(includeDeleted = false) {
+  let query = supabase.from("book_download_tokens").select("*, books(title), book_orders(full_name)").order("created_at", { ascending: false });
+  const filter = getVisibleDeletionFilter("book_download_tokens", includeDeleted);
+  if (filter.column) query = query.is(filter.column, filter.value);
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as BookTokenRow[];
 }

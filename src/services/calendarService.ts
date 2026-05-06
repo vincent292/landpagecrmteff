@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabaseClient";
+import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
 
-export type CalendarEventRow = {
+export type CalendarEventRow = DeletionMetadata & {
   id: string;
   title: string;
   slug: string;
@@ -24,19 +25,22 @@ export type CalendarEventRow = {
 };
 
 export async function getCalendarEvents() {
-  const { data, error } = await supabase.from("calendar_events").select("*, doctor_profiles(full_name, specialty, photo_url)").eq("is_active", true).order("event_date", { ascending: true });
+  const { data, error } = await supabase.from("calendar_events").select("*, doctor_profiles(full_name, specialty, photo_url)").eq("is_active", true).is("deleted_at", null).order("event_date", { ascending: true });
   if (error) throw error;
   return (data ?? []) as CalendarEventRow[];
 }
 
 export async function getCalendarEventBySlug(slug: string) {
-  const { data, error } = await supabase.from("calendar_events").select("*, doctor_profiles(full_name, specialty, photo_url)").eq("slug", slug).maybeSingle();
+  const { data, error } = await supabase.from("calendar_events").select("*, doctor_profiles(full_name, specialty, photo_url)").eq("slug", slug).is("deleted_at", null).maybeSingle();
   if (error) throw error;
   return data as CalendarEventRow | null;
 }
 
-export async function getAdminCalendarEvents() {
-  const { data, error } = await supabase.from("calendar_events").select("*, doctor_profiles(full_name, specialty, photo_url)").order("event_date", { ascending: false });
+export async function getAdminCalendarEvents(includeDeleted = false) {
+  let query = supabase.from("calendar_events").select("*, doctor_profiles(full_name, specialty, photo_url)").order("event_date", { ascending: false });
+  const filter = getVisibleDeletionFilter("calendar_events", includeDeleted);
+  if (filter.column) query = query.is(filter.column, filter.value);
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as CalendarEventRow[];
 }

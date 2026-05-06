@@ -1,9 +1,10 @@
 import { getSignedUrl, uploadPrivateFile } from "./storageService";
 import { supabase } from "../lib/supabaseClient";
+import { type DeletionMetadata } from "./adminDeletionService";
 
 const bucket = "patient-photos-private";
 
-export type PatientPhotoRow = {
+export type PatientPhotoRow = DeletionMetadata & {
   id: string;
   patient_id: string;
   clinical_history_id: string | null;
@@ -19,7 +20,7 @@ export type PatientPhotoRow = {
   signed_url?: string | null;
 };
 
-export type PhotoComparisonRow = {
+export type PhotoComparisonRow = DeletionMetadata & {
   id: string;
   patient_id: string;
   before_photo_id: string;
@@ -53,6 +54,7 @@ export async function getPatientPhotos(patientId: string) {
     .from("patient_photos")
     .select("*, profiles:uploaded_by(full_name, email, role)")
     .eq("patient_id", patientId)
+    .eq("is_deleted", false)
     .order("created_at", { ascending: false });
   if (error) throw error;
 
@@ -76,6 +78,7 @@ export async function getPhotoComparisons(patientId: string) {
     .from("photo_comparisons")
     .select("*, before_photo:before_photo_id(*), after_photo:after_photo_id(*)")
     .eq("patient_id", patientId)
+    .eq("is_deleted", false)
     .order("created_at", { ascending: false });
   if (error) throw error;
 

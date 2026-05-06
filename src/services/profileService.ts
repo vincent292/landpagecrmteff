@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabaseClient";
+import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
 
-export type ProfileRow = {
+export type ProfileRow = DeletionMetadata & {
   id: string;
   full_name: string | null;
   email: string | null;
@@ -14,13 +15,16 @@ export async function getCurrentProfile() {
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return null;
 
-  const { data, error } = await supabase.from("profiles").select("*").eq("id", auth.user.id).maybeSingle();
+  const { data, error } = await supabase.from("profiles").select("*").eq("id", auth.user.id).eq("is_deleted", false).maybeSingle();
   if (error) throw error;
   return data as ProfileRow | null;
 }
 
-export async function getProfiles() {
-  const { data, error } = await supabase.from("profiles").select("*").order("created_at", { ascending: false });
+export async function getProfiles(includeDeleted = false) {
+  let query = supabase.from("profiles").select("*").order("created_at", { ascending: false });
+  const filter = getVisibleDeletionFilter("profiles", includeDeleted);
+  if (filter.column) query = query.eq(filter.column, filter.value);
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as ProfileRow[];
 }

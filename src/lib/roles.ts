@@ -33,12 +33,31 @@ export function isDoctorRole(role: UserRole) {
   return role === "doctor";
 }
 
+export function isAssistantRole(role: UserRole) {
+  return role === "assistant";
+}
+
 export function canManageSite(role: UserRole) {
   return isSiteAdminRole(role);
 }
 
 export function canAccessAdminModule(role: UserRole, module: string) {
   if (isSiteAdminRole(role)) return true;
+  if (role === "assistant") {
+    return [
+      "dashboard",
+      "pacientes",
+      "inscripciones",
+      "solicitudes",
+      "agenda",
+      "calendario-citas",
+      "disponibilidad",
+      "citas",
+      "pedidos-libros",
+      "tokens-libros",
+      "libros",
+    ].includes(module);
+  }
   if (role !== "doctor") return false;
 
   return [

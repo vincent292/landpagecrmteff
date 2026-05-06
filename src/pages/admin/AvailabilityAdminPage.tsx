@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CalendarDays, Clock, Eye, PauseCircle, Plus, Save, Trash2 } from "lucide-react";
+import { CalendarDays, Clock, Eye, PauseCircle, Plus, Save } from "lucide-react";
 import { useForm, type Resolver } from "react-hook-form";
 import { z } from "zod";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
+import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteActions";
 import { useAuth } from "../../hooks/useAuth";
+import { hardDeleteRecord, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
 import {
   createAvailabilityBlock,
   createAvailabilityRule,
-  deleteAvailabilityBlock,
-  deleteAvailabilityRule,
   getAvailabilityBlocks,
   getAvailabilityRules,
   updateAvailabilityBlock,
@@ -86,7 +86,7 @@ type RuleForm = z.infer<typeof ruleSchema>;
 type BlockForm = z.infer<typeof blockSchema>;
 
 export function AvailabilityAdminPage() {
-  const { profile } = useAuth();
+  const { profile, role, user } = useAuth();
   const [rules, setRules] = useState<AvailabilityRuleRow[]>([]);
   const [blocks, setBlocks] = useState<AvailabilityBlockRow[]>([]);
   const [reservations, setReservations] = useState<AppointmentReservationRow[]>([]);
@@ -141,7 +141,7 @@ export function AvailabilityAdminPage() {
   const load = () => {
     setLoading(true);
     setError(false);
-    Promise.all([getAvailabilityRules(), getAvailabilityBlocks(), getReservationsAdmin()])
+    Promise.all([getAvailabilityRules(role === "superadmin"), getAvailabilityBlocks(role === "superadmin"), getReservationsAdmin({}, role === "superadmin")])
       .then(([nextRules, nextBlocks, nextReservations]) => {
         setRules(nextRules);
         setBlocks(nextBlocks);
@@ -151,7 +151,7 @@ export function AvailabilityAdminPage() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(load, []);
+  useEffect(load, [role]);
 
   const createRule = async (values: RuleForm) => {
     setSaving(true);
@@ -433,6 +433,7 @@ export function AvailabilityAdminPage() {
                     <br />
                     {rule.start_time} - {rule.end_time} · {rule.slot_duration_minutes} min · descanso {rule.break_minutes} min · cupos {rule.capacity_per_slot}
                   </p>
+                  <DeletedStatusNote row={rule} />
                 </div>
                 <div className="flex gap-2">
                   <button
@@ -441,9 +442,23 @@ export function AvailabilityAdminPage() {
                   >
                     {rule.is_active ? "Desactivar" : "Activar"}
                   </button>
-                  <button onClick={() => void deleteAvailabilityRule(rule.id).then(load)} className="rounded-full border border-[var(--color-border)] p-2">
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <DeleteActions
+                    role={role}
+                    row={rule}
+                    compact
+                    onSoftDelete={() =>
+                      void softDeleteRecord({
+                        table: "doctor_availability_rules",
+                        id: rule.id,
+                        actorId: profile?.id ?? user?.id ?? null,
+                        actorRole: role,
+                        actorName: profile?.full_name ?? user?.user_metadata.full_name ?? null,
+                        actorEmail: profile?.email ?? user?.email ?? null,
+                      }).then(load)
+                    }
+                    onRestore={() => void restoreRecord("doctor_availability_rules", rule.id).then(load)}
+                    onHardDelete={() => void hardDeleteRecord("doctor_availability_rules", rule.id).then(load)}
+                  />
                 </div>
               </div>
             </div>
@@ -466,6 +481,7 @@ export function AvailabilityAdminPage() {
                     <br />
                     {block.reason ?? "Sin motivo"}
                   </p>
+                  <DeletedStatusNote row={block} />
                 </div>
                 <div className="flex gap-2">
                   <button
@@ -474,9 +490,23 @@ export function AvailabilityAdminPage() {
                   >
                     {block.is_active ? "Desactivar" : "Activar"}
                   </button>
-                  <button onClick={() => void deleteAvailabilityBlock(block.id).then(load)} className="rounded-full border border-[var(--color-border)] p-2">
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <DeleteActions
+                    role={role}
+                    row={block}
+                    compact
+                    onSoftDelete={() =>
+                      void softDeleteRecord({
+                        table: "availability_blocks",
+                        id: block.id,
+                        actorId: profile?.id ?? user?.id ?? null,
+                        actorRole: role,
+                        actorName: profile?.full_name ?? user?.user_metadata.full_name ?? null,
+                        actorEmail: profile?.email ?? user?.email ?? null,
+                      }).then(load)
+                    }
+                    onRestore={() => void restoreRecord("availability_blocks", block.id).then(load)}
+                    onHardDelete={() => void hardDeleteRecord("availability_blocks", block.id).then(load)}
+                  />
                 </div>
               </div>
             </div>

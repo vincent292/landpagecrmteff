@@ -1,8 +1,9 @@
 import { supabase } from "../lib/supabaseClient";
+import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
 
 export type ReservationStatus = "Pendiente" | "Confirmada" | "Realizada" | "Cancelada" | "Rechazada";
 
-export type AppointmentReservationRow = {
+export type AppointmentReservationRow = DeletionMetadata & {
   id: string;
   patient_id: string;
   user_id: string;
@@ -43,12 +44,14 @@ export type ReservationFilters = {
   query?: string;
 };
 
-export async function getReservationsAdmin(filters: ReservationFilters = {}) {
+export async function getReservationsAdmin(filters: ReservationFilters = {}, includeDeleted = false) {
   let query = supabase
     .from("appointment_reservations")
     .select("*, patients(full_name, phone, email, city), doctor_profiles(id, full_name, whatsapp, email)")
     .order("appointment_date", { ascending: true })
     .order("start_time", { ascending: true });
+  const deletedFilter = getVisibleDeletionFilter("appointment_reservations", includeDeleted);
+  if (deletedFilter.column) query = query.eq(deletedFilter.column, deletedFilter.value);
 
   if (filters.city && filters.city !== "Todas") query = query.eq("city", filters.city);
   if (filters.status && filters.status !== "Todos") query = query.eq("status", filters.status);
@@ -81,6 +84,7 @@ export async function getReservationById(id: string) {
     .from("appointment_reservations")
     .select("*, patients(full_name, phone, email, city), doctor_profiles(id, full_name, whatsapp, email)")
     .eq("id", id)
+    .eq("is_deleted", false)
     .maybeSingle();
   if (error) throw error;
   return data as AppointmentReservationRow | null;
@@ -91,6 +95,7 @@ export async function getMyReservations(userId: string) {
     .from("appointment_reservations")
     .select("*")
     .eq("user_id", userId)
+    .eq("is_deleted", false)
     .order("appointment_date", { ascending: true })
     .order("start_time", { ascending: true });
   if (error) throw error;

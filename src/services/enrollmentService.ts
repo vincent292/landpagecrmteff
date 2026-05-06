@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabaseClient";
+import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
 
-export type EnrollmentRow = {
+export type EnrollmentRow = DeletionMetadata & {
   id: string;
   course_id: string;
   user_id: string;
@@ -23,14 +24,17 @@ export async function enrollToCourse(data: Omit<EnrollmentRow, "id" | "status" |
   if (error) throw error;
 }
 
-export async function getCourseEnrollments() {
-  const { data, error } = await supabase.from("course_enrollments").select("*, courses(title)").order("created_at", { ascending: false });
+export async function getCourseEnrollments(includeDeleted = false) {
+  let query = supabase.from("course_enrollments").select("*, courses(title)").order("created_at", { ascending: false });
+  const filter = getVisibleDeletionFilter("course_enrollments", includeDeleted);
+  if (filter.column) query = query.eq(filter.column, filter.value);
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as EnrollmentRow[];
 }
 
 export async function getEnrollmentsByCourse(courseId: string) {
-  const { data, error } = await supabase.from("course_enrollments").select("*, courses(title)").eq("course_id", courseId).order("created_at", { ascending: false });
+  const { data, error } = await supabase.from("course_enrollments").select("*, courses(title)").eq("course_id", courseId).eq("is_deleted", false).order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as EnrollmentRow[];
 }

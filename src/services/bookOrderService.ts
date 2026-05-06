@@ -1,9 +1,10 @@
 import { supabase } from "../lib/supabaseClient";
 import { uploadPrivateFile } from "./storageService";
+import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
 
 const receiptsBucket = "payment-receipts-private";
 
-export type BookOrderRow = {
+export type BookOrderRow = DeletionMetadata & {
   id: string;
   book_id: string;
   user_id: string;
@@ -44,16 +45,17 @@ export async function getMyBookOrders(userId: string) {
     .from("book_orders")
     .select("*, books(title)")
     .eq("user_id", userId)
+    .eq("is_deleted", false)
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as BookOrderRow[];
 }
 
-export async function getBookOrdersAdmin() {
-  const { data, error } = await supabase
-    .from("book_orders")
-    .select("*, books(title)")
-    .order("created_at", { ascending: false });
+export async function getBookOrdersAdmin(includeDeleted = false) {
+  let query = supabase.from("book_orders").select("*, books(title)").order("created_at", { ascending: false });
+  const filter = getVisibleDeletionFilter("book_orders", includeDeleted);
+  if (filter.column) query = query.eq(filter.column, filter.value);
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as BookOrderRow[];
 }

@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabaseClient";
+import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
 
-export type AvailabilityRuleRow = {
+export type AvailabilityRuleRow = DeletionMetadata & {
   id: string;
   created_by: string | null;
   city: string;
@@ -21,7 +22,7 @@ export type AvailabilityRuleRow = {
   updated_at: string;
 };
 
-export type AvailabilityBlockRow = {
+export type AvailabilityBlockRow = DeletionMetadata & {
   id: string;
   created_by: string | null;
   city: string | null;
@@ -52,11 +53,11 @@ export type SlotFilters = {
   date_to: string;
 };
 
-export async function getAvailabilityRules() {
-  const { data, error } = await supabase
-    .from("doctor_availability_rules")
-    .select("*")
-    .order("created_at", { ascending: false });
+export async function getAvailabilityRules(includeDeleted = false) {
+  let query = supabase.from("doctor_availability_rules").select("*").order("created_at", { ascending: false });
+  const filter = getVisibleDeletionFilter("doctor_availability_rules", includeDeleted);
+  if (filter.column) query = query.is(filter.column, filter.value);
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as AvailabilityRuleRow[];
 }
@@ -97,11 +98,11 @@ export async function deleteAvailabilityRule(id: string) {
   if (error) throw error;
 }
 
-export async function getAvailabilityBlocks() {
-  const { data, error } = await supabase
-    .from("availability_blocks")
-    .select("*")
-    .order("block_date", { ascending: true });
+export async function getAvailabilityBlocks(includeDeleted = false) {
+  let query = supabase.from("availability_blocks").select("*").order("block_date", { ascending: true });
+  const filter = getVisibleDeletionFilter("availability_blocks", includeDeleted);
+  if (filter.column) query = query.is(filter.column, filter.value);
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as AvailabilityBlockRow[];
 }

@@ -58,7 +58,7 @@ export function AdminLayout() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f7f2ec] text-[var(--color-ink)] lg:grid lg:grid-cols-[300px_minmax(0,1fr)]">
+    <main className="min-h-screen overflow-x-hidden bg-[#f7f2ec] text-[var(--color-ink)] lg:grid lg:grid-cols-[300px_minmax(0,1fr)]">
       <div className="sticky top-0 z-40 flex items-center justify-between gap-3 border-b border-[rgba(198,162,123,0.18)] bg-[rgba(255,249,244,0.92)] p-4 backdrop-blur-2xl lg:hidden">
         <button
           type="button"
@@ -86,7 +86,7 @@ export function AdminLayout() {
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-[min(82vw,300px)] -translate-x-full border-r border-[rgba(198,162,123,0.18)] bg-[rgba(255,249,244,0.96)] p-5 shadow-[20px_0_60px_rgba(43,33,27,0.18)] backdrop-blur-2xl transition-transform duration-300 lg:sticky lg:top-0 lg:z-40 lg:h-screen lg:w-auto lg:translate-x-0 lg:overflow-y-auto lg:shadow-none",
+          "fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-[min(82vw,300px)] -translate-x-full flex-col overflow-y-auto overscroll-contain border-r border-[rgba(198,162,123,0.18)] bg-[rgba(255,249,244,0.96)] p-5 shadow-[20px_0_60px_rgba(43,33,27,0.18)] backdrop-blur-2xl transition-transform duration-300 [webkit-overflow-scrolling:touch] touch-pan-y lg:sticky lg:top-0 lg:z-40 lg:h-screen lg:w-auto lg:translate-x-0 lg:shadow-none",
           open && "translate-x-0"
         )}
       >
@@ -113,7 +113,7 @@ export function AdminLayout() {
           </button>
         </div>
 
-        <nav className="mt-8 grid gap-2">
+        <nav className="mt-8 grid gap-2 pb-6">
           {visibleLinks.map(([label, href]) => (
             <NavLink
               key={href}
@@ -137,7 +137,7 @@ export function AdminLayout() {
         <button
           type="button"
           onClick={() => void signOut()}
-          className="mt-8 hidden w-full items-center justify-center gap-2 rounded-full border border-[var(--color-border)] px-4 py-3 text-sm font-semibold lg:inline-flex"
+          className="mt-auto hidden w-full items-center justify-center gap-2 rounded-full border border-[var(--color-border)] px-4 py-3 pt-8 text-sm font-semibold lg:inline-flex"
         >
           <LogOut className="h-4 w-4" />
           Cerrar sesion

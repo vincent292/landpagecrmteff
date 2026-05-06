@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabaseClient";
+import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
 
-export type DoctorProfileRow = {
+export type DoctorProfileRow = DeletionMetadata & {
   id: string;
   profile_id: string | null;
   full_name: string;
@@ -24,17 +25,18 @@ export async function getDoctors() {
     .from("doctor_profiles")
     .select("*")
     .eq("is_active", true)
+    .is("deleted_at", null)
     .order("is_featured", { ascending: false })
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as DoctorProfileRow[];
 }
 
-export async function getAdminDoctors() {
-  const { data, error } = await supabase
-    .from("doctor_profiles")
-    .select("*")
-    .order("created_at", { ascending: false });
+export async function getAdminDoctors(includeDeleted = false) {
+  let query = supabase.from("doctor_profiles").select("*").order("created_at", { ascending: false });
+  const filter = getVisibleDeletionFilter("doctor_profiles", includeDeleted);
+  if (filter.column) query = query.is(filter.column, filter.value);
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as DoctorProfileRow[];
 }
@@ -45,6 +47,7 @@ export async function getMyDoctorProfile(profileId: string) {
     .select("*")
     .eq("profile_id", profileId)
     .eq("is_active", true)
+    .is("deleted_at", null)
     .maybeSingle();
   if (error) throw error;
   return data as DoctorProfileRow | null;

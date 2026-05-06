@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabaseClient";
+import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
 
-export type PromotionRow = {
+export type PromotionRow = DeletionMetadata & {
   id: string;
   title: string;
   slug: string;
@@ -23,7 +24,7 @@ export type PromotionRow = {
 };
 
 export async function getActivePromotions() {
-  const { data, error } = await supabase.from("promotions").select("*, doctor_profiles(full_name, specialty, photo_url)").eq("is_active", true).order("created_at", { ascending: false });
+  const { data, error } = await supabase.from("promotions").select("*, doctor_profiles(full_name, specialty, photo_url)").eq("is_active", true).is("deleted_at", null).order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as PromotionRow[];
 }
@@ -33,13 +34,17 @@ export async function getPromotionBySlug(slug: string) {
     .from("promotions")
     .select("*, doctor_profiles(full_name, specialty, photo_url)")
     .eq("slug", slug)
+    .is("deleted_at", null)
     .maybeSingle();
   if (error) throw error;
   return data as PromotionRow | null;
 }
 
-export async function getAdminPromotions() {
-  const { data, error } = await supabase.from("promotions").select("*, doctor_profiles(full_name, specialty, photo_url)").order("created_at", { ascending: false });
+export async function getAdminPromotions(includeDeleted = false) {
+  let query = supabase.from("promotions").select("*, doctor_profiles(full_name, specialty, photo_url)").order("created_at", { ascending: false });
+  const filter = getVisibleDeletionFilter("promotions", includeDeleted);
+  if (filter.column) query = query.is(filter.column, filter.value);
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as PromotionRow[];
 }

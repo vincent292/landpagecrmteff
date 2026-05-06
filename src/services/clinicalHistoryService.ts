@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabaseClient";
+import { type DeletionMetadata } from "./adminDeletionService";
 
-export type ClinicalHistoryRow = {
+export type ClinicalHistoryRow = DeletionMetadata & {
   id: string;
   patient_id: string;
   created_by: string | null;
@@ -19,7 +20,7 @@ export type ClinicalHistoryRow = {
   updated_at: string;
 };
 
-export type ClinicalEvolutionRow = {
+export type ClinicalEvolutionRow = DeletionMetadata & {
   id: string;
   patient_id: string;
   clinical_history_id: string | null;
@@ -37,6 +38,7 @@ export async function getClinicalHistoryByPatient(patientId: string) {
     .from("clinical_histories")
     .select("*, profiles:created_by(full_name, email, role)")
     .eq("patient_id", patientId)
+    .eq("is_deleted", false)
     .order("updated_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -49,6 +51,7 @@ export async function getClinicalHistoriesByPatient(patientId: string) {
     .from("clinical_histories")
     .select("*, profiles:created_by(full_name, email, role)")
     .eq("patient_id", patientId)
+    .eq("is_deleted", false)
     .order("session_date", { ascending: false })
     .order("created_at", { ascending: false });
   if (error) throw error;
@@ -83,6 +86,7 @@ export async function getClinicalEvolutions(patientId: string) {
     .from("clinical_evolutions")
     .select("*, profiles:created_by(full_name, email, role)")
     .eq("patient_id", patientId)
+    .eq("is_deleted", false)
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as ClinicalEvolutionRow[];

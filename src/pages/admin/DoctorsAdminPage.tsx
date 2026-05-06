@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 
-import { Pencil, Plus, Save, Trash2, X } from "lucide-react";
+import { Pencil, Plus, Save, X } from "lucide-react";
 
 import { EmptyState, LoadingState } from "../../components/common/AsyncState";
+import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteActions";
 import { PublicImageUpload } from "../../components/admin/PublicImageUpload";
+import { useAuth } from "../../hooks/useAuth";
+import { hardDeleteRecord, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
 import {
   createDoctorWithUser,
-  deleteDoctor,
   getAdminDoctors,
   updateDoctor,
   type DoctorProfileRow,
@@ -30,6 +32,7 @@ const emptyDoctor = {
 };
 
 export function DoctorsAdminPage() {
+  const { role, profile, user } = useAuth();
   const [rows, setRows] = useState<DoctorProfileRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<DoctorProfileRow | null>(null);
@@ -37,12 +40,12 @@ export function DoctorsAdminPage() {
 
   const load = () => {
     setLoading(true);
-    getAdminDoctors()
+    getAdminDoctors(role === "superadmin")
       .then(setRows)
       .finally(() => setLoading(false));
   };
 
-  useEffect(load, []);
+  useEffect(load, [role]);
 
   return (
     <div className="space-y-8">
@@ -86,6 +89,7 @@ export function DoctorsAdminPage() {
               </p>
               <h2 className="mt-2 text-xl font-semibold">{doctor.full_name}</h2>
               <p className="mt-2 line-clamp-3 text-sm leading-7 text-[var(--color-copy)]">{doctor.bio}</p>
+              <DeletedStatusNote row={doctor} />
               <div className="mt-5 flex flex-wrap gap-2">
                 <button
                   onClick={() => {
@@ -97,13 +101,23 @@ export function DoctorsAdminPage() {
                 >
                   <Pencil className="h-4 w-4" />
                 </button>
-                <button
-                  onClick={() => void deleteDoctor(doctor.id).then(load)}
-                  className="rounded-full border border-[var(--color-border)] p-3"
-                  aria-label="Desactivar doctora"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                <DeleteActions
+                  role={role}
+                  row={doctor}
+                  compact
+                  onSoftDelete={() =>
+                    void softDeleteRecord({
+                      table: "doctor_profiles",
+                      id: doctor.id,
+                      actorId: profile?.id ?? user?.id ?? null,
+                      actorRole: role,
+                      actorName: profile?.full_name ?? user?.user_metadata.full_name ?? null,
+                      actorEmail: profile?.email ?? user?.email ?? null,
+                    }).then(load)
+                  }
+                  onRestore={() => void restoreRecord("doctor_profiles", doctor.id).then(load)}
+                  onHardDelete={() => void hardDeleteRecord("doctor_profiles", doctor.id).then(load)}
+                />
               </div>
             </article>
           ))}
@@ -125,7 +139,7 @@ export function DoctorsAdminPage() {
 }
 
 function DoctorForm({ row, onClose, onSaved }: { row: DoctorProfileRow | null; onClose: () => void; onSaved: () => void }) {
-  const [values, setValues] = useState<Record<string, string | boolean>>(() => ({
+  const [values, setValues] = useState<Record<string, string | boolean | null>>(() => ({
     ...emptyDoctor,
     ...(row ?? {}),
     profile_id: row?.profile_id ?? "",
@@ -142,7 +156,7 @@ function DoctorForm({ row, onClose, onSaved }: { row: DoctorProfileRow | null; o
   const [error, setError] = useState("");
   const [createdPassword, setCreatedPassword] = useState("");
 
-  const setValue = (name: string, value: string | boolean) => setValues((current) => ({ ...current, [name]: value }));
+  const setValue = (name: string, value: string | boolean | null) => setValues((current) => ({ ...current, [name]: value }));
 
   const submit = async () => {
     try {

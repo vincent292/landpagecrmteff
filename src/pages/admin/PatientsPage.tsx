@@ -7,6 +7,9 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
+import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteActions";
+import { useAuth } from "../../hooks/useAuth";
+import { hardDeleteRecord, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
 import { createPatient, getPatients, type PatientRow } from "../../services/patientService";
 import { formatDate } from "../../utils/text";
 
@@ -20,6 +23,7 @@ const patientSchema = z.object({
 type PatientFormValues = z.infer<typeof patientSchema>;
 
 export function PatientsPage() {
+  const { role, profile, user } = useAuth();
   const [rows, setRows] = useState<PatientRow[]>([]);
   const [query, setQuery] = useState("");
   const [city, setCity] = useState("Todas");
@@ -41,13 +45,13 @@ export function PatientsPage() {
   const load = () => {
     setLoading(true);
     setError(false);
-    getPatients()
+    getPatients(role === "superadmin")
       .then(setRows)
       .catch(() => setError(true))
       .finally(() => setLoading(false));
   };
 
-  useEffect(load, []);
+  useEffect(load, [role]);
 
   const cities = useMemo(
     () => [...new Set(rows.map((item) => item.city).filter(Boolean))] as string[],
@@ -158,7 +162,24 @@ export function PatientsPage() {
                       <PatientAction href={`/panel/pacientes/${patient.id}/citas`} label="Citas" />
                       <PatientAction href={`/panel/pacientes/${patient.id}/recetas`} label="Recetas" />
                       <PatientAction href={`/panel/pacientes/${patient.id}/cuidados`} label="Cuidados" />
+                      <DeleteActions
+                        role={role}
+                        row={patient}
+                        onSoftDelete={() =>
+                          void softDeleteRecord({
+                            table: "patients",
+                            id: patient.id,
+                            actorId: profile?.id ?? user?.id ?? null,
+                            actorRole: role,
+                            actorName: profile?.full_name ?? user?.user_metadata.full_name ?? null,
+                            actorEmail: profile?.email ?? user?.email ?? null,
+                          }).then(load)
+                        }
+                        onRestore={() => void restoreRecord("patients", patient.id).then(load)}
+                        onHardDelete={() => void hardDeleteRecord("patients", patient.id).then(load)}
+                      />
                     </div>
+                    <DeletedStatusNote row={patient} />
                   </td>
                 </tr>
               ))}

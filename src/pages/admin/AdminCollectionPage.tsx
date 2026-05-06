@@ -1,21 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { MessageCircleMore, Pencil, Plus, Save, Trash2, X } from "lucide-react";
+import { MessageCircleMore, Pencil, Plus, Save, X } from "lucide-react";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
+import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteActions";
 import { PublicImageUpload } from "../../components/admin/PublicImageUpload";
 import {
   createCalendarEvent,
-  deleteCalendarEvent,
   getAdminCalendarEvents,
   updateCalendarEvent,
   type CalendarEventRow,
 } from "../../services/calendarService";
-import { createCourse, deleteCourse, getAdminCourses, updateCourse, type CourseRow } from "../../services/courseService";
+import { createCourse, getAdminCourses, updateCourse, type CourseRow } from "../../services/courseService";
 import { getCourseEnrollments, updateEnrollmentStatus, type EnrollmentRow } from "../../services/enrollmentService";
 import {
   createGalleryAlbum,
-  deleteGalleryAlbum,
   getAdminGalleryAlbums,
   updateGalleryAlbum,
   type GalleryAlbumRow,
@@ -23,7 +22,6 @@ import {
 import { getProfiles, updateProfileRole, type ProfileRow } from "../../services/profileService";
 import {
   createPromotion,
-  deletePromotion,
   getAdminPromotions,
   updatePromotion,
   type PromotionRow,
@@ -36,7 +34,6 @@ import {
 } from "../../services/requestService";
 import {
   createTreatment,
-  deleteTreatment,
   getAdminTreatments,
   updateTreatment,
   type TreatmentRow,
@@ -45,6 +42,7 @@ import { slugify } from "../../utils/text";
 import { canManageUsers, roleLabels } from "../../lib/roles";
 import { useAuth } from "../../hooks/useAuth";
 import { boliviaCities } from "../../data/cities";
+import { hardDeleteRecord, restoreRecord, softDeleteRecord, type DeletableTable, type DeletionMetadata } from "../../services/adminDeletionService";
 
 type Module =
   | "tratamientos"
@@ -74,7 +72,7 @@ const eventTypes = ["Curso", "Procedimiento", "Cirugía", "Presentación", "Jorn
 const userRoles = ["superadmin", "doctor", "admin", "assistant", "patient", "student", "user"] as const;
 
 export function AdminCollectionPage({ module }: Props) {
-  const { role } = useAuth();
+  const { role, profile, user } = useAuth();
   const [rows, setRows] = useState<AdminRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -85,13 +83,13 @@ export function AdminCollectionPage({ module }: Props) {
   const load = () => {
     setLoading(true);
     setError(false);
-    getRows(module)
+    getRows(module, role === "superadmin")
       .then(setRows)
       .catch(() => setError(true))
       .finally(() => setLoading(false));
   };
 
-  useEffect(load, [module]);
+  useEffect(load, [module, role]);
 
   const filteredRows = useMemo(() => filterRows(module, rows, filters), [filters, module, rows]);
 
@@ -146,7 +144,10 @@ export function AdminCollectionPage({ module }: Props) {
                 module={module}
                 row={row}
                 onEdit={() => { setEditing(row); setShowForm(true); }}
-                onDelete={() => void handleDelete(module, row.id).then(load)}
+                role={role}
+                actorId={profile?.id ?? user?.id ?? null}
+                actorName={profile?.full_name ?? user?.user_metadata.full_name ?? null}
+                actorEmail={profile?.email ?? user?.email ?? null}
                 onRefresh={load}
               />
             ))}
@@ -214,24 +215,58 @@ function AdminFilters({
 function AdminListRow({
   module,
   row,
+  role,
+  actorId,
+  actorName,
+  actorEmail,
   onEdit,
-  onDelete,
   onRefresh,
 }: {
   module: Module;
   row: AdminRow;
+  role: ReturnType<typeof useAuth>["role"];
+  actorId?: string | null;
+  actorName?: string | null;
+  actorEmail?: string | null;
   onEdit: () => void;
-  onDelete: () => void;
   onRefresh: () => void;
 }) {
   const title = getTitle(module, row);
   const meta = getMeta(module, row);
+  const tableName = getDeleteTableName(module);
+  const deletionRow = row as AdminRow & DeletionMetadata;
+
+  const handleSoftDelete = async () => {
+    if (!tableName) return;
+    await softDeleteRecord({
+      table: tableName,
+      id: row.id,
+      actorId,
+      actorRole: role,
+      actorName,
+      actorEmail,
+    });
+    onRefresh();
+  };
+
+  const handleRestore = async () => {
+    if (!tableName) return;
+    await restoreRecord(tableName, row.id);
+    onRefresh();
+  };
+
+  const handleHardDelete = async () => {
+    if (!tableName) return;
+    await hardDeleteRecord(tableName, row.id);
+    onRefresh();
+  };
 
   return (
     <div className="grid gap-4 rounded-[22px] bg-[rgba(247,242,236,0.72)] p-4 md:grid-cols-[1fr_auto] md:items-center">
       <div>
         <h2 className="font-semibold">{title}</h2>
         <p className="mt-1 text-sm text-[var(--color-copy)]">{meta}</p>
+        <DeletedStatusNote row={deletionRow} />
         {module === "solicitudes" && "internal_notes" in row && (
           <textarea
             defaultValue={row.internal_notes ?? ""}
@@ -266,9 +301,14 @@ function AdminListRow({
             <button onClick={onEdit} className="rounded-full border border-[var(--color-border)] p-3" aria-label="Editar">
               <Pencil className="h-4 w-4" />
             </button>
-            <button onClick={onDelete} className="rounded-full border border-[var(--color-border)] p-3" aria-label="Eliminar">
-              <Trash2 className="h-4 w-4" />
-            </button>
+            <DeleteActions
+              role={role}
+              row={deletionRow}
+              compact
+              onSoftDelete={() => void handleSoftDelete()}
+              onRestore={() => void handleRestore()}
+              onHardDelete={() => void handleHardDelete()}
+            />
           </>
         )}
         {module === "usuarios" && "role" in row && (
@@ -385,15 +425,15 @@ function isCrudModule(module: Module): module is Exclude<Module, "inscripciones"
   return ["tratamientos", "promociones", "cursos", "agenda", "galeria"].includes(module);
 }
 
-async function getRows(module: Module): Promise<AdminRow[]> {
-  if (module === "tratamientos") return getAdminTreatments();
-  if (module === "promociones") return getAdminPromotions();
-  if (module === "cursos") return getAdminCourses();
-  if (module === "inscripciones") return getCourseEnrollments();
-  if (module === "solicitudes") return getInformationRequests();
-  if (module === "agenda") return getAdminCalendarEvents();
-  if (module === "galeria") return getAdminGalleryAlbums();
-  return getProfiles();
+async function getRows(module: Module, includeDeleted: boolean): Promise<AdminRow[]> {
+  if (module === "tratamientos") return getAdminTreatments(includeDeleted);
+  if (module === "promociones") return getAdminPromotions(includeDeleted);
+  if (module === "cursos") return getAdminCourses(includeDeleted);
+  if (module === "inscripciones") return getCourseEnrollments(includeDeleted);
+  if (module === "solicitudes") return getInformationRequests(includeDeleted);
+  if (module === "agenda") return getAdminCalendarEvents(includeDeleted);
+  if (module === "galeria") return getAdminGalleryAlbums(includeDeleted);
+  return getProfiles(includeDeleted);
 }
 
 function filterRows(module: Module, rows: AdminRow[], filters: { query: string; status: string; city: string; courseId: string }) {
@@ -543,10 +583,14 @@ async function handleUpdate(module: Exclude<Module, "inscripciones" | "solicitud
   return updateGalleryAlbum(id, payload);
 }
 
-async function handleDelete(module: Module, id: string) {
-  if (module === "tratamientos") return deleteTreatment(id);
-  if (module === "promociones") return deletePromotion(id);
-  if (module === "cursos") return deleteCourse(id);
-  if (module === "agenda") return deleteCalendarEvent(id);
-  if (module === "galeria") return deleteGalleryAlbum(id);
+function getDeleteTableName(module: Module): DeletableTable | null {
+  if (module === "tratamientos") return "treatments";
+  if (module === "promociones") return "promotions";
+  if (module === "cursos") return "courses";
+  if (module === "agenda") return "calendar_events";
+  if (module === "galeria") return "gallery_albums";
+  if (module === "inscripciones") return "course_enrollments";
+  if (module === "solicitudes") return "information_requests";
+  if (module === "usuarios") return "profiles";
+  return null;
 }
