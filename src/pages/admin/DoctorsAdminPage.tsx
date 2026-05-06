@@ -55,7 +55,7 @@ export function DoctorsAdminPage() {
             Doctoras registradas
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--color-copy)]">
-            Administra perfiles publicos, WhatsApp de notificacion y vinculacion futura con usuarios doctora.
+            Aquí creas una cuenta real de doctora en Supabase Auth y, al mismo tiempo, su perfil público para que pueda mostrarse en la plataforma.
           </p>
         </div>
         <button
@@ -224,6 +224,7 @@ function DoctorForm({ row, onClose, onSaved }: { row: DoctorProfileRow | null; o
             label="Foto de la doctora"
             value={String(values.photo_url ?? "")}
             folder="doctoras"
+            helperText="Recomendado: imagen vertical 1200 x 1500 px o relacion 4:5, en JPG o PNG, bien iluminada y centrada."
             onChange={(url) => setValue("photo_url", url)}
           />
           <label className="flex items-center gap-3 rounded-2xl border border-[var(--color-border)] bg-white/60 px-4 py-3 text-sm font-semibold">
@@ -249,6 +250,11 @@ function DoctorForm({ row, onClose, onSaved }: { row: DoctorProfileRow | null; o
             </button>
           </div>
         )}
+        {!row && !createdPassword ? (
+          <div className="mt-6 rounded-[20px] border border-[var(--color-border)] bg-[rgba(247,242,236,0.78)] px-4 py-3 text-sm leading-7 text-[var(--color-copy)]">
+            Este formulario crea una nueva cuenta de acceso para la doctora y también su perfil visible en la landing y en las secciones públicas donde corresponda.
+          </div>
+        ) : null}
         {error && <div className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">{error}</div>}
         <button onClick={() => void submit()} className="mt-8 inline-flex items-center gap-2 rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white">
           <Save className="h-4 w-4" />

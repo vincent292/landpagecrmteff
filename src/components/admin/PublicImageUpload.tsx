@@ -8,12 +8,13 @@ type PublicImageUploadProps = {
   label: string;
   value?: string | null;
   folder: string;
+  helperText?: string;
   onChange: (url: string) => void;
 };
 
 const bucket = "public-media";
 
-export function PublicImageUpload({ label, value, folder, onChange }: PublicImageUploadProps) {
+export function PublicImageUpload({ label, value, folder, helperText, onChange }: PublicImageUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
 
@@ -37,6 +38,7 @@ export function PublicImageUpload({ label, value, folder, onChange }: PublicImag
   return (
     <div className="grid gap-3">
       <span className="text-sm font-semibold">{label}</span>
+      {helperText ? <span className="text-xs leading-6 text-[var(--color-copy)]">{helperText}</span> : null}
       {value ? <img src={value} alt={label} className="h-44 w-full rounded-[18px] object-cover" /> : null}
       <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-[var(--color-border)] bg-white/70 px-5 py-3 text-sm font-semibold">
         <ImageUp className="h-4 w-4" />
