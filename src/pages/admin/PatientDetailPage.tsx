@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { getAppointmentsByPatient } from "../../services/appointmentService";
-import { getClinicalEvolutions, getClinicalHistoryByPatient } from "../../services/clinicalHistoryService";
+import { getClinicalEvolutions, getClinicalHistoriesByPatient, getClinicalHistoryByPatient } from "../../services/clinicalHistoryService";
 import { getPatientById } from "../../services/patientService";
 import { getPatientPhotos } from "../../services/patientPhotoService";
 import { getPostCaresByPatient } from "../../services/postCareService";
@@ -15,6 +15,7 @@ export function PatientDetailPage() {
   const [data, setData] = useState<{
     patient: Awaited<ReturnType<typeof getPatientById>>;
     history: Awaited<ReturnType<typeof getClinicalHistoryByPatient>>;
+    histories: Awaited<ReturnType<typeof getClinicalHistoriesByPatient>>;
     evolutions: Awaited<ReturnType<typeof getClinicalEvolutions>>;
     appointments: Awaited<ReturnType<typeof getAppointmentsByPatient>>;
     cares: Awaited<ReturnType<typeof getPostCaresByPatient>>;
@@ -28,14 +29,15 @@ export function PatientDetailPage() {
     Promise.all([
       getPatientById(id),
       getClinicalHistoryByPatient(id),
+      getClinicalHistoriesByPatient(id),
       getClinicalEvolutions(id),
       getAppointmentsByPatient(id),
       getPostCaresByPatient(id),
       getPrescriptionsByPatient(id),
       getPatientPhotos(id),
     ])
-      .then(([patient, history, evolutions, appointments, cares, prescriptions, photos]) =>
-        setData({ patient, history, evolutions, appointments, cares, prescriptions, photos })
+      .then(([patient, history, histories, evolutions, appointments, cares, prescriptions, photos]) =>
+        setData({ patient, history, histories, evolutions, appointments, cares, prescriptions, photos })
       )
       .catch(() => setError(true))
       .finally(() => setLoading(false));
@@ -81,9 +83,9 @@ export function PatientDetailPage() {
           detail={nextAppointment ? `${formatDate(nextAppointment.appointment_date)} · ${nextAppointment.start_time}` : "No hay actividad programada."}
         />
         <SummaryCard
-          title="Última evolución"
-          value={lastEvolution?.title ?? "Sin evolución"}
-          detail={lastEvolution?.treatment_performed ?? "Aún no hay seguimiento clínico cargado."}
+          title="Ultima evolucion"
+          value={lastEvolution?.title ?? "Sin evolucion"}
+          detail={lastEvolution?.treatment_performed ?? "Aun no hay seguimiento clinico cargado."}
         />
         <SummaryCard
           title="Ultima receta"
@@ -98,21 +100,39 @@ export function PatientDetailPage() {
         <SummaryCard
           title="Fotos recientes"
           value={String(data.photos.length)}
-          detail={data.photos.length ? "La galería clínica tiene material reciente." : "Todavía no hay fotos registradas."}
+          detail={data.photos.length ? "La galeria clinica tiene material reciente." : "Todavia no hay fotos registradas."}
         />
       </section>
 
       <section className="rounded-[28px] border border-[var(--color-border)] bg-white/75 p-6">
-        <h2 className="text-xl font-semibold">Resumen de historia clínica</h2>
+        <h2 className="text-xl font-semibold">Resumen de historia clinica</h2>
         <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
-          {data.history?.diagnosis ?? data.history?.reason_for_consultation ?? "Todavía no hay historia clínica cargada."}
+          {data.history?.diagnosis ?? data.history?.reason_for_consultation ?? "Todavia no hay historia clinica cargada."}
         </p>
+        {data.histories.length > 0 ? (
+          <div className="mt-5 grid gap-3">
+            {data.histories.slice(0, 4).map((item) => (
+              <article key={item.id} className="rounded-[20px] bg-[rgba(247,242,236,0.78)] p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-accent-strong)]">
+                  {formatDate(item.session_date ?? item.created_at)}
+                </p>
+                <h3 className="mt-2 text-base font-semibold">{item.session_title ?? item.reason_for_consultation ?? "Atencion clinica"}</h3>
+                <p className="mt-1 text-xs font-semibold text-[var(--color-copy)]">
+                  Elaborado por {item.profiles?.full_name ?? item.profiles?.email ?? "equipo medico"}
+                </p>
+                <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">
+                  {item.diagnosis ?? item.reason_for_consultation ?? "Sin resumen disponible."}
+                </p>
+              </article>
+            ))}
+          </div>
+        ) : null}
       </section>
 
       <section className="rounded-[28px] border border-[var(--color-border)] bg-white/75 p-6">
         <h2 className="text-xl font-semibold">Fotos recientes</h2>
         {data.photos.length === 0 ? (
-          <EmptyState label="No hay fotos clínicas registradas." />
+          <EmptyState label="No hay fotos clinicas registradas." />
         ) : (
           <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {data.photos.slice(0, 4).map((photo) => (

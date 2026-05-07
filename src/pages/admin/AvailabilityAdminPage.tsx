@@ -19,6 +19,7 @@ import {
   type AvailabilityBlockRow,
   type AvailabilityRuleRow,
 } from "../../services/availabilityService";
+import { getAdminDoctors, type DoctorProfileRow } from "../../services/doctorService";
 import { getReservationsAdmin, type AppointmentReservationRow } from "../../services/reservationService";
 
 const days = [
@@ -35,6 +36,7 @@ const appointmentTypes = ["Valoracion estetica", "Control", "Procedimiento", "Re
 
 const ruleSchema = z
   .object({
+    doctor_id: z.string().min(1, "Selecciona la doctora."),
     city: z.string().min(2, "La ciudad es obligatoria."),
     location: z.string().optional(),
     appointment_type: z.string().min(2, "El tipo de cita es obligatorio."),
@@ -90,6 +92,7 @@ export function AvailabilityAdminPage() {
   const [rules, setRules] = useState<AvailabilityRuleRow[]>([]);
   const [blocks, setBlocks] = useState<AvailabilityBlockRow[]>([]);
   const [reservations, setReservations] = useState<AppointmentReservationRow[]>([]);
+  const [doctors, setDoctors] = useState<DoctorProfileRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -98,6 +101,7 @@ export function AvailabilityAdminPage() {
   const ruleForm = useForm<RuleForm>({
     resolver: zodResolver(ruleSchema) as unknown as Resolver<RuleForm>,
     defaultValues: {
+      doctor_id: "",
       city: "Cochabamba",
       location: "",
       appointment_type: "Valoracion estetica",
@@ -141,11 +145,17 @@ export function AvailabilityAdminPage() {
   const load = () => {
     setLoading(true);
     setError(false);
-    Promise.all([getAvailabilityRules(role === "superadmin"), getAvailabilityBlocks(role === "superadmin"), getReservationsAdmin({}, role === "superadmin")])
-      .then(([nextRules, nextBlocks, nextReservations]) => {
+    Promise.all([
+      getAvailabilityRules(role === "superadmin"),
+      getAvailabilityBlocks(role === "superadmin"),
+      getReservationsAdmin({}, role === "superadmin"),
+      getAdminDoctors(role === "superadmin"),
+    ])
+      .then(([nextRules, nextBlocks, nextReservations, nextDoctors]) => {
         setRules(nextRules);
         setBlocks(nextBlocks);
         setReservations(nextReservations);
+        setDoctors(nextDoctors.filter((doctor) => doctor.is_active));
       })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
@@ -153,11 +163,22 @@ export function AvailabilityAdminPage() {
 
   useEffect(load, [role]);
 
+  useEffect(() => {
+    if (doctors.length === 0) return;
+
+    const currentDoctorId = ruleForm.getValues("doctor_id");
+    if (currentDoctorId && doctors.some((doctor) => doctor.id === currentDoctorId)) return;
+
+    const ownDoctor = doctors.find((doctor) => doctor.profile_id === profile?.id);
+    ruleForm.setValue("doctor_id", ownDoctor?.id ?? doctors[0].id, { shouldValidate: true });
+  }, [doctors, profile?.id, ruleForm]);
+
   const createRule = async (values: RuleForm) => {
     setSaving(true);
     setSuccess("");
     try {
       const common = {
+        doctor_id: values.doctor_id,
         created_by: profile?.id ?? null,
         city: values.city,
         location: values.location || null,
@@ -270,6 +291,16 @@ export function AvailabilityAdminPage() {
           </div>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <Field label="Doctora" error={ruleForm.formState.errors.doctor_id?.message}>
+              <select {...ruleForm.register("doctor_id")} className="premium-input">
+                <option value="">Seleccionar doctora</option>
+                {doctors.map((doctor) => (
+                  <option key={doctor.id} value={doctor.id}>
+                    {doctor.full_name}
+                  </option>
+                ))}
+              </select>
+            </Field>
             <Field label="¿En que ciudad atenderas?" error={ruleForm.formState.errors.city?.message}>
               <input {...ruleForm.register("city")} className="premium-input" />
             </Field>
@@ -425,7 +456,9 @@ export function AvailabilityAdminPage() {
             <div key={rule.id} className="rounded-[24px] border border-[var(--color-border)] bg-white/70 p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h3 className="text-lg font-semibold">{rule.city} · {rule.appointment_type}</h3>
+                  <h3 className="text-lg font-semibold">
+                    {rule.doctor_profiles?.full_name ?? "Doctora sin asignar"} · {rule.city} · {rule.appointment_type}
+                  </h3>
                   <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">
                     {rule.availability_type === "specific"
                       ? `Fecha: ${rule.specific_date}`

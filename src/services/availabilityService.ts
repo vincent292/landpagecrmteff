@@ -4,6 +4,13 @@ import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletion
 export type AvailabilityRuleRow = DeletionMetadata & {
   id: string;
   created_by: string | null;
+  doctor_id?: string | null;
+  doctor_profiles?: {
+    id: string;
+    full_name: string;
+    whatsapp: string | null;
+    email: string | null;
+  } | null;
   city: string;
   location: string | null;
   appointment_type: string;
@@ -54,7 +61,10 @@ export type SlotFilters = {
 };
 
 export async function getAvailabilityRules(includeDeleted = false) {
-  let query = supabase.from("doctor_availability_rules").select("*").order("created_at", { ascending: false });
+  let query = supabase
+    .from("doctor_availability_rules")
+    .select("*, doctor_profiles(id, full_name, whatsapp, email)")
+    .order("created_at", { ascending: false });
   const filter = getVisibleDeletionFilter("doctor_availability_rules", includeDeleted);
   if (filter.column) query = query.is(filter.column, filter.value);
   const { data, error } = await query;
@@ -65,11 +75,23 @@ export async function getAvailabilityRules(includeDeleted = false) {
 export async function getAvailabilityRuleById(id: string) {
   const { data, error } = await supabase
     .from("doctor_availability_rules")
-    .select("*")
+    .select("*, doctor_profiles(id, full_name, whatsapp, email)")
     .eq("id", id)
     .maybeSingle();
   if (error) throw error;
   return data as AvailabilityRuleRow | null;
+}
+
+export async function getAvailabilityRulesByIds(ids: string[]) {
+  if (ids.length === 0) return [] as AvailabilityRuleRow[];
+
+  const uniqueIds = [...new Set(ids)];
+  const { data, error } = await supabase
+    .from("doctor_availability_rules")
+    .select("*, doctor_profiles(id, full_name, whatsapp, email)")
+    .in("id", uniqueIds);
+  if (error) throw error;
+  return (data ?? []) as AvailabilityRuleRow[];
 }
 
 export async function createAvailabilityRule(data: Record<string, unknown>) {

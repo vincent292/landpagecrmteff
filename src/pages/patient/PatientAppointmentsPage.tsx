@@ -26,7 +26,7 @@ export function PatientAppointmentsPage() {
 
   if (loading) return <LoadingState label="Cargando tus citas..." />;
   if (error) return <ErrorState label="No pudimos cargar tus citas." />;
-  if (items.length === 0 && reservations.length === 0) return <EmptyState label="Todavía no tienes citas registradas." />;
+  if (items.length === 0 && reservations.length === 0) return <EmptyState label="Todavia no tienes citas registradas." />;
 
   return (
     <div className="grid gap-4">
@@ -45,6 +45,7 @@ export function PatientAppointmentsPage() {
             {formatDate(item.appointment_date)} · {item.start_time?.slice(0, 5)} - {item.end_time?.slice(0, 5)}
             <br />
             {item.city} {item.location ? `· ${item.location}` : ""}
+            {item.doctor_profiles?.full_name ? ` · ${item.doctor_profiles.full_name}` : ""}
           </p>
         </div>
       ))}
@@ -60,6 +61,7 @@ export function PatientAppointmentsPage() {
             {formatDate(item.appointment_date)} · {item.start_time}
             <br />
             {item.city} {item.location ? `· ${item.location}` : ""}
+            {item.doctor_profiles?.full_name ? ` · ${item.doctor_profiles.full_name}` : ""}
           </p>
         </div>
       ))}
