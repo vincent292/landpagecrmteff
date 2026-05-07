@@ -77,7 +77,12 @@ export function PromotionsPage() {
             {filteredPromotions.map((promo, index) => (
               <AnimatedCard key={promo.id} index={index}>
                 <article className="min-w-0 max-w-full overflow-hidden rounded-[24px] border border-[var(--color-border)] bg-white/60 shadow-[0_18px_48px_rgba(110,74,47,0.08)] transition-shadow duration-300 hover:shadow-[0_24px_62px_rgba(110,74,47,0.13)] sm:rounded-[28px]">
-                  <ImageWithSkeleton src={promo.cover_image ?? "/doctora/dra1.jpg"} alt={promo.title} wrapperClassName="h-56 w-full sm:h-64" />
+                  <ImageWithSkeleton
+                    src={promo.cover_image ?? "/doctora/dra1.jpg"}
+                    fallbackSrc="/doctora/dra1.jpg"
+                    alt={promo.title}
+                    wrapperClassName="h-56 w-full sm:h-64"
+                  />
                   <div className="min-w-0 p-5 sm:p-6">
                     <p className="break-words text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-accent-strong)] sm:tracking-[0.22em]">
                       {getDisplayCity(promo.city)}

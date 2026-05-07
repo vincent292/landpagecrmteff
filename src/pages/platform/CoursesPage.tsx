@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { DoctorByline } from "../../components/platform/DoctorByline";
 import { InfoRequestModal } from "../../components/platform/InfoRequestModal";
+import { ImageWithSkeleton } from "../../components/ui/ImageWithSkeleton";
 import { boliviaCities } from "../../data/cities";
 import { getCourses, type CourseRow } from "../../services/courseService";
 import { formatMoney } from "../../utils/text";
@@ -51,7 +52,12 @@ export function CoursesPage() {
         <div className="grid gap-6 md:grid-cols-2">
           {filteredCourses.map((course) => (
             <article key={course.id} className="overflow-hidden rounded-[30px] border border-[var(--color-border)] bg-white/60 shadow-[0_18px_48px_rgba(110,74,47,0.08)]">
-              <img src={course.cover_image ?? "/doctora/dra3.jpg"} alt={course.title} className="h-72 w-full object-cover" />
+              <ImageWithSkeleton
+                src={course.cover_image ?? "/doctora/dra3.jpg"}
+                fallbackSrc="/doctora/dra3.jpg"
+                alt={course.title}
+                wrapperClassName="h-72 w-full"
+              />
               <div className="p-6">
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-accent-strong)]">
                   {getDisplayCity(course.city)} · {course.modality ?? "Modalidad por confirmar"}
