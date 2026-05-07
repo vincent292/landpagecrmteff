@@ -11,6 +11,7 @@ export type SiteSettingsRow = {
   city: string | null;
   maps_url: string | null;
   maps_embed_url: string | null;
+  appointment_qr_payment_image?: string | null;
   business_hours?: string | null;
   footer_text: string | null;
   updated_at: string;
@@ -27,6 +28,7 @@ const fallbackSettings: SiteSettingsRow = {
   city: "Cochabamba",
   maps_url: null,
   maps_embed_url: null,
+  appointment_qr_payment_image: null,
   business_hours: null,
   footer_text: "Una experiencia clinica sobria, cercana y pensada para sentirse impecable en cualquier pantalla.",
   updated_at: new Date().toISOString(),

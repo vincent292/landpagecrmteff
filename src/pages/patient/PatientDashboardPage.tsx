@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { useAuth } from "../../hooks/useAuth";
@@ -8,6 +9,7 @@ import { getMyActiveBooks } from "../../services/bookPortalService";
 import { getPatientByProfileId } from "../../services/patientService";
 import { getMyPostCares } from "../../services/postCareService";
 import { getMyPrescriptions } from "../../services/prescriptionService";
+import { getMyReservations } from "../../services/reservationService";
 import { formatDate } from "../../utils/text";
 
 export function PatientDashboardPage() {
@@ -16,6 +18,7 @@ export function PatientDashboardPage() {
   const [error, setError] = useState(false);
   const [summary, setSummary] = useState({
     nextAppointment: null as Awaited<ReturnType<typeof getAppointmentsByPatient>>[number] | null,
+    nextReservation: null as Awaited<ReturnType<typeof getMyReservations>>[number] | null,
     cares: [] as Awaited<ReturnType<typeof getMyPostCares>>,
     prescriptions: [] as Awaited<ReturnType<typeof getMyPrescriptions>>,
     books: [] as Awaited<ReturnType<typeof getMyActiveBooks>>,
@@ -30,16 +33,18 @@ export function PatientDashboardPage() {
 
     getPatientByProfileId(user.id)
       .then(async (patient) => {
-        const [cares, prescriptions, books, orders, appointments] = await Promise.all([
+        const [cares, prescriptions, books, orders, appointments, reservations] = await Promise.all([
           getMyPostCares(user.id),
           getMyPrescriptions(user.id),
           getMyActiveBooks(user.id),
           getMyBookOrders(user.id),
           patient ? getAppointmentsByPatient(patient.id) : Promise.resolve([]),
+          getMyReservations(user.id),
         ]);
 
         setSummary({
           nextAppointment: appointments.find((item) => item.status !== "Cancelada") ?? null,
+          nextReservation: reservations.find((item) => item.status === "Pendiente" || item.status === "Confirmada") ?? null,
           cares,
           prescriptions,
           books,
@@ -52,6 +57,8 @@ export function PatientDashboardPage() {
 
   if (loading) return <LoadingState label="Preparando tu panel..." />;
   if (error) return <ErrorState label="No pudimos cargar tu panel privado." />;
+
+  const nextDate = summary.nextAppointment?.appointment_date ?? summary.nextReservation?.appointment_date ?? null;
 
   return (
     <div className="space-y-8">
@@ -68,10 +75,7 @@ export function PatientDashboardPage() {
       </section>
 
       <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
-        <SummaryCard
-          label="Proxima cita"
-          value={summary.nextAppointment ? formatDate(summary.nextAppointment.appointment_date) : "Sin fecha"}
-        />
+        <SummaryCard label="Proxima cita" value={nextDate ? formatDate(nextDate) : "Sin fecha"} />
         <SummaryCard label="Cuidados visibles" value={String(summary.cares.length)} />
         <SummaryCard label="Recetas activas" value={String(summary.prescriptions.length)} />
         <SummaryCard label="Libros disponibles" value={String(summary.books.length)} />
@@ -81,20 +85,47 @@ export function PatientDashboardPage() {
       <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <div className="rounded-[28px] border border-[var(--color-border)] bg-white/75 p-6">
           <h2 className="text-xl font-semibold">Tu proxima actividad</h2>
-          {summary.nextAppointment ? (
+          {summary.nextAppointment || summary.nextReservation ? (
             <div className="mt-5 rounded-[22px] bg-[rgba(247,242,236,0.78)] p-5">
-              <p className="text-sm font-semibold text-[var(--color-ink)]">{summary.nextAppointment.title}</p>
+              <p className="text-sm font-semibold text-[var(--color-ink)]">
+                {summary.nextAppointment?.title ?? summary.nextReservation?.appointment_type}
+              </p>
               <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">
-                {formatDate(summary.nextAppointment.appointment_date)} · {summary.nextAppointment.start_time}
+                {nextDate ? formatDate(nextDate) : "Sin fecha"} · {summary.nextAppointment?.start_time ?? summary.nextReservation?.start_time}
                 <br />
-                {summary.nextAppointment.city} {summary.nextAppointment.location ? `· ${summary.nextAppointment.location}` : ""}
-                {summary.nextAppointment.doctor_profiles?.full_name ? (
+                {(summary.nextAppointment?.city ?? summary.nextReservation?.city) ?? ""} {(summary.nextAppointment?.location ?? summary.nextReservation?.location) ? `· ${summary.nextAppointment?.location ?? summary.nextReservation?.location}` : ""}
+                {summary.nextAppointment?.doctor_profiles?.full_name ? (
                   <>
                     <br />
                     {summary.nextAppointment.doctor_profiles.full_name}
                   </>
+                ) : summary.nextReservation?.doctor_profiles?.full_name ? (
+                  <>
+                    <br />
+                    {summary.nextReservation.doctor_profiles.full_name}
+                  </>
                 ) : null}
               </p>
+              {summary.nextReservation?.status === "Pendiente" ? (
+                <>
+                  <p className="mt-3 text-sm font-semibold text-[var(--color-accent-strong)]">
+                    Pendiente de pago y validacion. Entra a Mis citas para subir tu comprobante.
+                  </p>
+                  <Link
+                    to="/mi-panel/citas"
+                    className="mt-4 inline-flex rounded-full bg-[var(--color-mocha)] px-5 py-3 text-sm font-semibold text-white"
+                  >
+                    Abrir cita y subir comprobante
+                  </Link>
+                </>
+              ) : summary.nextAppointment || summary.nextReservation ? (
+                <Link
+                  to="/mi-panel/citas"
+                  className="mt-4 inline-flex rounded-full border border-[var(--color-border)] bg-white/80 px-5 py-3 text-sm font-semibold text-[var(--color-ink)]"
+                >
+                  Ver detalle de mi cita
+                </Link>
+              ) : null}
             </div>
           ) : (
             <EmptyState label="Todavia no tienes una cita programada." />

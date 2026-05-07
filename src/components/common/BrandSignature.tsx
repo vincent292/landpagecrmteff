@@ -1,5 +1,3 @@
-import { Link } from "react-router-dom";
-
 import { cn } from "../../lib/cn";
 
 type BrandSignatureProps = {
@@ -8,7 +6,7 @@ type BrandSignatureProps = {
   subtitleClassName?: string;
   textClassName?: string;
   imageClassName?: string;
-  to?: string;
+  asChild?: boolean;
 };
 
 export function BrandSignature({
@@ -17,10 +15,10 @@ export function BrandSignature({
   subtitleClassName,
   textClassName,
   imageClassName,
-  to = "/",
+  asChild = false,
 }: BrandSignatureProps) {
-  return (
-    <Link to={to} className={cn("inline-flex max-w-full items-center gap-3", className)}>
+  const content = (
+    <>
       <span className="flex h-14 w-14 shrink-0 items-center justify-center sm:h-16 sm:w-16">
         <img
           src="/doctora/logodra.svg"
@@ -49,6 +47,16 @@ export function BrandSignature({
           </span>
         ) : null}
       </span>
-    </Link>
+    </>
+  );
+
+  if (asChild) {
+    return <span className={cn("inline-flex max-w-full items-center gap-3", className)}>{content}</span>;
+  }
+
+  return (
+    <span className={cn("inline-flex max-w-full items-center gap-3", className)}>
+      {content}
+    </span>
   );
 }

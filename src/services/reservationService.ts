@@ -1,5 +1,8 @@
 import { supabase } from "../lib/supabaseClient";
 import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
+import { getSignedUrl, uploadPrivateFile } from "./storageService";
+
+const receiptsBucket = "payment-receipts-private";
 
 export type ReservationStatus = "Pendiente" | "Confirmada" | "Realizada" | "Cancelada" | "Rechazada";
 
@@ -20,6 +23,11 @@ export type AppointmentReservationRow = DeletionMetadata & {
   notes: string | null;
   created_by: string | null;
   doctor_id?: string | null;
+  payment_receipt_path?: string | null;
+  payment_submitted_at?: string | null;
+  payment_verified_at?: string | null;
+  payment_expires_at?: string | null;
+  admin_notes?: string | null;
   created_at: string;
   updated_at: string;
   patients?: {
@@ -44,7 +52,13 @@ export type ReservationFilters = {
   query?: string;
 };
 
+async function expireUnpaidReservations() {
+  const { error } = await supabase.rpc("expire_unpaid_appointment_reservations");
+  if (error) throw error;
+}
+
 export async function getReservationsAdmin(filters: ReservationFilters = {}, includeDeleted = false) {
+  await expireUnpaidReservations();
   let query = supabase
     .from("appointment_reservations")
     .select("*, patients(full_name, phone, email, city), doctor_profiles(id, full_name, whatsapp, email)")
@@ -80,6 +94,7 @@ export async function getReservationsAdmin(filters: ReservationFilters = {}, inc
 }
 
 export async function getReservationById(id: string) {
+  await expireUnpaidReservations();
   const { data, error } = await supabase
     .from("appointment_reservations")
     .select("*, patients(full_name, phone, email, city), doctor_profiles(id, full_name, whatsapp, email)")
@@ -91,10 +106,24 @@ export async function getReservationById(id: string) {
 }
 
 export async function getMyReservations(userId: string) {
+  await expireUnpaidReservations();
   const { data, error } = await supabase
     .from("appointment_reservations")
-    .select("*")
+    .select("*, doctor_profiles(id, full_name, whatsapp, email)")
     .eq("user_id", userId)
+    .eq("is_deleted", false)
+    .order("appointment_date", { ascending: true })
+    .order("start_time", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as AppointmentReservationRow[];
+}
+
+export async function getReservationsByPatientId(patientId: string) {
+  await expireUnpaidReservations();
+  const { data, error } = await supabase
+    .from("appointment_reservations")
+    .select("*, doctor_profiles(id, full_name, whatsapp, email)")
+    .eq("patient_id", patientId)
     .eq("is_deleted", false)
     .order("appointment_date", { ascending: true })
     .order("start_time", { ascending: true });
@@ -157,4 +186,52 @@ export async function updateReservation(id: string, data: Record<string, unknown
 
 export async function cancelReservation(id: string) {
   return updateReservationStatus(id, "Cancelada");
+}
+
+export async function uploadReservationPaymentReceipt(file: File, reservationId: string) {
+  const ext = file.name.split(".").pop() ?? "jpg";
+  const path = `appointments/${reservationId}/${crypto.randomUUID()}.${ext}`;
+  return uploadPrivateFile(receiptsBucket, path, file);
+}
+
+export async function attachReservationPaymentReceipt(reservationId: string, payment_receipt_path: string) {
+  const { error } = await supabase
+    .from("appointment_reservations")
+    .update({ payment_receipt_path, payment_submitted_at: new Date().toISOString() })
+    .eq("id", reservationId);
+  if (error) throw error;
+}
+
+export async function getReservationReceiptUrl(path?: string | null) {
+  if (!path) return null;
+  return getSignedUrl(receiptsBucket, path);
+}
+
+export async function approveReservationPayment(reservationId: string, adminNotes: string) {
+  const { data, error } = await supabase
+    .from("appointment_reservations")
+    .update({
+      status: "Confirmada",
+      admin_notes: adminNotes,
+      payment_verified_at: new Date().toISOString(),
+    })
+    .eq("id", reservationId)
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as AppointmentReservationRow;
+}
+
+export async function rejectReservationPayment(reservationId: string, adminNotes: string) {
+  const { data, error } = await supabase
+    .from("appointment_reservations")
+    .update({
+      status: "Rechazada",
+      admin_notes: adminNotes,
+    })
+    .eq("id", reservationId)
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as AppointmentReservationRow;
 }

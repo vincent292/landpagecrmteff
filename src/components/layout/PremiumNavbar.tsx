@@ -65,6 +65,7 @@ export function PremiumNavbar() {
           <div className="flex items-center justify-between gap-4 px-4 py-3 sm:px-5 md:px-7">
             <Link to="/" className="min-w-0 pr-2">
               <BrandSignature
+                asChild
                 className="min-w-0"
                 subtitle="Medicina estetica"
                 textClassName="text-[1.55rem] sm:text-[1.8rem] lg:text-[1.95rem]"

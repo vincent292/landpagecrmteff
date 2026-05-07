@@ -74,6 +74,9 @@ export function SiteSettingsAdminPage() {
           <Field label="Google Maps embed URL">
             <input value={values.maps_embed_url ?? ""} onChange={(event) => setValue("maps_embed_url", event.target.value)} className="premium-input" />
           </Field>
+          <Field label="QR de pago para citas">
+            <input value={values.appointment_qr_payment_image ?? ""} onChange={(event) => setValue("appointment_qr_payment_image", event.target.value)} className="premium-input" placeholder="https://..." />
+          </Field>
           <div className="md:col-span-2">
             <Field label="Direccion">
               <textarea value={values.address ?? ""} onChange={(event) => setValue("address", event.target.value)} className="premium-input min-h-24" />

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { MessageCircleMore, Search, Send } from "lucide-react";
+import { Search, Send } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -10,8 +10,11 @@ import { getAvailableSlots, type AvailableSlot } from "../../services/availabili
 import { getAdminDoctors, type DoctorProfileRow } from "../../services/doctorService";
 import { getPatients, type PatientRow } from "../../services/patientService";
 import {
+  approveReservationPayment,
   bookAppointmentSlot,
+  getReservationReceiptUrl,
   getReservationsAdmin,
+  rejectReservationPayment,
   updateReservation,
   updateReservationStatus,
   type AppointmentReservationRow,
@@ -144,7 +147,7 @@ export function ReservationsAdminPage() {
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--color-accent-strong)]">
             Reservas y citas
           </p>
-          <h1 className="font-display mt-3 text-5xl font-semibold">Agenda clínica sin duplicados</h1>
+          <h1 className="font-display mt-3 text-5xl font-semibold">Agenda clinica sin duplicados</h1>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--color-copy)]">
             Confirma, cancela o registra citas manuales usando solamente horarios disponibles.
           </p>
@@ -253,6 +256,13 @@ export function ReservationsAdminPage() {
 function ReservationCard({ row, doctors, onChanged }: { row: AppointmentReservationRow; doctors: DoctorProfileRow[]; onChanged: () => void }) {
   const phone = row.patients?.phone?.replace(/\D/g, "") ?? "";
   const message = `Hola ${row.patients?.full_name ?? ""}, te escribimos de parte de la Dra. Estefany sobre tu cita de ${row.appointment_type} del ${row.appointment_date} a las ${row.start_time}.`;
+  const hasReceipt = Boolean(row.payment_receipt_path);
+
+  const openReceipt = async () => {
+    const url = await getReservationReceiptUrl(row.payment_receipt_path);
+    if (!url) return;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
 
   return (
     <article className="rounded-[24px] border border-[var(--color-border)] bg-white/75 p-5">
@@ -266,6 +276,8 @@ function ReservationCard({ row, doctors, onChanged }: { row: AppointmentReservat
             {formatDate(row.appointment_date)} · {row.start_time.slice(0, 5)} - {row.end_time.slice(0, 5)}
             <br />
             {row.location ?? "Sin ubicacion"} · Origen: {row.source}
+            <br />
+            {hasReceipt ? "Comprobante cargado" : row.status === "Pendiente" ? "Pendiente de comprobante" : "Sin comprobante"}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -284,13 +296,34 @@ function ReservationCard({ row, doctors, onChanged }: { row: AppointmentReservat
             <option value="">Sin doctora</option>
             {doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.full_name}</option>)}
           </select>
+          {hasReceipt ? (
+            <button onClick={() => void openReceipt()} className="rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-semibold">
+              Ver comprobante
+            </button>
+          ) : null}
+          {hasReceipt && row.status === "Pendiente" ? (
+            <button onClick={() => void approveReservationPayment(row.id, row.admin_notes ?? "").then(onChanged)} className="rounded-full bg-[var(--color-mocha)] px-4 py-2 text-sm font-semibold text-white">
+              Aprobar pago
+            </button>
+          ) : null}
+          {hasReceipt && row.status === "Pendiente" ? (
+            <button onClick={() => void rejectReservationPayment(row.id, row.admin_notes ?? "").then(onChanged)} className="rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-semibold">
+              Rechazar
+            </button>
+          ) : null}
           {phone && (
-            <a href={`https://wa.me/${phone}?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer" className="rounded-full border border-[var(--color-border)] p-3">
-              <MessageCircleMore className="h-4 w-4" />
+            <a href={`https://wa.me/${phone}?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer" className="rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-semibold">
+              Abrir WhatsApp
             </a>
           )}
         </div>
       </div>
+      <textarea
+        defaultValue={row.admin_notes ?? ""}
+        onBlur={(event) => void updateReservation(row.id, { admin_notes: event.target.value }).then(onChanged)}
+        className="premium-input mt-4 min-h-24"
+        placeholder="Notas administrativas"
+      />
     </article>
   );
 }

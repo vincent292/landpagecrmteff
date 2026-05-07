@@ -13,15 +13,18 @@ import { createAppointment, getAppointmentsByPatient, updateAppointmentStatus, t
 import { getAvailableSlots, getAvailabilityRulesByIds, type AvailableSlot } from "../../services/availabilityService";
 import { getAdminDoctors, type DoctorProfileRow } from "../../services/doctorService";
 import { getPatientById, type PatientRow } from "../../services/patientService";
+import {
+  bookAppointmentSlot,
+  getReservationsByPatientId,
+  updateReservationStatus,
+  type AppointmentReservationRow,
+} from "../../services/reservationService";
 import { formatDate } from "../../utils/text";
-
-const appointmentTypes = ["Valoracion estetica", "Control", "Procedimiento", "Revision postratamiento", "Consulta general"];
 
 const schema = z.object({
   city: z.string().min(2, "Selecciona la ciudad."),
-  appointment_type: z.string().min(2, "Selecciona el tipo de cita."),
   date: z.string().min(1, "Selecciona la fecha."),
-  doctor_id: z.string().min(1, "Selecciona la doctora."),
+  doctor_id: z.string().optional(),
   notes: z.string().optional(),
 });
 
@@ -34,23 +37,36 @@ type SlotWithDoctor = AvailableSlot & {
   doctor_email: string | null;
 };
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "object" && error !== null) {
+    const maybeMessage = "message" in error ? error.message : null;
+    const maybeDetails = "details" in error ? error.details : null;
+    const maybeHint = "hint" in error ? error.hint : null;
+    const parts = [maybeMessage, maybeDetails, maybeHint].filter((value) => typeof value === "string" && value.trim().length > 0);
+    if (parts.length > 0) return parts.join(" · ");
+  }
+  return fallback;
+}
+
 export function PatientAppointmentsAdminPage() {
   const { id = "" } = useParams();
   const { user } = useAuth();
   const [patient, setPatient] = useState<PatientRow | null>(null);
   const [items, setItems] = useState<AppointmentRow[]>([]);
+  const [reservations, setReservations] = useState<AppointmentReservationRow[]>([]);
   const [doctors, setDoctors] = useState<DoctorProfileRow[]>([]);
   const [slots, setSlots] = useState<SlotWithDoctor[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<SlotWithDoctor | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [slotTypeFilter, setSlotTypeFilter] = useState("Todos");
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       city: "Cochabamba",
-      appointment_type: "Valoracion estetica",
       date: "",
       doctor_id: "",
       notes: "",
@@ -60,8 +76,9 @@ export function PatientAppointmentsAdminPage() {
   const watched = form.watch();
 
   const load = () =>
-    void Promise.all([getAppointmentsByPatient(id), getPatientById(id), getAdminDoctors()]).then(([appointments, patientRow, doctorRows]) => {
+    void Promise.all([getAppointmentsByPatient(id), getReservationsByPatientId(id), getPatientById(id), getAdminDoctors()]).then(([appointments, reservationRows, patientRow, doctorRows]) => {
       setItems(appointments);
+      setReservations(reservationRows);
       setPatient(patientRow);
       setDoctors(doctorRows.filter((doctor) => doctor.is_active));
     });
@@ -69,19 +86,20 @@ export function PatientAppointmentsAdminPage() {
   useEffect(load, [id]);
 
   useEffect(() => {
-    if (!watched.city || !watched.appointment_type || !watched.date) {
+    if (!watched.city || !watched.date) {
       setSlots([]);
       setSelectedSlot(null);
+      setSlotTypeFilter("Todos");
       return;
     }
 
     setLoadingSlots(true);
     setSelectedSlot(null);
     setMessage("");
+    setSlotTypeFilter("Todos");
 
     getAvailableSlots({
       city: watched.city,
-      appointment_type: watched.appointment_type,
       date_from: watched.date,
       date_to: watched.date,
     })
@@ -100,9 +118,9 @@ export function PatientAppointmentsAdminPage() {
         });
         setSlots(enriched);
       })
-      .catch((error) => setMessage(error instanceof Error ? error.message : "No pudimos cargar horarios disponibles."))
+      .catch((error) => setMessage(getErrorMessage(error, "No pudimos cargar horarios disponibles.")))
       .finally(() => setLoadingSlots(false));
-  }, [watched.appointment_type, watched.city, watched.date]);
+  }, [watched.city, watched.date]);
 
   const availableDoctors = useMemo(
     () =>
@@ -113,9 +131,19 @@ export function PatientAppointmentsAdminPage() {
     [doctors]
   );
 
+  const availableSlotTypes = useMemo(
+    () => ["Todos", ...new Set(slots.map((slot) => slot.appointment_type).filter(Boolean))],
+    [slots]
+  );
+
   const filteredSlots = useMemo(
-    () => slots.filter((slot) => !watched.doctor_id || slot.doctor_id === watched.doctor_id),
-    [slots, watched.doctor_id]
+    () =>
+      slots.filter((slot) => {
+        const matchesDoctor = !watched.doctor_id || slot.doctor_id === watched.doctor_id;
+        const matchesType = slotTypeFilter === "Todos" || slot.appointment_type === slotTypeFilter;
+        return matchesDoctor && matchesType;
+      }),
+    [slotTypeFilter, slots, watched.doctor_id]
   );
 
   useEffect(() => {
@@ -133,32 +161,49 @@ export function PatientAppointmentsAdminPage() {
     setSaving(true);
     setMessage("");
     try {
-      await createAppointment({
-        patient_id: id,
-        created_by: user?.id ?? null,
-        doctor_id: selectedSlot.doctor_id,
-        title: values.appointment_type,
-        appointment_date: selectedSlot.date,
-        start_time: selectedSlot.start_time,
-        end_time: selectedSlot.end_time,
-        city: values.city,
-        location: selectedSlot.location,
-        status: "Programada",
-        notes: values.notes,
-      });
+      if (patient?.profile_id) {
+        await bookAppointmentSlot({
+          user_id: patient.profile_id,
+          patient_id: patient.id,
+          rule_id: selectedSlot.rule_id,
+          date: selectedSlot.date,
+          start_time: selectedSlot.start_time,
+          end_time: selectedSlot.end_time,
+          city: values.city,
+          appointment_type: selectedSlot.appointment_type,
+          notes: values.notes,
+        });
+      } else {
+        await createAppointment({
+          patient_id: id,
+          created_by: user?.id ?? null,
+          doctor_id: selectedSlot.doctor_id,
+          title: selectedSlot.appointment_type,
+          appointment_date: selectedSlot.date,
+          start_time: selectedSlot.start_time,
+          end_time: selectedSlot.end_time,
+          city: values.city,
+          location: selectedSlot.location,
+          status: "Programada",
+          notes: values.notes,
+        });
+      }
       form.reset({
         city: values.city,
-        appointment_type: values.appointment_type,
         date: "",
         doctor_id: "",
         notes: "",
       });
       setSlots([]);
       setSelectedSlot(null);
-      setMessage("Cita programada correctamente.");
+      setMessage(
+        patient?.profile_id
+          ? "Reserva creada correctamente. La paciente ya puede entrar a su panel, pagar por QR y subir su comprobante."
+          : "Cita programada correctamente. Esta paciente no tiene usuario enlazado, por eso se guardo como cita interna."
+      );
       load();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No pudimos guardar la cita.");
+      setMessage(getErrorMessage(error, "No pudimos guardar la cita."));
     } finally {
       setSaving(false);
     }
@@ -189,21 +234,12 @@ export function PatientAppointmentsAdminPage() {
                 ))}
               </select>
             </Field>
-            <Field label="Tipo de cita" error={form.formState.errors.appointment_type?.message}>
-              <select {...form.register("appointment_type")} className="premium-input">
-                {appointmentTypes.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-            </Field>
             <Field label="Fecha" error={form.formState.errors.date?.message}>
               <input type="date" min={new Date().toISOString().slice(0, 10)} {...form.register("date")} className="premium-input" />
             </Field>
             <Field label="Doctora" error={form.formState.errors.doctor_id?.message}>
               <select {...form.register("doctor_id")} className="premium-input">
-                <option value="">Seleccionar doctora</option>
+                <option value="">Todas las doctoras</option>
                 {availableDoctors.map((doctor) => (
                   <option key={doctor.id} value={doctor.id}>
                     {doctor.name}
@@ -218,7 +254,16 @@ export function PatientAppointmentsAdminPage() {
           </Field>
 
           <div className="rounded-[24px] border border-[var(--color-border)] bg-[rgba(247,242,236,0.72)] p-4">
-            <p className="text-sm font-semibold">Horarios disponibles</p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm font-semibold">Horarios disponibles</p>
+              <select value={slotTypeFilter} onChange={(event) => setSlotTypeFilter(event.target.value)} className="premium-input sm:max-w-64">
+                {availableSlotTypes.map((type) => (
+                  <option key={type} value={type}>
+                    {type === "Todos" ? "Todos los tipos" : type}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
               {loadingSlots ? (
                 <div className="col-span-full">
@@ -227,7 +272,7 @@ export function PatientAppointmentsAdminPage() {
               ) : null}
               {!loadingSlots && filteredSlots.length === 0 ? (
                 <div className="col-span-full">
-                  <EmptyState label={watched.doctor_id ? "Esa doctora no tiene horarios disponibles para esa fecha y tipo de cita." : "No hay horarios disponibles para esa combinacion."} />
+                  <EmptyState label={watched.doctor_id || slotTypeFilter !== "Todos" ? "No hay horarios disponibles con esos filtros para esa fecha." : "No hay horarios disponibles para esa fecha."} />
                 </div>
               ) : null}
               {!loadingSlots &&
@@ -243,6 +288,7 @@ export function PatientAppointmentsAdminPage() {
                       }`}
                     >
                       {slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)}
+                      <span className="mt-1 block text-[11px] uppercase tracking-[0.12em] opacity-80">{slot.appointment_type}</span>
                       <span className="mt-1 block text-[11px] opacity-80">{slot.doctor_name ?? "Sin doctora"}</span>
                       <span className="block text-[11px] opacity-80">{slot.location ?? slot.city}</span>
                     </button>
@@ -253,12 +299,56 @@ export function PatientAppointmentsAdminPage() {
 
           <button disabled={saving || !selectedSlot} className="mt-2 inline-flex w-fit items-center gap-2 rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-50">
             <Send className="h-4 w-4" />
-            {saving ? "Guardando..." : "Agendar como programada"}
+            {saving ? "Guardando..." : patient?.profile_id ? "Agendar y pedir pago" : "Agendar como programada"}
           </button>
         </form>
       </section>
 
+      {reservations.length > 0 ? (
+        <section className="grid gap-4">
+          <h2 className="text-xl font-semibold">Reservas con pago del paciente</h2>
+          {reservations.map((item) => (
+            <article key={item.id} className="rounded-[24px] border border-[var(--color-border)] bg-white/75 p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-lg font-semibold">{item.appointment_type}</h3>
+                <div className="flex flex-wrap items-center gap-2">
+                  <select value={item.status} onChange={(event) => void updateReservationStatus(item.id, event.target.value as AppointmentReservationRow["status"]).then(load)} className="rounded-full border border-[var(--color-border)] bg-white/70 px-3 py-2 text-sm">
+                    <option>Pendiente</option>
+                    <option>Confirmada</option>
+                    <option>Realizada</option>
+                    <option>Cancelada</option>
+                    <option>Rechazada</option>
+                  </select>
+                  {patient?.phone ? (
+                    <a
+                      href={`https://wa.me/${patient.phone.replace(/\D/g, "")}?text=${encodeURIComponent(buildReservationMessage(patient.full_name, item))}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-full border border-[var(--color-border)] p-3"
+                      aria-label="Enviar reserva por WhatsApp"
+                    >
+                      <MessageCircleMore className="h-4 w-4" />
+                    </a>
+                  ) : null}
+                </div>
+              </div>
+              <p className="mt-1 text-xs font-semibold text-[var(--color-copy)]">
+                {item.payment_receipt_path ? "Comprobante enviado por paciente" : "Pendiente de comprobante"}
+              </p>
+              <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">
+                {formatDate(item.appointment_date)} · {item.start_time.slice(0, 5)} - {item.end_time.slice(0, 5)}
+                <br />
+                {item.city} · {item.location ?? "Lugar por confirmar"}
+                <br />
+                {item.doctor_profiles?.full_name ? `Con ${item.doctor_profiles.full_name}` : "Doctora por confirmar"}
+              </p>
+            </article>
+          ))}
+        </section>
+      ) : null}
+
       <div className="grid gap-4">
+        {items.length > 0 ? <h2 className="text-xl font-semibold">Citas internas heredadas</h2> : null}
         {items.map((item) => (
           <article key={item.id} className="rounded-[24px] border border-[var(--color-border)] bg-white/75 p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -306,6 +396,10 @@ function getSlotKey(slot: SlotWithDoctor) {
 
 function buildAppointmentMessage(patientName: string, item: AppointmentRow) {
   return `Hola ${patientName}, tu cita esta ${item.status.toLowerCase()} para el ${formatDate(item.appointment_date)} a las ${item.start_time.slice(0, 5)}${item.end_time ? ` hasta las ${item.end_time.slice(0, 5)}` : ""} en ${item.location ?? item.city}, ${item.city}${item.doctor_profiles?.full_name ? ` con ${item.doctor_profiles.full_name}` : ""}.`;
+}
+
+function buildReservationMessage(patientName: string, item: AppointmentReservationRow) {
+  return `Hola ${patientName}, tu reserva esta ${item.status.toLowerCase()} para el ${formatDate(item.appointment_date)} a las ${item.start_time.slice(0, 5)} hasta las ${item.end_time.slice(0, 5)} en ${item.location ?? item.city}, ${item.city}${item.doctor_profiles?.full_name ? ` con ${item.doctor_profiles.full_name}` : ""}. ${item.status === "Pendiente" ? "Recuerda entrar a tu panel para pagar por QR y subir tu comprobante." : ""}`;
 }
 
 function Field({ label, error, children }: { label: string; error?: string; children: ReactNode }) {
