@@ -163,6 +163,7 @@ export function Services() {
             <article className="flex h-full flex-col overflow-hidden rounded-[30px] border border-[var(--color-border)] bg-[rgba(255,249,244,0.78)] shadow-[0_20px_58px_rgba(62,42,31,0.08)] transition-shadow duration-300 group-hover:shadow-[0_26px_68px_rgba(62,42,31,0.12)]">
               <ImageWithSkeleton
                 src={card.image ?? "/doctora/dra2.jpg"}
+                fallbackSrc="/doctora/dra2.jpg"
                 alt={card.title}
                 wrapperClassName="h-72 w-full"
               />

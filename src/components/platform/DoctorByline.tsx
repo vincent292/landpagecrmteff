@@ -1,3 +1,5 @@
+import { ImageWithSkeleton } from "../ui/ImageWithSkeleton";
+
 type DoctorBylineProps = {
   doctor?: {
     full_name: string;
@@ -11,10 +13,12 @@ export function DoctorByline({ doctor }: DoctorBylineProps) {
 
   return (
     <div className="mt-4 flex items-center gap-3 rounded-2xl bg-white/65 p-3">
-      <img
+      <ImageWithSkeleton
         src={doctor.photo_url ?? "/doctora/dra1.jpg"}
+        fallbackSrc="/doctora/dra1.jpg"
         alt={doctor.full_name}
         className="h-11 w-11 rounded-full object-cover"
+        wrapperClassName="h-11 w-11 overflow-hidden rounded-full"
       />
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-accent-strong)]">

@@ -4,6 +4,7 @@ import { Navigate, useNavigate, useParams } from "react-router-dom";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { DoctorByline } from "../../components/platform/DoctorByline";
+import { ImageWithSkeleton } from "../../components/ui/ImageWithSkeleton";
 import { getCourseBySlug, type CourseRow } from "../../services/courseService";
 import { enrollToCourse } from "../../services/enrollmentService";
 import { useAuth } from "../../hooks/useAuth";
@@ -51,7 +52,12 @@ export function CourseDetailPage() {
   return (
     <section>
       <div className="relative min-h-[440px] overflow-hidden">
-        <img src={course.cover_image ?? "/doctora/dra3.jpg"} alt={course.title} className="absolute inset-0 h-full w-full object-cover" />
+        <ImageWithSkeleton
+          src={course.cover_image ?? "/doctora/dra3.jpg"}
+          fallbackSrc="/doctora/dra3.jpg"
+          alt={course.title}
+          wrapperClassName="absolute inset-0 h-full w-full"
+        />
         <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(43,33,27,0.72),rgba(43,33,27,0.24))]" />
         <div className="relative mx-auto flex min-h-[440px] max-w-7xl flex-col justify-end px-6 pb-12 text-white md:px-8">
           <p className="text-xs font-semibold uppercase tracking-[0.28em]">Curso</p>

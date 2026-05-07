@@ -3,6 +3,7 @@ import { Star } from "lucide-react";
 
 import { getTestimonials, type TestimonialRow } from "../../services/testimonialService";
 import { getDisplayCity, getInitials } from "../../utils/publicContent";
+import { ImageWithSkeleton } from "../ui/ImageWithSkeleton";
 import { SectionHeading } from "../ui/SectionHeading";
 import { SectionReveal } from "../ui/SectionReveal";
 
@@ -36,7 +37,12 @@ export function TestimonialsSection() {
           >
             <div className="flex items-center gap-4">
               {item.image_url ? (
-                <img src={item.image_url} alt={item.full_name ?? "Testimonio"} className="h-14 w-14 rounded-full object-cover" />
+                <ImageWithSkeleton
+                  src={item.image_url}
+                  fallbackSrc="/doctora/dra1.jpg"
+                  alt={item.full_name ?? "Testimonio"}
+                  wrapperClassName="h-14 w-14 overflow-hidden rounded-full"
+                />
               ) : (
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[rgba(198,162,123,0.22)] text-sm font-semibold text-[var(--color-ink)]">
                   {getInitials(item.full_name)}

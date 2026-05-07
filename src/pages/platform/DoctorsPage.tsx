@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Mail, MessageCircleMore } from "lucide-react";
 
 import { EmptyState, LoadingState } from "../../components/common/AsyncState";
+import { ImageWithSkeleton } from "../../components/ui/ImageWithSkeleton";
 import { getDoctors, type DoctorProfileRow } from "../../services/doctorService";
 import { PageIntro } from "./TreatmentsPage";
 
@@ -30,7 +31,12 @@ export function DoctorsPage() {
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
           {doctors.map((doctor) => (
             <article key={doctor.id} className="overflow-hidden rounded-[30px] border border-[var(--color-border)] bg-white/65 shadow-[0_18px_48px_rgba(110,74,47,0.08)]">
-              <img src={doctor.photo_url ?? "/doctora/dra1.jpg"} alt={doctor.full_name} className="h-72 w-full object-cover" />
+              <ImageWithSkeleton
+                src={doctor.photo_url ?? "/doctora/dra1.jpg"}
+                fallbackSrc="/doctora/dra1.jpg"
+                alt={doctor.full_name}
+                wrapperClassName="h-72 w-full"
+              />
               <div className="p-6">
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-accent-strong)]">
                   {doctor.specialty ?? "Medicina estetica"} · {doctor.city ?? "Bolivia"}

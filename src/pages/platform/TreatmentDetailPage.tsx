@@ -7,6 +7,7 @@ import "swiper/css";
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { DoctorByline } from "../../components/platform/DoctorByline";
 import { InfoRequestModal } from "../../components/platform/InfoRequestModal";
+import { ImageWithSkeleton } from "../../components/ui/ImageWithSkeleton";
 import { getTreatmentBySlug, type TreatmentRow } from "../../services/treatmentService";
 import { listFromText } from "../../utils/text";
 
@@ -45,7 +46,12 @@ export function TreatmentDetailPage() {
           <Swiper spaceBetween={12}>
             {gallery.map((image) => (
               <SwiperSlide key={image}>
-                <img src={image} alt={treatment.title} className="h-[520px] w-full rounded-[26px] object-cover" />
+                <ImageWithSkeleton
+                  src={image}
+                  fallbackSrc="/doctora/dra2.jpg"
+                  alt={treatment.title}
+                  wrapperClassName="h-[520px] w-full rounded-[26px]"
+                />
               </SwiperSlide>
             ))}
           </Swiper>
