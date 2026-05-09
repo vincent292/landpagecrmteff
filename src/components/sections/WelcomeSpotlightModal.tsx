@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type TouchEvent as ReactTouchEvent } from "react";
 import { createPortal } from "react-dom";
 
 import { ArrowLeft, ArrowRight, Tag, X } from "lucide-react";
@@ -122,6 +122,8 @@ export function WelcomeSpotlightModal({ enabled = true }: WelcomeSpotlightModalP
   const mediaRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const textRef = useRef<HTMLDivElement | null>(null);
+  const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!enabled || typeof window === "undefined") return;
@@ -271,46 +273,66 @@ export function WelcomeSpotlightModal({ enabled = true }: WelcomeSpotlightModalP
     setCurrentIndex((index) => (index === items.length - 1 ? 0 : index + 1));
   };
 
+  const handleTouchStart = (event: ReactTouchEvent<HTMLDivElement>) => {
+    const touch = event.touches[0];
+    touchStartXRef.current = touch.clientX;
+    touchStartYRef.current = touch.clientY;
+  };
+
+  const handleTouchEnd = (event: ReactTouchEvent<HTMLDivElement>) => {
+    if (touchStartXRef.current == null || touchStartYRef.current == null || !multiple) return;
+
+    const touch = event.changedTouches[0];
+    const deltaX = touch.clientX - touchStartXRef.current;
+    const deltaY = touch.clientY - touchStartYRef.current;
+
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+
+    if (Math.abs(deltaX) < 48 || Math.abs(deltaX) < Math.abs(deltaY)) return;
+
+    if (deltaX < 0) goNext();
+    else goPrev();
+  };
+
   return createPortal(
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-[130] flex items-center justify-center bg-[rgba(43,33,27,0.42)] px-4 py-8 backdrop-blur-md"
+      className="fixed inset-0 z-[130] flex items-start justify-center bg-[rgba(43,33,27,0.42)] px-3 py-3 backdrop-blur-md sm:px-4 sm:py-6 md:items-center md:py-8"
     >
       <div
         ref={modalRef}
-        className="relative w-full max-w-5xl overflow-hidden rounded-[34px] border border-[var(--color-border)] bg-[rgba(255,249,244,0.97)] shadow-[0_34px_90px_rgba(43,33,27,0.28)]"
+        className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl overflow-hidden rounded-[28px] border border-[var(--color-border)] bg-[rgba(255,249,244,0.97)] shadow-[0_34px_90px_rgba(43,33,27,0.28)] sm:max-h-[calc(100dvh-2.5rem)] sm:rounded-[34px]"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
       >
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="absolute right-4 top-4 z-20 flex h-11 w-11 items-center justify-center rounded-full border border-[var(--color-border)] bg-white/70"
+          className="absolute right-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-[var(--color-border)] bg-white/82 shadow-[0_10px_24px_rgba(43,33,27,0.12)] sm:right-4 sm:top-4 sm:h-11 sm:w-11"
           aria-label="Cerrar"
         >
           <X className="h-5 w-5" />
         </button>
 
-        <div className="grid md:grid-cols-[0.92fr_1.08fr]">
+        <div className="grid max-h-[calc(100dvh-1.5rem)] overflow-y-auto overscroll-contain md:max-h-[calc(100dvh-2.5rem)] md:grid-cols-[0.92fr_1.08fr]">
           <div ref={mediaRef} className="relative">
             <ContentCover
               src={currentItem.image}
               alt={currentItem.title}
               label={currentItem.kind}
-              wrapperClassName="min-h-[290px] md:min-h-[560px]"
+              wrapperClassName="min-h-[220px] sm:min-h-[290px] md:min-h-[560px]"
               className="h-full w-full object-cover"
             />
 
             {multiple ? (
-              <div className="absolute inset-x-0 bottom-4 flex items-center justify-center gap-2 px-4">
+              <div className="absolute inset-x-0 bottom-3 flex items-center justify-center gap-2 px-4 sm:bottom-4">
                 {items.map((item, index) => (
                   <button
                     key={item.id}
                     type="button"
                     onClick={() => setCurrentIndex(index)}
-                    className={`h-2.5 rounded-full transition-all ${
-                      index === currentIndex
-                        ? "w-8 bg-white"
-                        : "w-2.5 bg-white/55"
-                    }`}
+                    className={`h-2.5 rounded-full transition-all ${index === currentIndex ? "w-8 bg-white" : "w-2.5 bg-white/55"}`}
                     aria-label={`Ir al destacado ${index + 1}`}
                   />
                 ))}
@@ -318,36 +340,37 @@ export function WelcomeSpotlightModal({ enabled = true }: WelcomeSpotlightModalP
             ) : null}
           </div>
 
-          <div ref={contentRef} className="relative p-6 md:p-8">
-            <div ref={textRef} className="contents">
-            <div className="flex items-center gap-3">
-              {multiple ? (
-                <div className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-white/55 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-mocha)]">
-                  {String(currentIndex + 1).padStart(2, "0")} / {String(items.length).padStart(2, "0")}
+          <div ref={contentRef} className="relative flex flex-col p-5 pb-6 sm:p-6 md:p-8">
+            <div ref={textRef} className="flex flex-col">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                {multiple ? (
+                  <div className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-white/55 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-mocha)] sm:text-xs">
+                    {String(currentIndex + 1).padStart(2, "0")} / {String(items.length).padStart(2, "0")}
+                  </div>
+                ) : null}
+                <div className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-white/55 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-accent-strong)] sm:px-4 sm:text-xs sm:tracking-[0.22em]">
+                  <Tag className="h-3.5 w-3.5" />
+                  {currentItem.badge}
                 </div>
-              ) : null}
-              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-white/55 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-accent-strong)]">
-                <Tag className="h-3.5 w-3.5" />
-                {currentItem.badge}
               </div>
+
+              <h2 className="font-display mt-4 text-[2rem] font-semibold leading-[0.94] text-[var(--color-ink)] sm:mt-5 sm:text-4xl md:text-5xl">
+                {currentItem.title}
+              </h2>
+
+              <p className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-mocha)] sm:mt-4 sm:text-sm sm:tracking-[0.18em]">
+                {currentItem.meta}
+              </p>
+
+              <p className="mt-4 text-sm leading-7 text-[var(--color-copy)] sm:mt-5 sm:text-base sm:leading-8">
+                {currentItem.description}
+              </p>
             </div>
 
-            <h2 className="font-display mt-5 text-4xl font-semibold leading-[0.95] text-[var(--color-ink)] md:text-5xl">
-              {currentItem.title}
-            </h2>
-
-            <p className="mt-4 text-sm font-semibold uppercase tracking-[0.18em] text-[var(--color-mocha)]">
-              {currentItem.meta}
-            </p>
-
-            <p className="mt-5 text-base leading-8 text-[var(--color-copy)]">
-              {currentItem.description}
-            </p>
-
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-6 flex flex-col gap-3 sm:mt-8 sm:flex-row">
               <a
                 href={currentItem.href}
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-[var(--color-mocha)] px-6 py-3.5 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(62,42,31,0.18)]"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[var(--color-mocha)] px-5 py-3.5 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(62,42,31,0.18)] sm:px-6"
               >
                 {currentItem.ctaLabel}
                 <ArrowRight className="h-4 w-4" />
@@ -355,22 +378,22 @@ export function WelcomeSpotlightModal({ enabled = true }: WelcomeSpotlightModalP
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="rounded-full border border-[var(--color-border)] px-6 py-3.5 text-sm font-semibold text-[var(--color-ink)]"
+                className="min-h-12 rounded-full border border-[var(--color-border)] px-5 py-3.5 text-sm font-semibold text-[var(--color-ink)] sm:px-6"
               >
                 Cerrar
               </button>
             </div>
 
             {multiple ? (
-              <div className="mt-8 flex items-center justify-between gap-3 border-t border-[var(--color-border)] pt-6">
-                <p className="text-sm text-[var(--color-copy)]">
-                  Desliza entre promociones, tratamientos, cursos y libros destacados.
+              <div className="mt-6 flex flex-col gap-4 border-t border-[var(--color-border)] pt-5 sm:mt-8 sm:flex-row sm:items-center sm:justify-between sm:pt-6">
+                <p className="max-w-md text-sm leading-6 text-[var(--color-copy)]">
+                  Desliza o usa las flechas para recorrer promociones, tratamientos, cursos y libros destacados.
                 </p>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between gap-3 sm:justify-end">
                   <button
                     type="button"
                     onClick={goPrev}
-                    className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--color-border)] bg-white/65 text-[var(--color-ink)]"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[var(--color-border)] bg-white/65 text-[var(--color-ink)]"
                     aria-label="Anterior"
                   >
                     <ArrowLeft className="h-4 w-4" />
@@ -378,7 +401,7 @@ export function WelcomeSpotlightModal({ enabled = true }: WelcomeSpotlightModalP
                   <button
                     type="button"
                     onClick={goNext}
-                    className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--color-caramel)] text-white shadow-[0_16px_34px_rgba(110,74,47,0.18)]"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--color-caramel)] text-white shadow-[0_16px_34px_rgba(110,74,47,0.18)]"
                     aria-label="Siguiente"
                   >
                     <ArrowRight className="h-4 w-4" />
@@ -386,7 +409,6 @@ export function WelcomeSpotlightModal({ enabled = true }: WelcomeSpotlightModalP
                 </div>
               </div>
             ) : null}
-            </div>
           </div>
         </div>
       </div>
