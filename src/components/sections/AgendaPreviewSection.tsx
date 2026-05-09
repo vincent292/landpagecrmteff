@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { CalendarDays, MapPin, X } from "lucide-react";
 
 import { InfoRequestModal } from "../platform/InfoRequestModal";
-import { ImageWithSkeleton } from "../ui/ImageWithSkeleton";
+import { ContentCover } from "../ui/ContentCover";
 import { SectionHeading } from "../ui/SectionHeading";
 import { SectionReveal } from "../ui/SectionReveal";
 import { getCalendarEvents, type CalendarEventRow } from "../../services/calendarService";
@@ -48,12 +48,7 @@ export function AgendaPreviewSection() {
               data-reveal
               className="flex flex-col rounded-[28px] border border-[var(--color-border)] bg-[rgba(255,249,244,0.76)] p-5 shadow-[0_18px_50px_rgba(62,42,31,0.08)]"
             >
-              <ImageWithSkeleton
-                src={event.cover_image ?? "/doctora/dra3.jpg"}
-                fallbackSrc="/doctora/dra3.jpg"
-                alt={event.title}
-                wrapperClassName="h-72 w-full rounded-[22px]"
-              />
+              <ContentCover src={event.cover_image} alt={event.title} label="Agenda" wrapperClassName="h-72 w-full rounded-[22px]" />
               <div className="mt-5 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-accent-strong)]">
                 <CalendarDays className="h-4 w-4" />
                 <span>{normalizeAgendaType(event.event_type)} · {getDisplayCity(event.city)}</span>
@@ -108,12 +103,7 @@ export function AgendaPreviewSection() {
       {selected ? (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
           <div className="grid max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-[32px] bg-[var(--color-surface)] md:grid-cols-[0.95fr_1.05fr]">
-            <ImageWithSkeleton
-              src={selected.cover_image ?? "/doctora/dra3.jpg"}
-              fallbackSrc="/doctora/dra3.jpg"
-              alt={selected.title}
-              wrapperClassName="h-full min-h-80 w-full"
-            />
+            <ContentCover src={selected.cover_image} alt={selected.title} label="Agenda" wrapperClassName="h-full min-h-80 w-full" />
             <div className="p-6 md:p-8">
               <button type="button" onClick={() => setSelected(null)} className="float-right rounded-full border border-[var(--color-border)] p-2">
                 <X className="h-5 w-5" />

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
+import { ContentCover } from "../../components/ui/ContentCover";
 import { useAuth } from "../../hooks/useAuth";
 import { getBookBySlug, type BookRow } from "../../services/bookService";
 import { downloadBookWithToken } from "../../services/bookTokenService";
@@ -31,7 +32,7 @@ export function BookDetailPage() {
   return (
     <section className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24">
       <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
-        <img src={book.cover_image ?? "/doctora/dra1.jpg"} alt={book.title} className="w-full rounded-[30px] object-cover shadow-[0_24px_70px_rgba(62,42,31,0.16)]" />
+        <ContentCover src={book.cover_image} alt={book.title} label="Libro" wrapperClassName="w-full rounded-[30px] shadow-[0_24px_70px_rgba(62,42,31,0.16)]" />
         <div className="rounded-[32px] border border-[var(--color-border)] bg-white/75 p-6 md:p-8">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">{book.author}</p>
           <h1 className="font-display mt-3 text-5xl font-semibold text-[var(--color-ink)] md:text-6xl">{book.title}</h1>

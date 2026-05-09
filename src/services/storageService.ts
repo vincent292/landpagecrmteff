@@ -25,6 +25,27 @@ export async function uploadPublicFile(bucket: string, path: string, file: File)
   };
 }
 
+export async function uploadPublicFileWithFallback(
+  buckets: string[],
+  path: string,
+  file: File
+) {
+  let lastError: unknown = null;
+
+  for (const bucket of buckets) {
+    try {
+      const uploaded = await uploadPublicFile(bucket, path, file);
+      return { bucket, ...uploaded };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("No se pudo subir la imagen al almacenamiento público.");
+}
+
 export async function getSignedUrl(bucket: string, path: string, expiresIn = 60 * 10) {
   const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, expiresIn);
   if (error) throw error;

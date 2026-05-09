@@ -7,7 +7,7 @@ import { X } from "lucide-react";
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { DoctorByline } from "../../components/platform/DoctorByline";
 import { InfoRequestModal } from "../../components/platform/InfoRequestModal";
-import { ImageWithSkeleton } from "../../components/ui/ImageWithSkeleton";
+import { ContentCover } from "../../components/ui/ContentCover";
 import { boliviaCities } from "../../data/cities";
 import { getCalendarEvents } from "../../services/calendarService";
 import { getCourses } from "../../services/courseService";
@@ -193,12 +193,7 @@ export function AgendaPage() {
       {selected ? (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
           <div className="grid max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-[32px] bg-[var(--color-surface)] md:grid-cols-[0.9fr_1.1fr]">
-            <ImageWithSkeleton
-              src={selected.cover_image ?? "/doctora/dra3.jpg"}
-              fallbackSrc="/doctora/dra3.jpg"
-              alt={selected.title}
-              wrapperClassName="h-full min-h-80 w-full"
-            />
+            <ContentCover src={selected.cover_image} alt={selected.title} label={selected.request_type} wrapperClassName="h-full min-h-80 w-full" />
             <div className="p-6 md:p-8">
               <button type="button" onClick={() => setSelected(null)} className="float-right rounded-full border border-[var(--color-border)] p-2">
                 <X className="h-5 w-5" />

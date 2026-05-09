@@ -7,7 +7,7 @@ import "swiper/css";
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { DoctorByline } from "../../components/platform/DoctorByline";
 import { InfoRequestModal } from "../../components/platform/InfoRequestModal";
-import { ImageWithSkeleton } from "../../components/ui/ImageWithSkeleton";
+import { ContentCover } from "../../components/ui/ContentCover";
 import { getTreatmentBySlug, type TreatmentRow } from "../../services/treatmentService";
 import { listFromText } from "../../utils/text";
 
@@ -34,10 +34,7 @@ export function TreatmentDetailPage() {
   if (error) return <section className="mx-auto max-w-7xl px-6 py-16"><ErrorState /></section>;
   if (!treatment) return <section className="mx-auto max-w-7xl px-6 py-16"><EmptyState label="No encontramos este tratamiento." /></section>;
 
-  const gallery = [
-    treatment.cover_image ?? "/doctora/dra2.jpg",
-    ...(treatment.treatment_images?.map((image) => image.image_url) ?? []),
-  ];
+  const gallery = [treatment.cover_image, ...(treatment.treatment_images?.map((image) => image.image_url) ?? [])].filter(Boolean) as string[];
 
   return (
     <section className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24">
@@ -46,14 +43,14 @@ export function TreatmentDetailPage() {
           <Swiper spaceBetween={12}>
             {gallery.map((image) => (
               <SwiperSlide key={image}>
-                <ImageWithSkeleton
-                  src={image}
-                  fallbackSrc="/doctora/dra2.jpg"
-                  alt={treatment.title}
-                  wrapperClassName="h-[520px] w-full rounded-[26px]"
-                />
+                <ContentCover src={image} alt={treatment.title} label="Tratamiento" wrapperClassName="h-[520px] w-full rounded-[26px]" />
               </SwiperSlide>
             ))}
+            {gallery.length === 0 ? (
+              <SwiperSlide key="empty-treatment-cover">
+                <ContentCover alt={treatment.title} label="Tratamiento" wrapperClassName="h-[520px] w-full rounded-[26px]" />
+              </SwiperSlide>
+            ) : null}
           </Swiper>
         </div>
         <div>

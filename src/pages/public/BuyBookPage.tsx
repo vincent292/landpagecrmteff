@@ -6,6 +6,7 @@ import { Navigate, useParams } from "react-router-dom";
 import { z } from "zod";
 
 import { LoadingState } from "../../components/common/AsyncState";
+import { ContentCover } from "../../components/ui/ContentCover";
 import { useAuth } from "../../hooks/useAuth";
 import { attachPaymentReceipt, createBookOrder, uploadPaymentReceipt } from "../../services/bookOrderService";
 import { getBookBySlug } from "../../services/bookService";
@@ -68,7 +69,7 @@ export function BuyBookPage() {
     <section className="mx-auto max-w-6xl px-6 py-16 md:px-8 md:py-24">
       <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
         <div className="rounded-[32px] border border-[var(--color-border)] bg-white/75 p-6">
-          <img src={book.cover_image ?? "/doctora/dra1.jpg"} alt={book.title} className="h-[28rem] w-full rounded-[24px] object-cover" />
+          <ContentCover src={book.cover_image} alt={book.title} label="Libro" wrapperClassName="h-[28rem] w-full rounded-[24px]" />
           <h1 className="font-display mt-5 text-4xl font-semibold">{book.title}</h1>
           <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">{book.description}</p>
           <p className="mt-5 text-xl font-semibold">{formatMoney(book.price)}</p>

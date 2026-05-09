@@ -4,7 +4,7 @@ import { Link, Navigate, useParams } from "react-router-dom";
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { DoctorByline } from "../../components/platform/DoctorByline";
 import { InfoRequestModal } from "../../components/platform/InfoRequestModal";
-import { ImageWithSkeleton } from "../../components/ui/ImageWithSkeleton";
+import { ContentCover } from "../../components/ui/ContentCover";
 import { getPromotionBySlug, type PromotionRow } from "../../services/promotionService";
 import { formatMoney } from "../../utils/text";
 import { formatPublicDate, getDisplayCity } from "../../utils/publicContent";
@@ -32,12 +32,7 @@ export function PromotionDetailPage() {
   return (
     <section className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24">
       <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-start">
-        <ImageWithSkeleton
-          src={promotion.cover_image ?? "/doctora/dra1.jpg"}
-          fallbackSrc="/doctora/dra1.jpg"
-          alt={promotion.title}
-          wrapperClassName="w-full rounded-[30px] shadow-[0_24px_70px_rgba(62,42,31,0.16)]"
-        />
+        <ContentCover src={promotion.cover_image} alt={promotion.title} label="Promocion" wrapperClassName="w-full rounded-[30px] shadow-[0_24px_70px_rgba(62,42,31,0.16)]" />
         <div className="rounded-[32px] border border-[var(--color-border)] bg-white/75 p-6 md:p-8">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">
             Promoción · {getDisplayCity(promotion.city)}

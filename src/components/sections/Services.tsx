@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 
 import { InfoRequestModal } from "../platform/InfoRequestModal";
 import { AnimatedCard } from "../ui/AnimatedCard";
-import { ImageWithSkeleton } from "../ui/ImageWithSkeleton";
+import { ContentCover } from "../ui/ContentCover";
 import { SectionHeading } from "../ui/SectionHeading";
 import { SectionReveal } from "../ui/SectionReveal";
 import { getActivePromotions, type PromotionRow } from "../../services/promotionService";
@@ -152,8 +152,8 @@ export function Services() {
     <SectionReveal id="servicios" className="mx-auto max-w-7xl px-6 py-28 md:px-8 md:py-36">
       <SectionHeading
         eyebrow="Servicios"
-        title="Tratamientos, promociones y cursos destacados según la actividad actual del consultorio."
-        description="La sección se actualiza con el contenido activo publicado desde el panel para mantener una vista pública consistente y vigente."
+        title="Lo mas buscado del consultorio en un solo vistazo."
+        description="Accede rapido a tratamientos, promociones y cursos activos sin tener que pasar por bloques largos de texto."
         align="center"
       />
 
@@ -161,12 +161,7 @@ export function Services() {
         {cards.map((card, index) => (
           <AnimatedCard key={`${card.kind}-${card.id}`} index={index} className="group h-full">
             <article className="flex h-full flex-col overflow-hidden rounded-[30px] border border-[var(--color-border)] bg-[rgba(255,249,244,0.78)] shadow-[0_20px_58px_rgba(62,42,31,0.08)] transition-shadow duration-300 group-hover:shadow-[0_26px_68px_rgba(62,42,31,0.12)]">
-              <ImageWithSkeleton
-                src={card.image ?? "/doctora/dra2.jpg"}
-                fallbackSrc="/doctora/dra2.jpg"
-                alt={card.title}
-                wrapperClassName="h-72 w-full"
-              />
+              <ContentCover src={card.image} alt={card.title} label={card.kind} wrapperClassName="h-72 w-full" />
               <div className="flex flex-1 flex-col p-6">
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-accent-strong)]">
                   {card.category}

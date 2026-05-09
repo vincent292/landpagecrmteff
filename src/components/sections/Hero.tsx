@@ -9,7 +9,17 @@ import { SoftButton } from "../ui/SoftButton";
 
 gsap.registerPlugin(ScrollTrigger);
 
-export function Hero() {
+const quickLinks = [
+  { href: "/tratamientos", label: "Tratamientos", detail: "Ver opciones" },
+  { href: "/promociones", label: "Promociones", detail: "Ofertas activas" },
+  { href: "/cursos", label: "Cursos", detail: "Fechas e inscripcion" },
+];
+
+type HeroProps = {
+  onRequestInfo: () => void;
+};
+
+export function Hero({ onRequestInfo }: HeroProps) {
   const ref = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -148,19 +158,35 @@ export function Hero() {
               data-gsap="hero-copy"
               className="mt-7 max-w-2xl text-lg leading-8 text-[var(--color-copy)] md:text-xl"
             >
-              Estética médica con visión integral: bienestar, armonía y belleza
-              natural en una experiencia clínica refinada, serena y profundamente
-              personalizada.
+              Encuentra rapido tratamientos, promociones y cursos con una atencion
+              medica cercana, elegante y pensada para ayudarte a decidir sin vueltas.
             </p>
 
             <div
               data-gsap="hero-copy"
               className="mt-10 flex flex-col gap-4 sm:flex-row"
             >
-              <SoftButton href="/tratamientos">Reservar valoración</SoftButton>
-              <SoftButton href="#servicios" variant="secondary">
-                Descubrir enfoque
+              <SoftButton href="/reservar-cita">Reservar valoracion</SoftButton>
+              <SoftButton onClick={onRequestInfo} variant="secondary">
+                Pedir informacion
               </SoftButton>
+            </div>
+
+            <div data-gsap="hero-copy" className="mt-10 grid gap-3 sm:grid-cols-3">
+              {quickLinks.map((item) => (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  className="rounded-[24px] border border-[var(--color-border)] bg-[rgba(255,249,244,0.50)] px-4 py-4 shadow-[0_14px_32px_rgba(110,74,47,0.06)] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:shadow-[0_20px_42px_rgba(110,74,47,0.10)]"
+                >
+                  <span className="block text-sm font-semibold text-[var(--color-ink)]">
+                    {item.label}
+                  </span>
+                  <span className="mt-1 block text-xs uppercase tracking-[0.18em] text-[var(--color-accent-strong)]">
+                    {item.detail}
+                  </span>
+                </a>
+              ))}
             </div>
           </div>
 

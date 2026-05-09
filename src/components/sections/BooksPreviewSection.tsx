@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import type { BookRow } from "../../services/bookService";
 import { formatMoney } from "../../utils/text";
+import { ContentCover } from "../ui/ContentCover";
 import { SectionHeading } from "../ui/SectionHeading";
 import { SectionReveal } from "../ui/SectionReveal";
 
@@ -51,7 +52,7 @@ export function BooksPreviewSection() {
       <div ref={gridRef} className="mt-14 grid gap-6 lg:grid-cols-3">
         {books.map((book) => (
           <article key={book.id} data-reveal className="rounded-[28px] border border-[var(--color-border)] bg-[rgba(255,249,244,0.7)] p-5 shadow-[0_18px_50px_rgba(62,42,31,0.08)]">
-            <img src={book.cover_image ?? "/doctora/dra1.jpg"} alt={book.title} loading="lazy" decoding="async" className="h-80 w-full rounded-[22px] object-cover" />
+            <ContentCover src={book.cover_image} alt={book.title} label="Libro" wrapperClassName="h-80 w-full rounded-[22px]" />
             <p className="mt-5 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-accent-strong)]">{book.author}</p>
             <h3 className="mt-2 text-2xl font-semibold">{book.title}</h3>
             <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">{book.description}</p>

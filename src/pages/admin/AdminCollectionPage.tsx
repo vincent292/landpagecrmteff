@@ -19,6 +19,7 @@ import {
   updateGalleryAlbum,
   type GalleryAlbumRow,
 } from "../../services/galleryService";
+import { getAdminDoctors, getMyDoctorProfile, type DoctorProfileRow } from "../../services/doctorService";
 import { getProfiles, updateProfileRole, type ProfileRow } from "../../services/profileService";
 import {
   createPromotion,
@@ -340,9 +341,57 @@ function AdminEntityForm({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { role, profile } = useAuth();
   const [values, setValues] = useState<Record<string, string | boolean | number>>(() => getInitialValues(module, row));
   const [error, setError] = useState("");
+  const [doctorProfileId, setDoctorProfileId] = useState<string | null>(null);
+  const [doctors, setDoctors] = useState<DoctorProfileRow[]>([]);
   const fields = getFields(module);
+  const needsDoctor = requiresDoctorAssignment(module);
+
+  useEffect(() => {
+    if (role !== "doctor" || !profile?.id) return;
+
+    getMyDoctorProfile(profile.id)
+      .then((doctor) => setDoctorProfileId(doctor?.id ?? null))
+      .catch(() => setDoctorProfileId(null));
+  }, [profile?.id, role]);
+
+  useEffect(() => {
+    if (!needsDoctor) return;
+
+    getAdminDoctors(role === "superadmin")
+      .then(setDoctors)
+      .catch(() => setDoctors([]));
+  }, [needsDoctor, role]);
+
+  useEffect(() => {
+    if (!needsDoctor) return;
+
+    const currentDoctorId = typeof values.doctor_id === "string" ? values.doctor_id : "";
+
+    if (role === "doctor" && doctorProfileId && currentDoctorId !== doctorProfileId) {
+      setValues((current) => ({ ...current, doctor_id: doctorProfileId }));
+      return;
+    }
+
+    if (currentDoctorId) return;
+
+    if (row && "doctor_id" in row && typeof row.doctor_id === "string" && row.doctor_id) {
+      const rowDoctorId = row.doctor_id;
+      setValues((current) => ({ ...current, doctor_id: rowDoctorId }));
+      return;
+    }
+
+    if (doctorProfileId) {
+      setValues((current) => ({ ...current, doctor_id: doctorProfileId }));
+      return;
+    }
+
+    if (doctors.length === 1) {
+      setValues((current) => ({ ...current, doctor_id: doctors[0].id }));
+    }
+  }, [doctorProfileId, doctors, needsDoctor, role, row, values.doctor_id]);
 
   const setValue = (name: string, value: string | boolean | number) => {
     const next = { ...values, [name]: value };
@@ -353,7 +402,19 @@ function AdminEntityForm({
   const submit = async () => {
     try {
       setError("");
-      const payload = normalizePayload(module, values);
+      const selectedDoctorId =
+        role === "doctor"
+          ? doctorProfileId
+          : typeof values.doctor_id === "string" && values.doctor_id
+            ? values.doctor_id
+            : null;
+
+      if (needsDoctor && !selectedDoctorId) {
+        setError("Selecciona una doctora antes de guardar este registro.");
+        return;
+      }
+
+      const payload = normalizePayload(module, values, selectedDoctorId);
       if (row) {
         await handleUpdate(module, row.id, payload);
       } else {
@@ -361,7 +422,8 @@ function AdminEntityForm({
       }
       onSaved();
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "No se pudo guardar el registro.");
+      console.error(`Error guardando ${module}`, { rowId: row?.id, values, submitError });
+      setError(formatSubmitError(submitError));
     }
   };
 
@@ -390,6 +452,20 @@ function AdminEntityForm({
                     onChange={(url) => setValue(field.name, url)}
                   />
                 </div>
+              ) : field.name === "doctor_id" ? (
+                <select
+                  value={String(values[field.name] ?? "")}
+                  onChange={(event) => setValue(field.name, event.target.value)}
+                  className="premium-input mt-2"
+                  disabled={role === "doctor" && Boolean(doctorProfileId)}
+                >
+                  <option value="">{doctors.length > 0 ? "Selecciona doctora" : "Sin doctoras disponibles"}</option>
+                  {doctors.map((doctor) => (
+                    <option key={doctor.id} value={doctor.id}>
+                      {doctor.full_name}
+                    </option>
+                  ))}
+                </select>
               ) : field.type === "checkbox" ? (
                 <input type="checkbox" checked={Boolean(values[field.name])} onChange={(event) => setValue(field.name, event.target.checked)} className="mt-4 block" />
               ) : field.name === "event_type" ? (
@@ -479,6 +555,7 @@ function getFields(module: Exclude<Module, "inscripciones" | "solicitudes" | "us
   ];
   if (module === "tratamientos") return [
     ...common,
+    { name: "doctor_id", label: "Doctora", type: "select-doctor" },
     { name: "short_description", label: "Descripción corta", type: "textarea" },
     { name: "description", label: "Descripción completa", type: "textarea" },
     { name: "benefits", label: "Beneficios", type: "textarea" },
@@ -492,6 +569,7 @@ function getFields(module: Exclude<Module, "inscripciones" | "solicitudes" | "us
   ];
   if (module === "promociones") return [
     ...common,
+    { name: "doctor_id", label: "Doctora", type: "select-doctor" },
     { name: "description", label: "Descripción", type: "textarea" },
     { name: "cover_image", label: "Imagen", type: "image" },
     { name: "old_price", label: "Precio anterior", type: "number" },
@@ -504,6 +582,7 @@ function getFields(module: Exclude<Module, "inscripciones" | "solicitudes" | "us
   ];
   if (module === "cursos") return [
     ...common,
+    { name: "doctor_id", label: "Doctora", type: "select-doctor" },
     { name: "short_description", label: "Descripción corta", type: "textarea" },
     { name: "description", label: "Descripción completa", type: "textarea" },
     { name: "cover_image", label: "Imagen", type: "image" },
@@ -520,6 +599,7 @@ function getFields(module: Exclude<Module, "inscripciones" | "solicitudes" | "us
   ];
   if (module === "agenda") return [
     ...common,
+    { name: "doctor_id", label: "Doctora", type: "select-doctor" },
     { name: "city", label: "Ciudad", type: "text" },
     { name: "event_type", label: "Tipo", type: "text" },
     { name: "event_date", label: "Fecha", type: "date" },
@@ -543,18 +623,64 @@ function getFields(module: Exclude<Module, "inscripciones" | "solicitudes" | "us
 }
 
 function getInitialValues(module: Exclude<Module, "inscripciones" | "solicitudes" | "usuarios">, row: AdminRow | null) {
-  const base = row ? { ...row } as Record<string, string | boolean | number> : { title: "", slug: "", is_active: true };
-  if (module === "tratamientos") return { is_featured: false, ...base };
-  if (module === "agenda") return { event_type: "Jornada", available_slots: 0, ...base };
-  if (module === "galeria") return { is_featured: false, ...base };
-  return base;
+  const fields = getFields(module);
+  const defaults: Record<string, string | boolean | number> = {};
+
+  fields.forEach((field) => {
+    if (field.type === "checkbox") {
+      defaults[field.name] = field.name === "is_active";
+      return;
+    }
+
+    if (field.type === "number") {
+      defaults[field.name] = 0;
+      return;
+    }
+
+    if (field.name === "event_type") {
+      defaults[field.name] = "Jornada";
+      return;
+    }
+
+    defaults[field.name] = "";
+  });
+
+  if (!row) return defaults;
+
+  const next = { ...defaults };
+  fields.forEach((field) => {
+    const value = row[field.name as keyof typeof row];
+    if (typeof value === "string" || typeof value === "boolean" || typeof value === "number") {
+      next[field.name] = value;
+    } else if (value == null) {
+      if (field.type === "checkbox") next[field.name] = false;
+      else if (field.type === "number") next[field.name] = 0;
+      else next[field.name] = "";
+    }
+  });
+
+  return next;
+}
+
+function requiresDoctorAssignment(module: Exclude<Module, "inscripciones" | "solicitudes" | "usuarios">) {
+  return ["tratamientos", "promociones", "cursos", "agenda"].includes(module);
 }
 
 function normalizePayload(
   module: Exclude<Module, "inscripciones" | "solicitudes" | "usuarios">,
-  values: Record<string, string | boolean | number>
+  values: Record<string, string | boolean | number>,
+  doctorProfileId: string | null = null
 ) {
-  const payload = Object.fromEntries(Object.entries(values).map(([key, value]) => [key, value === "" ? null : value]));
+  const allowedFields = new Set(getFields(module).map((field) => field.name));
+  const payload: Record<string, unknown> = Object.fromEntries(
+    Object.entries(values)
+      .filter(([key]) => allowedFields.has(key))
+      .map(([key, value]) => [key, value === "" ? null : value])
+  );
+
+  if (requiresDoctorAssignment(module)) {
+    payload.doctor_id = doctorProfileId;
+  }
 
   if (module === "agenda") {
     payload.date = payload.event_date;
@@ -565,6 +691,28 @@ function normalizePayload(
   }
 
   return payload;
+}
+
+function formatSubmitError(error: unknown) {
+  if (error && typeof error === "object") {
+    const maybeSupabase = error as {
+      message?: string;
+      details?: string;
+      hint?: string;
+      code?: string;
+    };
+
+    const parts = [
+      maybeSupabase.message,
+      maybeSupabase.details,
+      maybeSupabase.hint,
+      maybeSupabase.code ? `Codigo: ${maybeSupabase.code}` : undefined,
+    ].filter(Boolean);
+
+    if (parts.length > 0) return parts.join(" · ");
+  }
+
+  return error instanceof Error ? error.message : "No se pudo guardar el registro.";
 }
 
 async function handleCreate(module: Exclude<Module, "inscripciones" | "solicitudes" | "usuarios">, payload: Record<string, unknown>) {

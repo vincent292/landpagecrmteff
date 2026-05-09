@@ -7,7 +7,7 @@ import { DoctorByline } from "../../components/platform/DoctorByline";
 import { InfoRequestModal } from "../../components/platform/InfoRequestModal";
 import { AnimatedCard } from "../../components/ui/AnimatedCard";
 import { CardSkeleton } from "../../components/ui/CardSkeleton";
-import { ImageWithSkeleton } from "../../components/ui/ImageWithSkeleton";
+import { ContentCover } from "../../components/ui/ContentCover";
 import { boliviaCities } from "../../data/cities";
 import { getTreatments, type TreatmentRow } from "../../services/treatmentService";
 
@@ -46,12 +46,7 @@ export function TreatmentsPage() {
             {filteredTreatments.map((treatment, index) => (
               <AnimatedCard key={treatment.id} index={index}>
                 <article className="min-w-0 max-w-full overflow-hidden rounded-[24px] border border-[var(--color-border)] bg-white/60 shadow-[0_18px_48px_rgba(110,74,47,0.08)] transition-shadow duration-300 hover:shadow-[0_24px_62px_rgba(110,74,47,0.13)] sm:rounded-[28px]">
-                  <ImageWithSkeleton
-                    src={treatment.cover_image ?? "/doctora/dra2.jpg"}
-                    fallbackSrc="/doctora/dra2.jpg"
-                    alt={treatment.title}
-                    wrapperClassName="h-56 w-full sm:h-64"
-                  />
+                  <ContentCover src={treatment.cover_image} alt={treatment.title} label="Tratamiento" wrapperClassName="h-56 w-full sm:h-64" />
                   <div className="min-w-0 p-5 sm:p-6">
                     <h2 className="break-words text-[1.55rem] font-semibold leading-tight sm:text-2xl">{treatment.title}</h2>
                     <DoctorByline doctor={treatment.doctor_profiles} />

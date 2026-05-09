@@ -1,26 +1,27 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
 import { Footer } from "../components/layout/Footer";
 import { PremiumNavbar } from "../components/layout/PremiumNavbar";
+import { InfoRequestModal } from "../components/platform/InfoRequestModal";
 import { WhatsAppButton } from "../components/platform/WhatsAppButton";
 import { AgendaPreviewSection } from "../components/sections/AgendaPreviewSection";
-import { BooksPreviewSection } from "../components/sections/BooksPreviewSection";
 import { DoctorSection } from "../components/sections/DoctorSection";
 import { FinalCTA } from "../components/sections/FinalCTA";
 import { GalleryPreviewSection } from "../components/sections/GalleryPreviewSection";
 import { Hero } from "../components/sections/Hero";
-import { Philosophy } from "../components/sections/Philosophy";
-import { Process } from "../components/sections/Process";
 import { Services } from "../components/sections/Services";
+import { StickyLeadCTA } from "../components/sections/StickyLeadCTA";
 import { TestimonialsSection } from "../components/sections/TestimonialsSection";
+import { WelcomeSpotlightModal } from "../components/sections/WelcomeSpotlightModal";
 
 gsap.registerPlugin(ScrollTrigger);
 
 export function HomePage() {
   const mainRef = useRef<HTMLElement | null>(null);
+  const [infoOpen, setInfoOpen] = useState(false);
 
   useEffect(() => {
     const main = mainRef.current;
@@ -77,7 +78,7 @@ export function HomePage() {
   return (
     <main
       ref={mainRef}
-      className="relative min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,var(--color-base)_0%,#f6efe7_18%,var(--color-surface)_44%,#f2e7dc_72%,var(--color-surface-soft)_100%)] text-[var(--color-ink)]"
+      className="relative min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,var(--color-base)_0%,#f6efe7_18%,var(--color-surface)_44%,#f2e7dc_72%,var(--color-surface-soft)_100%)] pb-28 text-[var(--color-ink)]"
     >
       <div
         aria-hidden="true"
@@ -93,17 +94,21 @@ export function HomePage() {
         />
       </div>
       <PremiumNavbar />
-      <Hero />
-      <Philosophy />
+      <Hero onRequestInfo={() => setInfoOpen(true)} />
       <Services />
+      <AgendaPreviewSection />
       <TestimonialsSection />
       <GalleryPreviewSection />
-      <BooksPreviewSection />
-      <Process />
-      <AgendaPreviewSection />
       <DoctorSection />
       <FinalCTA />
       <Footer />
+      <StickyLeadCTA onRequestInfo={() => setInfoOpen(true)} />
+      <WelcomeSpotlightModal />
+      <InfoRequestModal
+        open={infoOpen}
+        interest="Consulta general"
+        onClose={() => setInfoOpen(false)}
+      />
       <WhatsAppButton />
     </main>
   );

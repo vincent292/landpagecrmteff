@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
+import { ContentCover } from "../../components/ui/ContentCover";
 import { getActiveBooks, type BookRow } from "../../services/bookService";
 import { downloadBookWithToken } from "../../services/bookTokenService";
 import { formatMoney } from "../../utils/text";
@@ -60,7 +61,7 @@ export function BooksPage() {
           <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
             {items.map((book) => (
               <article key={book.id} className="rounded-[28px] border border-[var(--color-border)] bg-white/75 p-5 shadow-[0_18px_50px_rgba(62,42,31,0.08)]">
-                <img src={book.cover_image ?? "/doctora/dra1.jpg"} alt={book.title} className="h-80 w-full rounded-[22px] object-cover" />
+                <ContentCover src={book.cover_image} alt={book.title} label="Libro" wrapperClassName="h-80 w-full rounded-[22px]" />
                 <p className="mt-5 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-accent-strong)]">{book.author}</p>
                 <h2 className="mt-2 text-2xl font-semibold text-[var(--color-ink)]">{book.title}</h2>
                 <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">{book.description}</p>

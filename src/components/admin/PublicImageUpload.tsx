@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { ImageUp } from "lucide-react";
 
-import { uploadPublicFile } from "../../services/storageService";
+import { uploadPublicFileWithFallback } from "../../services/storageService";
 
 type PublicImageUploadProps = {
   label: string;
@@ -12,7 +12,7 @@ type PublicImageUploadProps = {
   onChange: (url: string) => void;
 };
 
-const bucket = "public-media";
+const publicBuckets = ["public-media", "public-gallery"];
 
 function isExternalInstagramCdn(url?: string | null) {
   if (!url) return false;
@@ -38,7 +38,7 @@ export function PublicImageUpload({ label, value, folder, helperText, onChange }
     try {
       const ext = file.name.split(".").pop() || "jpg";
       const path = `${folder}/${crypto.randomUUID()}.${ext}`;
-      const { publicUrl } = await uploadPublicFile(bucket, path, file);
+      const { publicUrl } = await uploadPublicFileWithFallback(publicBuckets, path, file);
       onChange(publicUrl);
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "No se pudo subir la imagen.");
@@ -56,7 +56,12 @@ export function PublicImageUpload({ label, value, folder, helperText, onChange }
           Esta imagen viene desde Instagram/Facebook CDN y puede fallar en el navegador interno de Instagram. Lo recomendable es volver a subirla al almacenamiento del sitio.
         </span>
       ) : null}
-      {value ? <img src={value} alt={label} className="h-44 w-full rounded-[18px] object-cover" /> : null}
+      {value && !showExternalWarning ? <img src={value} alt={label} className="h-44 w-full rounded-[18px] object-cover" /> : null}
+      {value && showExternalWarning ? (
+        <div className="flex h-44 w-full items-center justify-center rounded-[18px] border border-dashed border-amber-300 bg-amber-50 px-4 text-center text-sm text-amber-800">
+          La URL actual de Instagram no permite previsualización estable. Vuelve a subir la imagen al almacenamiento del sitio.
+        </div>
+      ) : null}
       <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-[var(--color-border)] bg-white/70 px-5 py-3 text-sm font-semibold">
         <ImageUp className="h-4 w-4" />
         {uploading ? "Subiendo..." : "Subir imagen"}

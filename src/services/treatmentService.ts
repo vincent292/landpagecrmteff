@@ -60,7 +60,10 @@ export async function createTreatment(data: Record<string, unknown>) {
 
 export async function updateTreatment(id: string, data: Record<string, unknown>) {
   const { error } = await supabase.from(table).update(data).eq("id", id);
-  if (error) throw error;
+  if (error) {
+    console.error("updateTreatment failed", { id, data, error });
+    throw error;
+  }
 }
 
 export async function deleteTreatment(id: string) {
