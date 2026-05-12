@@ -1,2 +1,2 @@
 export { createInformationRequest } from "./requestService";
-export { enrollToCourse } from "./enrollmentService";
+export { saveCourseEnrollment } from "./enrollmentService";

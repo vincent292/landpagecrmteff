@@ -5,6 +5,7 @@ import { EmptyState, ErrorState, LoadingState } from "../../components/common/As
 import { useAuth } from "../../hooks/useAuth";
 import { getAppointmentsByPatient } from "../../services/appointmentService";
 import { getMyBookOrders } from "../../services/bookOrderService";
+import { getMyCourseEnrollments } from "../../services/enrollmentService";
 import { getMyActiveBooks } from "../../services/bookPortalService";
 import { getPatientByProfileId } from "../../services/patientService";
 import { getMyPostCares } from "../../services/postCareService";
@@ -23,6 +24,7 @@ export function PatientDashboardPage() {
     prescriptions: [] as Awaited<ReturnType<typeof getMyPrescriptions>>,
     books: [] as Awaited<ReturnType<typeof getMyActiveBooks>>,
     ordersPending: 0,
+    courseEnrollmentsPending: 0,
   });
 
   useEffect(() => {
@@ -33,13 +35,14 @@ export function PatientDashboardPage() {
 
     getPatientByProfileId(user.id)
       .then(async (patient) => {
-        const [cares, prescriptions, books, orders, appointments, reservations] = await Promise.all([
+        const [cares, prescriptions, books, orders, appointments, reservations, courseEnrollments] = await Promise.all([
           getMyPostCares(user.id),
           getMyPrescriptions(user.id),
           getMyActiveBooks(user.id),
           getMyBookOrders(user.id),
           patient ? getAppointmentsByPatient(patient.id) : Promise.resolve([]),
           getMyReservations(user.id),
+          getMyCourseEnrollments(user.id),
         ]);
 
         setSummary({
@@ -49,6 +52,7 @@ export function PatientDashboardPage() {
           prescriptions,
           books,
           ordersPending: orders.filter((item) => item.status === "Pendiente" || item.status === "En revision").length,
+          courseEnrollmentsPending: courseEnrollments.filter((item) => item.status === "Pendiente" || item.status === "En revision").length,
         });
       })
       .catch(() => setError(true))
@@ -74,12 +78,13 @@ export function PatientDashboardPage() {
         </p>
       </section>
 
-      <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-6">
         <SummaryCard label="Proxima cita" value={nextDate ? formatDate(nextDate) : "Sin fecha"} />
         <SummaryCard label="Cuidados visibles" value={String(summary.cares.length)} />
         <SummaryCard label="Recetas activas" value={String(summary.prescriptions.length)} />
         <SummaryCard label="Libros disponibles" value={String(summary.books.length)} />
         <SummaryCard label="Pedidos pendientes" value={String(summary.ordersPending)} />
+        <SummaryCard label="Cursos pendientes" value={String(summary.courseEnrollmentsPending)} />
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">

@@ -50,6 +50,7 @@ const HomePage = lazyPage(() => import("./pages/HomePage"), "HomePage");
 const PatientAppointmentsPage = lazyPage(() => import("./pages/patient/PatientAppointmentsPage"), "PatientAppointmentsPage");
 const PatientBooksPage = lazyPage(() => import("./pages/patient/PatientBooksPage"), "PatientBooksPage");
 const PatientCaresPage = lazyPage(() => import("./pages/patient/PatientCaresPage"), "PatientCaresPage");
+const PatientCoursesPage = lazyPage(() => import("./pages/patient/PatientCoursesPage"), "PatientCoursesPage");
 const PatientDashboardPage = lazyPage(() => import("./pages/patient/PatientDashboardPage"), "PatientDashboardPage");
 const PatientDownloadsPage = lazyPage(() => import("./pages/patient/PatientDownloadsPage"), "PatientDownloadsPage");
 const PatientPrescriptionsPage = lazyPage(() => import("./pages/patient/PatientPrescriptionsPage"), "PatientPrescriptionsPage");
@@ -138,6 +139,7 @@ export default function App() {
           <Route index element={<PatientDashboardPage />} />
           <Route path="perfil" element={<PatientProfilePage />} />
           <Route path="citas" element={<PatientAppointmentsPage />} />
+          <Route path="cursos" element={<PatientCoursesPage />} />
           <Route path="reservar-cita" element={<ReserveAppointmentPage />} />
           <Route path="cuidados" element={<PatientCaresPage />} />
           <Route path="recetas" element={<PatientPrescriptionsPage />} />

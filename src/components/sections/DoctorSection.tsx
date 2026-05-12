@@ -19,59 +19,68 @@ export function DoctorSection() {
 
     const ctx = gsap.context(() => {
       const q = gsap.utils.selector(section);
+      const doctorReveal = q("[data-gsap='doctor-reveal']");
+      const doctorCopy = q("[data-gsap='doctor-copy'], [data-gsap='doctor-chip']");
+      const doctorMainPhoto = q("[data-gsap='doctor-main-photo']");
 
-      gsap.fromTo(
-        q("[data-gsap='doctor-reveal']"),
-        {
-          autoAlpha: 0,
-          y: 34,
-          clipPath: "inset(10% 0% 18% 0% round 34px)",
-          filter: "blur(16px)",
-        },
-        {
-          autoAlpha: 1,
-          y: 0,
-          clipPath: "inset(0% 0% 0% 0% round 34px)",
-          filter: "blur(0px)",
-          duration: 1,
-          stagger: 0.12,
-          ease: "power3.out",
+      if (doctorReveal.length > 0) {
+        gsap.fromTo(
+          doctorReveal,
+          {
+            autoAlpha: 0,
+            y: 34,
+            clipPath: "inset(10% 0% 18% 0% round 34px)",
+            filter: "blur(16px)",
+          },
+          {
+            autoAlpha: 1,
+            y: 0,
+            clipPath: "inset(0% 0% 0% 0% round 34px)",
+            filter: "blur(0px)",
+            duration: 1,
+            stagger: 0.12,
+            ease: "power3.out",
+            scrollTrigger: {
+              trigger: section,
+              start: "top 70%",
+              once: true,
+            },
+          }
+        );
+      }
+
+      if (doctorCopy.length > 0) {
+        gsap.fromTo(
+          doctorCopy,
+          { autoAlpha: 0, y: 24, filter: "blur(14px)" },
+          {
+            autoAlpha: 1,
+            y: 0,
+            filter: "blur(0px)",
+            duration: 0.82,
+            stagger: 0.08,
+            ease: "power3.out",
+            scrollTrigger: {
+              trigger: section,
+              start: "top 68%",
+              once: true,
+            },
+          }
+        );
+      }
+
+      if (doctorMainPhoto.length > 0) {
+        gsap.to(doctorMainPhoto, {
+          yPercent: -5,
+          ease: "none",
           scrollTrigger: {
             trigger: section,
-            start: "top 70%",
-            once: true,
+            start: "top bottom",
+            end: "bottom top",
+            scrub: true,
           },
-        }
-      );
-
-      gsap.fromTo(
-        q("[data-gsap='doctor-copy'], [data-gsap='doctor-chip']"),
-        { autoAlpha: 0, y: 24, filter: "blur(14px)" },
-        {
-          autoAlpha: 1,
-          y: 0,
-          filter: "blur(0px)",
-          duration: 0.82,
-          stagger: 0.08,
-          ease: "power3.out",
-          scrollTrigger: {
-            trigger: section,
-            start: "top 68%",
-            once: true,
-          },
-        }
-      );
-
-      gsap.to(q("[data-gsap='doctor-main-photo']"), {
-        yPercent: -5,
-        ease: "none",
-        scrollTrigger: {
-          trigger: section,
-          start: "top bottom",
-          end: "bottom top",
-          scrub: true,
-        },
-      });
+        });
+      }
     }, section);
 
     return () => ctx.revert();

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { MessageCircleMore, Pencil, Plus, Save, X } from "lucide-react";
 
@@ -12,7 +12,13 @@ import {
   type CalendarEventRow,
 } from "../../services/calendarService";
 import { createCourse, getAdminCourses, updateCourse, type CourseRow } from "../../services/courseService";
-import { getCourseEnrollments, updateEnrollmentStatus, type EnrollmentRow } from "../../services/enrollmentService";
+import {
+  getCourseEnrollmentReceiptUrl,
+  getCourseEnrollments,
+  updateEnrollmentNotes,
+  updateEnrollmentStatus,
+  type EnrollmentRow,
+} from "../../services/enrollmentService";
 import {
   createGalleryAlbum,
   getAdminGalleryAlbums,
@@ -44,6 +50,7 @@ import { canManageUsers, roleLabels } from "../../lib/roles";
 import { useAuth } from "../../hooks/useAuth";
 import { boliviaCities } from "../../data/cities";
 import { hardDeleteRecord, restoreRecord, softDeleteRecord, type DeletableTable, type DeletionMetadata } from "../../services/adminDeletionService";
+import { supabase } from "../../lib/supabaseClient";
 
 type Module =
   | "tratamientos"
@@ -68,7 +75,7 @@ type AdminRow =
   | ProfileRow;
 
 const requestStatuses = ["Nuevo", "Contactado", "Agendado", "Finalizado", "Descartado"];
-const enrollmentStatuses = ["Pendiente", "Confirmado", "Cancelado", "Asistió"];
+const enrollmentStatuses = ["Pendiente", "En revision", "Confirmado", "Rechazado", "Cancelado", "Asistió"];
 const eventTypes = ["Curso", "Procedimiento", "Cirugía", "Presentación", "Jornada", "Valoración"];
 const userRoles = ["superadmin", "doctor", "admin", "assistant", "patient", "student", "user"] as const;
 
@@ -80,6 +87,8 @@ export function AdminCollectionPage({ module }: Props) {
   const [editing, setEditing] = useState<AdminRow | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [filters, setFilters] = useState({ query: "", status: "Todos", city: "Todas", courseId: "Todos" });
+  const [pendingRealtime, setPendingRealtime] = useState(false);
+  const listRef = useRef<HTMLDivElement | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -91,6 +100,49 @@ export function AdminCollectionPage({ module }: Props) {
   };
 
   useEffect(load, [module, role]);
+
+  useEffect(() => {
+    if (module !== "inscripciones" && module !== "solicitudes") return;
+
+    const table = module === "inscripciones" ? "course_enrollments" : "information_requests";
+    const isEditingListField = () => {
+      const activeElement = document.activeElement;
+      if (!(activeElement instanceof HTMLElement)) return false;
+      if (!listRef.current?.contains(activeElement)) return false;
+      return ["TEXTAREA", "INPUT", "SELECT"].includes(activeElement.tagName);
+    };
+
+    const syncRows = () => {
+      if (isEditingListField()) {
+        setPendingRealtime(true);
+        return;
+      }
+
+      setPendingRealtime(false);
+      load();
+    };
+
+    const channel = supabase
+      .channel(`admin-live-list:${module}`)
+      .on("postgres_changes", { event: "*", schema: "public", table }, syncRows)
+      .subscribe();
+
+    const handleFocusChange = () => {
+      if (!pendingRealtime) return;
+      if (isEditingListField()) return;
+      setPendingRealtime(false);
+      load();
+    };
+
+    document.addEventListener("focusin", handleFocusChange);
+    document.addEventListener("click", handleFocusChange);
+
+    return () => {
+      document.removeEventListener("focusin", handleFocusChange);
+      document.removeEventListener("click", handleFocusChange);
+      void supabase.removeChannel(channel);
+    };
+  }, [module, pendingRealtime, role]);
 
   const filteredRows = useMemo(() => filterRows(module, rows, filters), [filters, module, rows]);
 
@@ -133,7 +185,24 @@ export function AdminCollectionPage({ module }: Props) {
         <AdminFilters module={module} rows={rows} filters={filters} setFilters={setFilters} />
       )}
 
-      <div className="mt-8 rounded-[28px] border border-[var(--color-border)] bg-white/70 p-4">
+      <div ref={listRef} className="mt-8 rounded-[28px] border border-[var(--color-border)] bg-white/70 p-4">
+        {pendingRealtime ? (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[20px] border border-[rgba(184,138,90,0.18)] bg-[rgba(255,249,244,0.84)] px-4 py-3">
+            <p className="text-sm font-semibold text-[var(--color-ink)]">
+              Llegaron cambios nuevos en tiempo real. Los aplicamos apenas termines de escribir.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setPendingRealtime(false);
+                load();
+              }}
+              className="rounded-full bg-[var(--color-mocha)] px-4 py-2 text-sm font-semibold text-white"
+            >
+              Actualizar ahora
+            </button>
+          </div>
+        ) : null}
         {loading && <LoadingState />}
         {error && <ErrorState />}
         {!loading && !error && filteredRows.length === 0 && <EmptyState />}
@@ -262,12 +331,24 @@ function AdminListRow({
     onRefresh();
   };
 
+  const openEnrollmentReceipt = async () => {
+    if (!("payment_receipt_path" in row) || !row.payment_receipt_path) return;
+    const url = await getCourseEnrollmentReceiptUrl(row.payment_receipt_path);
+    if (!url) return;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
   return (
     <div className="grid gap-4 rounded-[22px] bg-[rgba(247,242,236,0.72)] p-4 md:grid-cols-[1fr_auto] md:items-center">
       <div>
         <h2 className="font-semibold">{title}</h2>
         <p className="mt-1 text-sm text-[var(--color-copy)]">{meta}</p>
         <DeletedStatusNote row={deletionRow} />
+        {module === "inscripciones" && "payment_receipt_path" in row ? (
+          <p className="mt-2 text-sm text-[var(--color-copy)]">
+            {row.payment_receipt_path ? "Comprobante cargado por el alumno." : "Aun no se cargo comprobante."}
+          </p>
+        ) : null}
         {module === "solicitudes" && "internal_notes" in row && (
           <textarea
             defaultValue={row.internal_notes ?? ""}
@@ -276,8 +357,16 @@ function AdminListRow({
             className="premium-input mt-3 min-h-20"
           />
         )}
+        {module === "inscripciones" && "admin_notes" in row ? (
+          <textarea
+            defaultValue={row.admin_notes ?? ""}
+            onBlur={(event) => void updateEnrollmentNotes(row.id, event.target.value).then(onRefresh)}
+            placeholder="Notas internas"
+            className="premium-input mt-3 min-h-20"
+          />
+        ) : null}
       </div>
-      <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 md:justify-end">
         {(module === "solicitudes" || module === "inscripciones") && "status" in row && (
           <select
             defaultValue={row.status}
@@ -292,8 +381,34 @@ function AdminListRow({
             {(module === "solicitudes" ? requestStatuses : enrollmentStatuses).map((status) => <option key={status}>{status}</option>)}
           </select>
         )}
+        {module === "inscripciones" && "payment_receipt_path" in row && row.payment_receipt_path ? (
+          <button onClick={() => void openEnrollmentReceipt()} className="rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-semibold">
+            Ver comprobante
+          </button>
+        ) : null}
+        {module === "inscripciones" && "payment_receipt_path" in row && row.payment_receipt_path && row.status !== "Confirmado" ? (
+          <button onClick={() => void updateEnrollmentStatus(row.id, "Confirmado").then(onRefresh)} className="rounded-full bg-[var(--color-mocha)] px-4 py-2 text-sm font-semibold text-white">
+            Aprobar
+          </button>
+        ) : null}
+        {module === "inscripciones" && "payment_receipt_path" in row && row.payment_receipt_path && row.status !== "Rechazado" ? (
+          <button onClick={() => void updateEnrollmentStatus(row.id, "Rechazado").then(onRefresh)} className="rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-semibold">
+            Rechazar
+          </button>
+        ) : null}
+        {module === "inscripciones" && "status" in row && row.status === "Confirmado" ? (
+          <a
+            href={whatsappHref(row, module)}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-2 rounded-full bg-[rgb(36,120,86)] px-4 py-2 text-sm font-semibold text-white"
+          >
+            <MessageCircleMore className="h-4 w-4" />
+            WhatsApp aprobado
+          </a>
+        ) : null}
         {(module === "solicitudes" || module === "inscripciones") && (
-          <a href={whatsappHref(row)} target="_blank" rel="noreferrer" className="rounded-full border border-[var(--color-border)] p-3" aria-label="WhatsApp">
+          <a href={whatsappHref(row, module)} target="_blank" rel="noreferrer" className="rounded-full border border-[var(--color-border)] p-3" aria-label="WhatsApp">
             <MessageCircleMore className="h-4 w-4" />
           </a>
         )}
@@ -312,6 +427,16 @@ function AdminListRow({
             />
           </>
         )}
+        {(module === "inscripciones" || module === "solicitudes") && tableName ? (
+          <DeleteActions
+            role={role}
+            row={deletionRow}
+            compact
+            onSoftDelete={() => void handleSoftDelete()}
+            onRestore={() => void handleRestore()}
+            onHardDelete={() => void handleHardDelete()}
+          />
+        ) : null}
         {module === "usuarios" && "role" in row && (
           <select
             defaultValue={row.role ?? "user"}
@@ -428,8 +553,8 @@ function AdminEntityForm({
   };
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-      <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-[32px] bg-[var(--color-surface)] p-6 shadow-[0_30px_90px_rgba(43,33,27,0.25)] md:p-8">
+    <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-6 backdrop-blur-sm sm:items-center sm:pt-4">
+      <div className="max-h-[calc(100dvh-1.5rem)] w-full max-w-4xl overflow-y-auto rounded-[32px] bg-[var(--color-surface)] p-5 shadow-[0_30px_90px_rgba(43,33,27,0.25)] md:p-8">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--color-accent-strong)]">{row ? "Editar" : "Crear"}</p>
@@ -532,7 +657,7 @@ function getTitle(module: Module, row: AdminRow) {
 
 function getMeta(module: Module, row: AdminRow) {
   if (module === "solicitudes" && "interest_title" in row) return `${row.phone} · ${row.city ?? "Sin ciudad"} · ${row.interest_title ?? "General"}`;
-  if (module === "inscripciones" && "courses" in row) return `${row.courses?.title ?? "Curso"} · ${row.phone ?? "Sin celular"} · ${row.status}`;
+  if (module === "inscripciones" && "courses" in row) return `${row.courses?.title ?? "Curso"} · ${row.phone ?? "Sin celular"} · ${row.status} · ${row.payment_receipt_path ? "Con comprobante" : "Sin comprobante"}`;
   if (module === "usuarios" && "role" in row) {
     return `${row.city ?? "Sin ciudad"} · ${roleLabels[(row.role as keyof typeof roleLabels) ?? "user"] ?? row.role}`;
   }
@@ -541,10 +666,22 @@ function getMeta(module: Module, row: AdminRow) {
   return "Registro";
 }
 
-function whatsappHref(row: AdminRow) {
+function whatsappHref(row: AdminRow, module: Module) {
   const phone = "phone" in row ? row.phone ?? "" : "";
-  const interest = "interest_title" in row ? row.interest_title ?? "tu solicitud" : "tu inscripción";
   const cleaned = phone.replace(/\D/g, "");
+
+  if (module === "inscripciones" && "courses" in row) {
+    const studentName = row.full_name?.trim() || "hola";
+    const courseTitle = row.courses?.title ?? "tu curso";
+
+    if (row.status === "Confirmado") {
+      return `https://wa.me/${cleaned}?text=${encodeURIComponent(`Hola ${studentName}, tu inscripción al curso "${courseTitle}" fue aprobada. Ingresa a tu plataforma para ver recursos, actualizaciones y próximos pasos.`)}`;
+    }
+
+    return `https://wa.me/${cleaned}?text=${encodeURIComponent(`Hola ${studentName}, te escribimos de parte de la Dra. sobre tu inscripción al curso "${courseTitle}".`)}`;
+  }
+
+  const interest = "interest_title" in row ? row.interest_title ?? "tu solicitud" : "tu solicitud";
   return `https://wa.me/${cleaned}?text=${encodeURIComponent(`Hola, te escribimos de parte de la Dra. sobre tu solicitud de información para ${interest}.`)}`;
 }
 

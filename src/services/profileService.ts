@@ -7,6 +7,7 @@ export type ProfileRow = DeletionMetadata & {
   email: string | null;
   phone: string | null;
   city: string | null;
+  document_number?: string | null;
   role: string | null;
   created_at: string;
 };

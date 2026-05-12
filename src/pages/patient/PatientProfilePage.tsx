@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useAuth } from "../../hooks/useAuth";
 import { updateMyProfile } from "../../services/profileService";
@@ -8,11 +8,24 @@ export function PatientProfilePage() {
   const [fullName, setFullName] = useState(profile?.full_name ?? "");
   const [phone, setPhone] = useState(profile?.phone ?? "");
   const [city, setCity] = useState(profile?.city ?? "");
+  const [documentNumber, setDocumentNumber] = useState(profile?.document_number ?? "");
   const [saved, setSaved] = useState("");
+
+  useEffect(() => {
+    setFullName(profile?.full_name ?? "");
+    setPhone(profile?.phone ?? "");
+    setCity(profile?.city ?? "");
+    setDocumentNumber(profile?.document_number ?? "");
+  }, [profile?.city, profile?.document_number, profile?.full_name, profile?.phone]);
 
   const save = async () => {
     if (!profile) return;
-    await updateMyProfile(profile.id, { full_name: fullName, phone, city });
+    await updateMyProfile(profile.id, {
+      full_name: fullName,
+      phone,
+      city,
+      document_number: documentNumber,
+    });
     await refreshProfile();
     setSaved("Tus datos se actualizaron correctamente.");
   };
@@ -37,6 +50,10 @@ export function PatientProfilePage() {
         <label>
           <span className="text-sm font-semibold">Ciudad</span>
           <input value={city} onChange={(event) => setCity(event.target.value)} className="premium-input mt-2" />
+        </label>
+        <label>
+          <span className="text-sm font-semibold">Numero de carnet</span>
+          <input value={documentNumber} onChange={(event) => setDocumentNumber(event.target.value)} className="premium-input mt-2" />
         </label>
       </div>
       {saved ? <p className="mt-4 text-sm text-[var(--color-mocha)]">{saved}</p> : null}

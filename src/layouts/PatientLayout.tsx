@@ -1,6 +1,6 @@
 import { LogOut, Menu, X } from "lucide-react";
-import { useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 
 import { BrandSignature } from "../components/common/BrandSignature";
 import { useAuth } from "../hooks/useAuth";
@@ -10,6 +10,7 @@ const patientLinks = [
   ["Inicio", "/mi-panel"],
   ["Perfil", "/mi-panel/perfil"],
   ["Citas", "/mi-panel/citas"],
+  ["Cursos", "/mi-panel/cursos"],
   ["Reservar cita", "/mi-panel/reservar-cita"],
   ["Cuidados", "/mi-panel/cuidados"],
   ["Recetas", "/mi-panel/recetas"],
@@ -21,6 +22,22 @@ const patientLinks = [
 export function PatientLayout() {
   const { signOut, profile, user } = useAuth();
   const [open, setOpen] = useState(false);
+  const location = useLocation();
+
+  useEffect(() => {
+    setOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
 
   return (
     <main className="min-h-screen bg-[linear-gradient(180deg,#fbf7f2_0%,#f4ebe1_100%)] text-[var(--color-ink)] lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
@@ -51,7 +68,7 @@ export function PatientLayout() {
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-[min(82vw,280px)] -translate-x-full border-r border-[rgba(198,162,123,0.18)] bg-[rgba(255,249,244,0.96)] p-5 shadow-[20px_0_60px_rgba(43,33,27,0.18)] backdrop-blur-2xl transition-transform duration-300 lg:sticky lg:top-0 lg:z-40 lg:h-screen lg:w-auto lg:translate-x-0 lg:overflow-y-auto lg:shadow-none",
+          "fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-[min(84vw,280px)] -translate-x-full flex-col overflow-y-auto overscroll-contain border-r border-[rgba(198,162,123,0.18)] bg-[rgba(255,249,244,0.96)] p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] shadow-[20px_0_60px_rgba(43,33,27,0.18)] backdrop-blur-2xl transition-transform duration-300 [webkit-overflow-scrolling:touch] touch-pan-y lg:sticky lg:top-0 lg:z-40 lg:h-screen lg:w-auto lg:translate-x-0 lg:pb-5 lg:shadow-none",
           open && "translate-x-0"
         )}
       >
@@ -102,7 +119,7 @@ export function PatientLayout() {
         <button
           type="button"
           onClick={() => void signOut()}
-          className="mt-8 hidden w-full items-center justify-center gap-2 rounded-full border border-[var(--color-border)] px-4 py-3 text-sm font-semibold lg:inline-flex"
+          className="mt-auto hidden w-full items-center justify-center gap-2 rounded-full border border-[var(--color-border)] px-4 py-3 pt-8 text-sm font-semibold lg:inline-flex"
         >
           <LogOut className="h-4 w-4" />
           Cerrar sesion

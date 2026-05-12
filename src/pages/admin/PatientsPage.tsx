@@ -129,7 +129,53 @@ export function PatientsPage() {
       )}
 
       {!loading && !error && filtered.length > 0 && (
-        <div className="overflow-x-auto rounded-[28px] border border-[var(--color-border)] bg-white/75 p-4 shadow-[0_18px_50px_rgba(62,42,31,0.08)]">
+        <>
+          <div className="grid gap-3 lg:hidden">
+            {filtered.map((patient) => (
+              <div key={patient.id} className="rounded-[24px] border border-[var(--color-border)] bg-white/75 p-4 shadow-[0_18px_50px_rgba(62,42,31,0.08)]">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="font-semibold text-[var(--color-ink)]">{patient.full_name}</div>
+                    <div className="mt-2 inline-flex rounded-full bg-[rgba(216,194,174,0.24)] px-3 py-1 text-xs font-semibold text-[var(--color-mocha)]">
+                      Paciente
+                    </div>
+                  </div>
+                  <div className="text-right text-xs text-[var(--color-copy)]">{formatDate(patient.created_at)}</div>
+                </div>
+                <div className="mt-4 grid gap-2 text-sm text-[var(--color-copy)]">
+                  <p>{patient.phone ?? "Sin celular"}</p>
+                  <p>{patient.email ?? "Sin correo"}</p>
+                  <p>{patient.city ?? "Sin ciudad"}</p>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <PatientAction href={`/panel/pacientes/${patient.id}`} label="Ver ficha" />
+                  <PatientAction href={`/panel/pacientes/${patient.id}/historia-clinica`} label="Historia" />
+                  <PatientAction href={`/panel/pacientes/${patient.id}/fotos`} label="Fotos" />
+                  <PatientAction href={`/panel/pacientes/${patient.id}/citas`} label="Citas" />
+                  <PatientAction href={`/panel/pacientes/${patient.id}/recetas`} label="Recetas" />
+                  <PatientAction href={`/panel/pacientes/${patient.id}/cuidados`} label="Cuidados" />
+                  <DeleteActions
+                    role={role}
+                    row={patient}
+                    onSoftDelete={() =>
+                      void softDeleteRecord({
+                        table: "patients",
+                        id: patient.id,
+                        actorId: profile?.id ?? user?.id ?? null,
+                        actorRole: role,
+                        actorName: profile?.full_name ?? user?.user_metadata.full_name ?? null,
+                        actorEmail: profile?.email ?? user?.email ?? null,
+                      }).then(load)
+                    }
+                    onRestore={() => void restoreRecord("patients", patient.id).then(load)}
+                    onHardDelete={() => void hardDeleteRecord("patients", patient.id).then(load)}
+                  />
+                </div>
+                <DeletedStatusNote row={patient} />
+              </div>
+            ))}
+          </div>
+          <div className="hidden overflow-x-auto rounded-[28px] border border-[var(--color-border)] bg-white/75 p-4 shadow-[0_18px_50px_rgba(62,42,31,0.08)] lg:block">
           <table className="w-full min-w-[980px] text-left text-sm">
             <thead className="text-[var(--color-copy)]">
               <tr>
@@ -185,14 +231,15 @@ export function PatientsPage() {
               ))}
             </tbody>
           </table>
-        </div>
+          </div>
+        </>
       )}
 
       {showNew && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-6 backdrop-blur-sm sm:items-center sm:pt-4">
           <form
             onSubmit={handleSubmit((values) => void onSubmit(values))}
-            className="w-full max-w-2xl rounded-[32px] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-[0_30px_90px_rgba(43,33,27,0.25)]"
+            className="max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl overflow-y-auto rounded-[32px] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[0_30px_90px_rgba(43,33,27,0.25)] md:p-6"
           >
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">Nuevo paciente</p>
             <h2 className="font-display mt-3 text-4xl font-semibold">Crear ficha rápida</h2>

@@ -17,8 +17,10 @@ export function DoctorByline({ doctor }: DoctorBylineProps) {
         src={doctor.photo_url ?? "/doctora/dra1.jpg"}
         fallbackSrc="/doctora/dra1.jpg"
         alt={doctor.full_name}
+        loading="eager"
+        fetchPriority="high"
         className="h-11 w-11 rounded-full object-cover"
-        wrapperClassName="h-11 w-11 overflow-hidden rounded-full"
+        wrapperClassName="h-11 w-11 overflow-hidden rounded-full ring-1 ring-[rgba(110,74,47,0.12)]"
       />
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-accent-strong)]">

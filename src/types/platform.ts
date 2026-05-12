@@ -106,6 +106,7 @@ export type Profile = {
   email: string | null;
   phone: string | null;
   city: string | null;
+  document_number?: string | null;
   role: UserRole;
   created_at: string;
 };

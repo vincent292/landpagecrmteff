@@ -1,5 +1,6 @@
 import { supabase } from "../lib/supabaseClient";
 import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
+import { attachDoctorProfile, attachDoctorProfiles } from "./contentDoctorService";
 
 export type CourseRow = DeletionMetadata & {
   id: string;
@@ -30,13 +31,13 @@ export type CourseRow = DeletionMetadata & {
 export async function getCourses() {
   const { data, error } = await supabase.from("courses").select("*, doctor_profiles(full_name, specialty, photo_url)").eq("is_active", true).is("deleted_at", null).order("start_date", { ascending: true });
   if (error) throw error;
-  return (data ?? []) as CourseRow[];
+  return attachDoctorProfiles((data ?? []) as CourseRow[]);
 }
 
 export async function getCourseBySlug(slug: string) {
   const { data, error } = await supabase.from("courses").select("*, doctor_profiles(full_name, specialty, photo_url)").eq("slug", slug).is("deleted_at", null).maybeSingle();
   if (error) throw error;
-  return data as CourseRow | null;
+  return attachDoctorProfile(data as CourseRow | null);
 }
 
 export async function getAdminCourses(includeDeleted = false) {
@@ -45,7 +46,7 @@ export async function getAdminCourses(includeDeleted = false) {
   if (filter.column) query = query.is(filter.column, filter.value);
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []) as (CourseRow & { course_enrollments?: { id: string }[] })[];
+  return attachDoctorProfiles((data ?? []) as (CourseRow & { course_enrollments?: { id: string }[] })[]);
 }
 
 export async function createCourse(data: Record<string, unknown>) {

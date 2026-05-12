@@ -31,6 +31,8 @@ export function HomePage() {
 
     const ctx = gsap.context(() => {
       const sections = gsap.utils.toArray<HTMLElement>("section:not(#inicio)");
+      const lineA = gsap.utils.toArray<HTMLElement>("[data-page-parallax='line-a']");
+      const lineB = gsap.utils.toArray<HTMLElement>("[data-page-parallax='line-b']");
 
       sections.forEach((section, index) => {
         const target = section.firstElementChild as HTMLElement | null;
@@ -49,27 +51,31 @@ export function HomePage() {
         });
       });
 
-      gsap.to("[data-page-parallax='line-a']", {
-        yPercent: -18,
-        ease: "none",
-        scrollTrigger: {
-          trigger: main,
-          start: "top top",
-          end: "bottom bottom",
-          scrub: true,
-        },
-      });
+      if (lineA.length > 0) {
+        gsap.to(lineA, {
+          yPercent: -18,
+          ease: "none",
+          scrollTrigger: {
+            trigger: main,
+            start: "top top",
+            end: "bottom bottom",
+            scrub: true,
+          },
+        });
+      }
 
-      gsap.to("[data-page-parallax='line-b']", {
-        yPercent: 14,
-        ease: "none",
-        scrollTrigger: {
-          trigger: main,
-          start: "top top",
-          end: "bottom bottom",
-          scrub: true,
-        },
-      });
+      if (lineB.length > 0) {
+        gsap.to(lineB, {
+          yPercent: 14,
+          ease: "none",
+          scrollTrigger: {
+            trigger: main,
+            start: "top top",
+            end: "bottom bottom",
+            scrub: true,
+          },
+        });
+      }
     }, main);
 
     return () => ctx.revert();

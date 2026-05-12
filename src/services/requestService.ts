@@ -47,6 +47,16 @@ export async function getInformationRequests(includeDeleted = false) {
   return (data ?? []) as InformationRequestRow[];
 }
 
+export async function getInformationRequestById(id: string) {
+  const { data, error } = await supabase
+    .from("information_requests")
+    .select("*, doctor_profiles(full_name, whatsapp)")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  return data as InformationRequestRow | null;
+}
+
 export async function updateInformationRequestStatus(id: string, status: string) {
   const { error } = await supabase.from("information_requests").update({ status }).eq("id", id);
   if (error) throw error;

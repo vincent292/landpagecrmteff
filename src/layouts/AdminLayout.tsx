@@ -1,9 +1,10 @@
-import { LogOut, Menu, X } from "lucide-react";
-import { useState } from "react";
-import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
+import { Bell, LogOut, Menu, X } from "lucide-react";
+import { useEffect, useRef, useState, type RefObject } from "react";
+import { Link, Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 
 import { BrandSignature } from "../components/common/BrandSignature";
 import { useAuth } from "../hooks/useAuth";
+import { useAdminNotifications } from "../hooks/useAdminNotifications";
 import { cn } from "../lib/cn";
 import { canAccessAdminModule, canManageUsers, roleLabels } from "../lib/roles";
 
@@ -22,7 +23,6 @@ const adminLinks = [
   ["Citas", "/panel/citas", "citas"],
   ["Libros", "/panel/libros", "libros"],
   ["Pedidos libros", "/panel/pedidos-libros", "pedidos-libros"],
-  ["Tokens libros", "/panel/tokens-libros", "tokens-libros"],
   ["Galeria", "/panel/galeria", "galeria"],
   ["Usuarios", "/panel/usuarios", "usuarios"],
   ["Configuracion", "/panel/configuracion", "configuracion"],
@@ -32,11 +32,47 @@ export function AdminLayout() {
   const { signOut, role, user } = useAuth();
   const location = useLocation();
   const [open, setOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const mobileNotificationsRef = useRef<HTMLDivElement | null>(null);
+  const desktopNotificationsRef = useRef<HTMLDivElement | null>(null);
   const visibleLinks = adminLinks.filter(([label, , module]) => {
     if (label === "Usuarios" && !canManageUsers(role)) return false;
     return canAccessAdminModule(role, module);
   });
   const activeModule = location.pathname.replace(/^\/panel\/?/, "").split("/")[0] || "dashboard";
+  const { items: notifications, unreadCount, markAllAsSeen } = useAdminNotifications(user?.id ?? null);
+
+  useEffect(() => {
+    setOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!notificationsOpen) return;
+
+    const handleClick = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const clickedMobileBell = mobileNotificationsRef.current?.contains(target);
+      const clickedDesktopBell = desktopNotificationsRef.current?.contains(target);
+
+      if (!clickedMobileBell && !clickedDesktopBell) {
+        setNotificationsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [notificationsOpen]);
 
   if (!canAccessAdminModule(role, activeModule)) {
     if (activeModule === "dashboard") {
@@ -72,6 +108,18 @@ export function AdminLayout() {
           <p className="truncate text-sm font-semibold">Panel administrativo</p>
           <p className="truncate text-xs text-[var(--color-copy)]">{roleLabels[role]}</p>
         </div>
+        <NotificationBell
+          items={notifications}
+          unreadCount={unreadCount}
+          open={notificationsOpen}
+          onToggle={() => {
+            const next = !notificationsOpen;
+            setNotificationsOpen(next);
+            if (next) markAllAsSeen();
+          }}
+          onClose={() => setNotificationsOpen(false)}
+          containerRef={mobileNotificationsRef}
+        />
         <button
           type="button"
           onClick={() => void signOut()}
@@ -86,7 +134,7 @@ export function AdminLayout() {
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-[min(82vw,300px)] -translate-x-full flex-col overflow-y-auto overscroll-contain border-r border-[rgba(198,162,123,0.18)] bg-[rgba(255,249,244,0.96)] p-5 shadow-[20px_0_60px_rgba(43,33,27,0.18)] backdrop-blur-2xl transition-transform duration-300 [webkit-overflow-scrolling:touch] touch-pan-y lg:sticky lg:top-0 lg:z-40 lg:h-screen lg:w-auto lg:translate-x-0 lg:shadow-none",
+          "fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-[min(84vw,300px)] -translate-x-full flex-col overflow-y-auto overscroll-contain border-r border-[rgba(198,162,123,0.18)] bg-[rgba(255,249,244,0.96)] p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] shadow-[20px_0_60px_rgba(43,33,27,0.18)] backdrop-blur-2xl transition-transform duration-300 [webkit-overflow-scrolling:touch] touch-pan-y lg:sticky lg:top-0 lg:z-40 lg:h-screen lg:w-auto lg:translate-x-0 lg:pb-5 lg:shadow-none",
           open && "translate-x-0"
         )}
       >
@@ -153,14 +201,29 @@ export function AdminLayout() {
             <p className="text-xs text-[var(--color-copy)]">Rol: {roleLabels[role]}</p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => void signOut()}
-            className="hidden items-center gap-2 rounded-full border border-[var(--color-border)] bg-white/60 px-4 py-2 text-sm font-semibold sm:inline-flex"
-          >
-            <LogOut className="h-4 w-4" />
-            Logout
-          </button>
+          <div className="flex items-center gap-3">
+            <NotificationBell
+              items={notifications}
+              unreadCount={unreadCount}
+              open={notificationsOpen}
+              onToggle={() => {
+                const next = !notificationsOpen;
+                setNotificationsOpen(next);
+                if (next) markAllAsSeen();
+              }}
+              onClose={() => setNotificationsOpen(false)}
+              containerRef={desktopNotificationsRef}
+              desktopOnly
+            />
+            <button
+              type="button"
+              onClick={() => void signOut()}
+              className="hidden items-center gap-2 rounded-full border border-[var(--color-border)] bg-white/60 px-4 py-2 text-sm font-semibold sm:inline-flex"
+            >
+              <LogOut className="h-4 w-4" />
+              Logout
+            </button>
+          </div>
         </header>
 
         <section className="min-w-0 overflow-x-hidden p-4 sm:p-5 md:p-8">
@@ -168,5 +231,73 @@ export function AdminLayout() {
         </section>
       </div>
     </main>
+  );
+}
+
+function NotificationBell({
+  items,
+  unreadCount,
+  open,
+  onToggle,
+  onClose,
+  containerRef,
+  desktopOnly = false,
+}: {
+  items: { id: string; title: string; detail: string; href: string; createdAt: string }[];
+  unreadCount: number;
+  open: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  containerRef: RefObject<HTMLDivElement | null>;
+  desktopOnly?: boolean;
+}) {
+  return (
+    <div ref={containerRef} className={cn("relative", desktopOnly ? "hidden lg:block" : "")}>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--color-border)] bg-white/75"
+        aria-label="Abrir notificaciones"
+      >
+        <Bell className="h-5 w-5" />
+        {unreadCount > 0 ? (
+          <span className="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-[var(--color-mocha)] px-1 text-[10px] font-bold text-white">
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </span>
+        ) : null}
+      </button>
+
+      {open ? (
+        <div className="absolute right-0 top-14 z-[120] w-[min(92vw,360px)] rounded-[24px] border border-[var(--color-border)] bg-[rgba(255,249,244,0.98)] p-3 shadow-[0_24px_60px_rgba(43,33,27,0.18)] backdrop-blur-xl">
+          <div className="flex items-center justify-between gap-3 px-2 py-1">
+            <div>
+              <p className="text-sm font-semibold text-[var(--color-ink)]">Notificaciones</p>
+              <p className="text-xs text-[var(--color-copy)]">Solicitudes, inscripciones y citas en tiempo real.</p>
+            </div>
+            <button type="button" onClick={onClose} className="rounded-full border border-[var(--color-border)] px-3 py-1 text-xs font-semibold">
+              Cerrar
+            </button>
+          </div>
+          <div className="mt-3 grid max-h-[60vh] gap-2 overflow-y-auto">
+            {items.length === 0 ? (
+              <p className="rounded-[18px] bg-white/70 px-4 py-5 text-sm text-[var(--color-copy)]">Todavia no hay novedades en tiempo real.</p>
+            ) : (
+              items.map((item) => (
+                <Link
+                  key={item.id}
+                  to={item.href}
+                  onClick={onClose}
+                  className="rounded-[18px] border border-[rgba(198,162,123,0.14)] bg-white/74 px-4 py-3 transition hover:bg-white"
+                >
+                  <p className="text-sm font-semibold text-[var(--color-ink)]">{item.title}</p>
+                  <p className="mt-1 text-sm text-[var(--color-copy)]">{item.detail}</p>
+                  <p className="mt-2 text-xs text-[var(--color-copy)]">{new Date(item.createdAt).toLocaleString("es-BO")}</p>
+                </Link>
+              ))
+            )}
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }

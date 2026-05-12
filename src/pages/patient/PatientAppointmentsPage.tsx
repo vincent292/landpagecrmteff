@@ -21,6 +21,7 @@ export function PatientAppointmentsPage() {
   const [error, setError] = useState(false);
   const [message, setMessage] = useState("");
   const [uploadingId, setUploadingId] = useState("");
+  const paymentQrImage = settings?.payment_qr_image ?? settings?.appointment_qr_payment_image ?? null;
 
   const load = async () => {
     if (!user) return;
@@ -96,8 +97,8 @@ export function PatientAppointmentsPage() {
           {item.status === "Pendiente" ? (
             <div className="mt-4 rounded-[20px] bg-[rgba(247,242,236,0.78)] p-4">
               <p className="text-sm font-semibold">Confirma tu cita con el pago por QR</p>
-              {settings?.appointment_qr_payment_image ? (
-                <img src={settings.appointment_qr_payment_image} alt="QR de pago de la cita" className="mt-3 h-48 w-48 rounded-[18px] object-cover" />
+              {paymentQrImage ? (
+                <img src={paymentQrImage} alt="QR general de pagos" className="mt-3 h-48 w-48 rounded-[18px] object-cover" />
               ) : null}
               <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">
                 {item.payment_receipt_path

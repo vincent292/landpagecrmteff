@@ -1,5 +1,6 @@
 import { supabase } from "../lib/supabaseClient";
 import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
+import { attachDoctorProfile, attachDoctorProfiles } from "./contentDoctorService";
 
 const table = "treatments";
 
@@ -29,19 +30,19 @@ export type TreatmentRow = DeletionMetadata & {
 export async function getTreatments() {
   const { data, error } = await supabase.from(table).select("*, doctor_profiles(full_name, specialty, photo_url)").eq("is_active", true).is("deleted_at", null).order("created_at", { ascending: false });
   if (error) throw error;
-  return (data ?? []) as TreatmentRow[];
+  return attachDoctorProfiles((data ?? []) as TreatmentRow[]);
 }
 
 export async function getFeaturedTreatments() {
   const { data, error } = await supabase.from(table).select("*, doctor_profiles(full_name, specialty, photo_url)").eq("is_active", true).eq("is_featured", true).is("deleted_at", null).order("created_at", { ascending: false });
   if (error) throw error;
-  return (data ?? []) as TreatmentRow[];
+  return attachDoctorProfiles((data ?? []) as TreatmentRow[]);
 }
 
 export async function getTreatmentBySlug(slug: string) {
   const { data, error } = await supabase.from(table).select("*, treatment_images(*), doctor_profiles(full_name, specialty, photo_url)").eq("slug", slug).is("deleted_at", null).maybeSingle();
   if (error) throw error;
-  return data as (TreatmentRow & { treatment_images?: { image_url: string; alt_text?: string | null }[] }) | null;
+  return attachDoctorProfile(data as (TreatmentRow & { treatment_images?: { image_url: string; alt_text?: string | null }[] }) | null);
 }
 
 export async function getAdminTreatments(includeDeleted = false) {
@@ -50,7 +51,7 @@ export async function getAdminTreatments(includeDeleted = false) {
   if (filter.column) query = query.is(filter.column, filter.value);
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []) as TreatmentRow[];
+  return attachDoctorProfiles((data ?? []) as TreatmentRow[]);
 }
 
 export async function createTreatment(data: Record<string, unknown>) {

@@ -30,86 +30,106 @@ export function Hero({ onRequestInfo }: HeroProps) {
 
     const ctx = gsap.context(() => {
       const q = gsap.utils.selector(section);
+      const heroBg = q("[data-gsap='hero-bg']");
+      const heroCopy = q("[data-gsap='hero-copy']");
+      const heroPortrait = q("[data-gsap='hero-portrait']");
+      const heroDetail = q("[data-gsap='hero-detail']");
+      const heroGrid = q("[data-gsap='hero-grid']");
+      const heroPhoto = q("[data-gsap='hero-photo']");
 
-      gsap.fromTo(
-        q("[data-gsap='hero-bg']"),
-        { scale: 1.12, autoAlpha: 0 },
-        { scale: 1.06, autoAlpha: 1, duration: 1.1, ease: "power2.out" }
-      );
+      if (heroBg.length > 0) {
+        gsap.fromTo(
+          heroBg,
+          { scale: 1.12, autoAlpha: 0 },
+          { scale: 1.06, autoAlpha: 1, duration: 1.1, ease: "power2.out" }
+        );
+      }
 
-      gsap.fromTo(
-        q("[data-gsap='hero-copy']"),
-        { autoAlpha: 0, y: 34, filter: "blur(14px)" },
-        {
-          autoAlpha: 1,
-          y: 0,
-          filter: "blur(0px)",
-          duration: 0.9,
-          stagger: 0.1,
-          ease: "power3.out",
-        }
-      );
+      if (heroCopy.length > 0) {
+        gsap.fromTo(
+          heroCopy,
+          { autoAlpha: 0, y: 34, filter: "blur(14px)" },
+          {
+            autoAlpha: 1,
+            y: 0,
+            filter: "blur(0px)",
+            duration: 0.9,
+            stagger: 0.1,
+            ease: "power3.out",
+          }
+        );
+      }
 
-      gsap.fromTo(
-        q("[data-gsap='hero-portrait']"),
-        { autoAlpha: 0, y: 48, scale: 0.96, rotate: -1.4, filter: "blur(18px)" },
-        {
-          autoAlpha: 1,
-          y: 0,
-          scale: 1,
-          rotate: 0,
-          filter: "blur(0px)",
-          duration: 1.2,
-          delay: 0.18,
-          ease: "power3.out",
-        }
-      );
+      if (heroPortrait.length > 0) {
+        gsap.fromTo(
+          heroPortrait,
+          { autoAlpha: 0, y: 48, scale: 0.96, rotate: -1.4, filter: "blur(18px)" },
+          {
+            autoAlpha: 1,
+            y: 0,
+            scale: 1,
+            rotate: 0,
+            filter: "blur(0px)",
+            duration: 1.2,
+            delay: 0.18,
+            ease: "power3.out",
+          }
+        );
+      }
 
-      gsap.fromTo(
-        q("[data-gsap='hero-detail']"),
-        { autoAlpha: 0, y: 18 },
-        {
-          autoAlpha: 1,
-          y: 0,
-          duration: 0.75,
-          delay: 0.58,
-          stagger: 0.09,
-          ease: "power3.out",
-        }
-      );
+      if (heroDetail.length > 0) {
+        gsap.fromTo(
+          heroDetail,
+          { autoAlpha: 0, y: 18 },
+          {
+            autoAlpha: 1,
+            y: 0,
+            duration: 0.75,
+            delay: 0.58,
+            stagger: 0.09,
+            ease: "power3.out",
+          }
+        );
+      }
 
-      gsap.to(q("[data-gsap='hero-bg']"), {
-        yPercent: 10,
-        ease: "none",
-        scrollTrigger: {
-          trigger: section,
-          start: "top top",
-          end: "bottom top",
-          scrub: 0.7,
-        },
-      });
+      if (heroBg.length > 0) {
+        gsap.to(heroBg, {
+          yPercent: 10,
+          ease: "none",
+          scrollTrigger: {
+            trigger: section,
+            start: "top top",
+            end: "bottom top",
+            scrub: 0.7,
+          },
+        });
+      }
 
-      gsap.to(q("[data-gsap='hero-grid']"), {
-        yPercent: 5,
-        ease: "none",
-        scrollTrigger: {
-          trigger: section,
-          start: "top top",
-          end: "bottom top",
-          scrub: 0.8,
-        },
-      });
+      if (heroGrid.length > 0) {
+        gsap.to(heroGrid, {
+          yPercent: 5,
+          ease: "none",
+          scrollTrigger: {
+            trigger: section,
+            start: "top top",
+            end: "bottom top",
+            scrub: 0.8,
+          },
+        });
+      }
 
-      gsap.to(q("[data-gsap='hero-photo']"), {
-        yPercent: -5,
-        ease: "none",
-        scrollTrigger: {
-          trigger: section,
-          start: "top top",
-          end: "bottom top",
-          scrub: true,
-        },
-      });
+      if (heroPhoto.length > 0) {
+        gsap.to(heroPhoto, {
+          yPercent: -5,
+          ease: "none",
+          scrollTrigger: {
+            trigger: section,
+            start: "top top",
+            end: "bottom top",
+            scrub: true,
+          },
+        });
+      }
     }, section);
 
     return () => ctx.revert();

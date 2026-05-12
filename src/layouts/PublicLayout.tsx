@@ -24,6 +24,8 @@ export function PublicLayout() {
           "h1, h2, section > p, article, aside, form, .premium-input, img"
         );
 
+        if (elements.length === 0) return;
+
         gsap.fromTo(
           elements.slice(0, 18),
           { autoAlpha: 0, y: 18 },

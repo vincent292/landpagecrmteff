@@ -20,99 +20,116 @@ export function Process() {
 
     const ctx = gsap.context(() => {
       const q = gsap.utils.selector(section);
+      const processIntro = q("[data-gsap='process-badge'], [data-gsap='process-title'], [data-gsap='process-body'], [data-gsap='process-cta']");
+      const processSteps = q("[data-gsap='process-step']");
+      const processImage = q("[data-gsap='process-image']");
+      const processPhoto = q("[data-gsap='process-photo']");
+      const processOrb = q("[data-gsap='process-orb']");
 
-      gsap.fromTo(
-        q("[data-gsap='process-badge'], [data-gsap='process-title'], [data-gsap='process-body'], [data-gsap='process-cta']"),
-        { autoAlpha: 0, y: 28, filter: "blur(18px)" },
-        {
-          autoAlpha: 1,
-          y: 0,
-          filter: "blur(0px)",
-          duration: 0.95,
-          stagger: 0.12,
-          ease: "power3.out",
+      if (processIntro.length > 0) {
+        gsap.fromTo(
+          processIntro,
+          { autoAlpha: 0, y: 28, filter: "blur(18px)" },
+          {
+            autoAlpha: 1,
+            y: 0,
+            filter: "blur(0px)",
+            duration: 0.95,
+            stagger: 0.12,
+            ease: "power3.out",
+            scrollTrigger: {
+              trigger: section,
+              start: "top 72%",
+              once: true,
+            },
+          }
+        );
+      }
+
+      if (processSteps.length > 0) {
+        gsap.fromTo(
+          processSteps,
+          { autoAlpha: 0, y: 24, filter: "blur(14px)" },
+          {
+            autoAlpha: 1,
+            y: 0,
+            filter: "blur(0px)",
+            duration: 0.8,
+            stagger: 0.14,
+            ease: "power3.out",
+            scrollTrigger: {
+              trigger: section,
+              start: "top 66%",
+              once: true,
+            },
+          }
+        );
+      }
+
+      if (processImage.length > 0) {
+        gsap.fromTo(
+          processImage,
+          {
+            autoAlpha: 0,
+            x: -32,
+            clipPath: "inset(12% 10% 12% 10% round 34px)",
+            filter: "blur(18px)",
+          },
+          {
+            autoAlpha: 1,
+            x: 0,
+            clipPath: "inset(0% 0% 0% 0% round 34px)",
+            filter: "blur(0px)",
+            duration: 1.1,
+            ease: "power3.out",
+            scrollTrigger: {
+              trigger: section,
+              start: "top 72%",
+              once: true,
+            },
+          }
+        );
+      }
+
+      if (processImage.length > 0) {
+        gsap.to(processImage, {
+          yPercent: -6,
+          ease: "none",
           scrollTrigger: {
             trigger: section,
-            start: "top 72%",
-            once: true,
+            start: "top bottom",
+            end: "bottom top",
+            scrub: true,
           },
-        }
-      );
+        });
+      }
 
-      gsap.fromTo(
-        q("[data-gsap='process-step']"),
-        { autoAlpha: 0, y: 24, filter: "blur(14px)" },
-        {
-          autoAlpha: 1,
-          y: 0,
-          filter: "blur(0px)",
-          duration: 0.8,
-          stagger: 0.14,
-          ease: "power3.out",
+      if (processPhoto.length > 0) {
+        gsap.to(processPhoto, {
+          scale: 1.06,
+          ease: "none",
           scrollTrigger: {
             trigger: section,
-            start: "top 66%",
-            once: true,
+            start: "top bottom",
+            end: "bottom top",
+            scrub: true,
           },
-        }
-      );
+        });
+      }
 
-      gsap.fromTo(
-        q("[data-gsap='process-image']"),
-        {
-          autoAlpha: 0,
-          x: -32,
-          clipPath: "inset(12% 10% 12% 10% round 34px)",
-          filter: "blur(18px)",
-        },
-        {
-          autoAlpha: 1,
-          x: 0,
-          clipPath: "inset(0% 0% 0% 0% round 34px)",
-          filter: "blur(0px)",
-          duration: 1.1,
-          ease: "power3.out",
+      if (processOrb.length > 0) {
+        gsap.to(processOrb, {
+          yPercent: -14,
+          xPercent: 8,
+          ease: "none",
           scrollTrigger: {
             trigger: section,
-            start: "top 72%",
-            once: true,
+            start: "top bottom",
+            end: "bottom top",
+            scrub: true,
           },
-        }
-      );
-
-      gsap.to(q("[data-gsap='process-image']"), {
-        yPercent: -6,
-        ease: "none",
-        scrollTrigger: {
-          trigger: section,
-          start: "top bottom",
-          end: "bottom top",
-          scrub: true,
-        },
-      });
-
-      gsap.to(q("[data-gsap='process-photo']"), {
-        scale: 1.06,
-        ease: "none",
-        scrollTrigger: {
-          trigger: section,
-          start: "top bottom",
-          end: "bottom top",
-          scrub: true,
-        },
-      });
-
-      gsap.to(q("[data-gsap='process-orb']"), {
-        yPercent: -14,
-        xPercent: 8,
-        ease: "none",
-        scrollTrigger: {
-          trigger: section,
-          start: "top bottom",
-          end: "bottom top",
-          scrub: true,
-        },
-      });
+        });
+      }
     }, section);
 
     return () => ctx.revert();

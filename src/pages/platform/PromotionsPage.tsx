@@ -17,7 +17,7 @@ export function PromotionsPage() {
   const [interest, setInterest] = useState<PromotionRow | null>(null);
   const [promotions, setPromotions] = useState<PromotionRow[]>([]);
   const [city, setCity] = useState("Todas");
-  const [status, setStatus] = useState("Vigentes");
+  const [status, setStatus] = useState("Todas");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 

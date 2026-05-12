@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import { CalendarDays, ClipboardList, Download, ExternalLink, GraduationCap, Mail, MessageCircleMore, MessagesSquare, Sparkles, Users } from "lucide-react";
+import { Link } from "react-router-dom";
 
 import { LoadingState } from "../../components/common/AsyncState";
 import { getAdminCalendarEvents } from "../../services/calendarService";
@@ -72,19 +73,19 @@ export function AdminDashboard() {
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <MiniStat label="Solicitudes nuevas" value={String(newRequests)} />
-            <MiniStat label="Pendientes por revisar" value={String(enrollmentsPending)} />
+            <MiniStat label="Solicitudes nuevas" value={String(newRequests)} href="/panel/solicitudes" />
+            <MiniStat label="Pendientes por revisar" value={String(enrollmentsPending)} href="/panel/inscripciones" />
           </div>
         </div>
       </section>
 
       <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-        <Metric icon={<MessagesSquare className="h-5 w-5" />} label="Solicitudes nuevas" value={String(newRequests)} />
-        <Metric icon={<ClipboardList className="h-5 w-5" />} label="Total solicitudes" value={String(requests.length)} />
-        <Metric icon={<GraduationCap className="h-5 w-5" />} label="Cursos activos" value={String(coursesCount)} />
-        <Metric icon={<Users className="h-5 w-5" />} label="Inscripciones pendientes" value={String(enrollmentsPending)} />
-        <Metric icon={<CalendarDays className="h-5 w-5" />} label="Citas agendadas" value={String(activeReservations.length)} />
-        <Metric icon={<Sparkles className="h-5 w-5" />} label="Tratamientos activos" value={String(treatmentsCount)} />
+        <Metric icon={<MessagesSquare className="h-5 w-5" />} label="Solicitudes nuevas" value={String(newRequests)} href="/panel/solicitudes" />
+        <Metric icon={<ClipboardList className="h-5 w-5" />} label="Total solicitudes" value={String(requests.length)} href="/panel/solicitudes" />
+        <Metric icon={<GraduationCap className="h-5 w-5" />} label="Cursos activos" value={String(coursesCount)} href="/panel/cursos" />
+        <Metric icon={<Users className="h-5 w-5" />} label="Inscripciones pendientes" value={String(enrollmentsPending)} href="/panel/inscripciones" />
+        <Metric icon={<CalendarDays className="h-5 w-5" />} label="Citas agendadas" value={String(activeReservations.length)} href="/panel/citas" />
+        <Metric icon={<Sparkles className="h-5 w-5" />} label="Tratamientos activos" value={String(treatmentsCount)} href="/panel/tratamientos" />
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1fr_360px]">
@@ -136,7 +137,30 @@ export function AdminDashboard() {
       <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <div className="rounded-[28px] border border-[var(--color-border)] bg-white/75 p-6 shadow-[0_18px_50px_rgba(62,42,31,0.08)]">
           <h2 className="text-xl font-semibold text-[var(--color-ink)]">Solicitudes recientes</h2>
-          <div className="mt-5 overflow-x-auto">
+          <div className="mt-5 grid gap-3 md:hidden">
+            {requests.slice(0, 8).map((request) => (
+              <Link
+                key={request.id}
+                to="/panel/solicitudes"
+                className="rounded-[22px] border border-[var(--color-border)] bg-[rgba(247,242,236,0.76)] p-4 transition hover:bg-white"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-semibold text-[var(--color-ink)]">{request.full_name}</h3>
+                    <p className="mt-1 text-sm text-[var(--color-copy)]">
+                      {request.phone} · {request.city ?? "Sin ciudad"}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-[rgba(216,194,174,0.26)] px-3 py-1 text-xs font-semibold text-[var(--color-mocha)]">
+                    {request.status}
+                  </span>
+                </div>
+                <p className="mt-3 text-sm text-[var(--color-copy)]">{request.interest_title ?? "General"}</p>
+                <p className="mt-2 text-xs text-[var(--color-copy)]">{new Date(request.created_at).toLocaleDateString("es-BO")}</p>
+              </Link>
+            ))}
+          </div>
+          <div className="mt-5 hidden overflow-x-auto md:block">
             <table className="w-full min-w-[760px] text-left text-sm">
               <thead className="text-[var(--color-copy)]">
                 <tr>
@@ -175,14 +199,17 @@ export function AdminDashboard() {
               <PriorityItem
                 title="Responder nuevas solicitudes"
                 detail={`${newRequests} conversaciones necesitan primer contacto.`}
+                href="/panel/solicitudes"
               />
               <PriorityItem
                 title="Revisar inscripciones pendientes"
                 detail={`${enrollmentsPending} registros esperan confirmacion.`}
+                href="/panel/inscripciones"
               />
               <PriorityItem
                 title="Validar agenda activa"
                 detail={`${eventsCount} actividades visibles para pacientes y asistentes.`}
+                href="/panel/agenda"
               />
             </div>
           </div>
@@ -190,10 +217,10 @@ export function AdminDashboard() {
           <div className="rounded-[28px] border border-[var(--color-border)] bg-white/75 p-6 shadow-[0_18px_50px_rgba(62,42,31,0.08)]">
             <h2 className="text-xl font-semibold text-[var(--color-ink)]">Resumen operativo</h2>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <QuickCard label="Solicitudes abiertas" value={String(requests.filter((item) => item.status !== "Finalizado" && item.status !== "Descartado").length)} />
-              <QuickCard label="Cursos publicados" value={String(coursesCount)} />
-              <QuickCard label="Agenda visible" value={String(eventsCount)} />
-              <QuickCard label="Catalogo activo" value={String(treatmentsCount)} />
+              <QuickCard label="Solicitudes abiertas" value={String(requests.filter((item) => item.status !== "Finalizado" && item.status !== "Descartado").length)} href="/panel/solicitudes" />
+              <QuickCard label="Cursos publicados" value={String(coursesCount)} href="/panel/cursos" />
+              <QuickCard label="Agenda visible" value={String(eventsCount)} href="/panel/agenda" />
+              <QuickCard label="Catalogo activo" value={String(treatmentsCount)} href="/panel/tratamientos" />
             </div>
           </div>
         </div>
@@ -210,46 +237,48 @@ function Metric({
   icon,
   label,
   value,
+  href,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   label: string;
   value: string;
+  href: string;
 }) {
   return (
-    <div className="rounded-[26px] border border-[var(--color-border)] bg-white/75 p-5 shadow-[0_18px_50px_rgba(62,42,31,0.08)]">
+    <Link to={href} className="rounded-[26px] border border-[var(--color-border)] bg-white/75 p-5 shadow-[0_18px_50px_rgba(62,42,31,0.08)] transition hover:-translate-y-0.5 hover:bg-white">
       <div className="flex items-center gap-3 text-[var(--color-accent-strong)]">
         {icon}
         <p className="text-sm text-[var(--color-copy)]">{label}</p>
       </div>
       <p className="mt-4 text-4xl font-semibold text-[var(--color-ink)]">{value}</p>
-    </div>
+    </Link>
   );
 }
 
-function MiniStat({ label, value }: { label: string; value: string }) {
+function MiniStat({ label, value, href }: { label: string; value: string; href: string }) {
   return (
-    <div className="rounded-[24px] border border-[rgba(198,162,123,0.18)] bg-white/70 p-4">
+    <Link to={href} className="rounded-[24px] border border-[rgba(198,162,123,0.18)] bg-white/70 p-4 transition hover:-translate-y-0.5 hover:bg-white">
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-copy)]">{label}</p>
       <p className="mt-2 text-3xl font-semibold text-[var(--color-ink)]">{value}</p>
-    </div>
+    </Link>
   );
 }
 
-function PriorityItem({ title, detail }: { title: string; detail: string }) {
+function PriorityItem({ title, detail, href }: { title: string; detail: string; href: string }) {
   return (
-    <div className="rounded-[22px] bg-[rgba(247,242,236,0.78)] p-4">
+    <Link to={href} className="rounded-[22px] bg-[rgba(247,242,236,0.78)] p-4 transition hover:-translate-y-0.5 hover:bg-white">
       <h3 className="font-semibold text-[var(--color-ink)]">{title}</h3>
       <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">{detail}</p>
-    </div>
+    </Link>
   );
 }
 
-function QuickCard({ label, value }: { label: string; value: string }) {
+function QuickCard({ label, value, href }: { label: string; value: string; href: string }) {
   return (
-    <div className="rounded-[22px] bg-[rgba(247,242,236,0.78)] p-4">
+    <Link to={href} className="rounded-[22px] bg-[rgba(247,242,236,0.78)] p-4 transition hover:-translate-y-0.5 hover:bg-white">
       <p className="text-sm text-[var(--color-copy)]">{label}</p>
       <p className="mt-2 text-2xl font-semibold text-[var(--color-ink)]">{value}</p>
-    </div>
+    </Link>
   );
 }
 
