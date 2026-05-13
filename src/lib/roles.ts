@@ -56,6 +56,7 @@ export function canAccessAdminModule(role: UserRole, module: string) {
       "pedidos-libros",
       "tokens-libros",
       "libros",
+      "inventario",
     ].includes(module);
   }
   if (role !== "doctor") return false;

@@ -13,6 +13,7 @@ import {
 } from "../../services/calendarService";
 import { createCourse, getAdminCourses, updateCourse, type CourseRow } from "../../services/courseService";
 import {
+  approveEnrollmentPayment,
   getCourseEnrollmentReceiptUrl,
   getCourseEnrollments,
   updateEnrollmentNotes,
@@ -51,6 +52,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { boliviaCities } from "../../data/cities";
 import { hardDeleteRecord, restoreRecord, softDeleteRecord, type DeletableTable, type DeletionMetadata } from "../../services/adminDeletionService";
 import { supabase } from "../../lib/supabaseClient";
+import { getCashPaymentMethods, type CashPaymentMethodRow } from "../../services/cashService";
 
 type Module =
   | "tratamientos"
@@ -63,6 +65,15 @@ type Module =
   | "usuarios";
 
 type Props = { module: Module };
+
+type EnrollmentApprovalDraft = {
+  enrollmentId: string;
+  studentName: string;
+  courseTitle: string;
+  amount: number;
+  paymentMethod: string;
+  notes: string;
+};
 
 type AdminRow =
   | TreatmentRow
@@ -88,13 +99,19 @@ export function AdminCollectionPage({ module }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [filters, setFilters] = useState({ query: "", status: "Todos", city: "Todas", courseId: "Todos" });
   const [pendingRealtime, setPendingRealtime] = useState(false);
+  const [paymentMethods, setPaymentMethods] = useState<CashPaymentMethodRow[]>([]);
+  const [enrollmentApproval, setEnrollmentApproval] = useState<EnrollmentApprovalDraft | null>(null);
+  const [savingApproval, setSavingApproval] = useState(false);
   const listRef = useRef<HTMLDivElement | null>(null);
 
   const load = () => {
     setLoading(true);
     setError(false);
-    getRows(module, role === "superadmin")
-      .then(setRows)
+    Promise.all([getRows(module, role === "superadmin"), module === "inscripciones" ? getCashPaymentMethods(true) : Promise.resolve([] as CashPaymentMethodRow[])])
+      .then(([loadedRows, methods]) => {
+        setRows(loadedRows);
+        setPaymentMethods(methods);
+      })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
   };
@@ -145,6 +162,33 @@ export function AdminCollectionPage({ module }: Props) {
   }, [module, pendingRealtime, role]);
 
   const filteredRows = useMemo(() => filterRows(module, rows, filters), [filters, module, rows]);
+
+  const openEnrollmentApproval = (row: EnrollmentRow) => {
+    setEnrollmentApproval({
+      enrollmentId: row.id,
+      studentName: row.full_name ?? row.email ?? "Alumno",
+      courseTitle: row.courses?.title ?? "Curso",
+      amount: Number(row.payment_amount ?? row.courses?.price ?? 0),
+      paymentMethod: row.payment_method ?? paymentMethods.find((method) => method.is_default)?.code ?? "qr",
+      notes: row.admin_notes ?? "",
+    });
+  };
+
+  const submitEnrollmentApproval = async () => {
+    if (!enrollmentApproval || enrollmentApproval.amount <= 0) return;
+    setSavingApproval(true);
+    try {
+      await approveEnrollmentPayment(enrollmentApproval.enrollmentId, {
+        adminNotes: enrollmentApproval.notes,
+        paymentAmount: enrollmentApproval.amount,
+        paymentMethod: enrollmentApproval.paymentMethod,
+      });
+      setEnrollmentApproval(null);
+      load();
+    } finally {
+      setSavingApproval(false);
+    }
+  };
 
   if (module === "usuarios" && !canManageUsers(role)) {
     return (
@@ -219,6 +263,7 @@ export function AdminCollectionPage({ module }: Props) {
                 actorName={profile?.full_name ?? user?.user_metadata.full_name ?? null}
                 actorEmail={profile?.email ?? user?.email ?? null}
                 onRefresh={load}
+                onOpenEnrollmentApproval={module === "inscripciones" ? (selectedRow) => openEnrollmentApproval(selectedRow as EnrollmentRow) : undefined}
               />
             ))}
           </div>
@@ -236,6 +281,56 @@ export function AdminCollectionPage({ module }: Props) {
           }}
         />
       )}
+
+      {enrollmentApproval ? (
+        <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-6 backdrop-blur-sm sm:items-center sm:pt-4">
+          <div className="w-full max-w-2xl rounded-[32px] bg-[var(--color-surface)] p-5 shadow-[0_30px_90px_rgba(43,33,27,0.25)] md:p-8">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">Inscripciones</p>
+                <h2 className="font-display mt-2 text-4xl font-semibold">Aprobar pago del curso</h2>
+              </div>
+              <button onClick={() => setEnrollmentApproval(null)} className="rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-semibold">
+                Cerrar
+              </button>
+            </div>
+            <div className="mt-6 grid gap-4">
+              <div className="rounded-[24px] border border-[var(--color-border)] bg-[rgba(247,242,236,0.72)] p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-accent-strong)]">{enrollmentApproval.courseTitle}</p>
+                <p className="mt-2 text-lg font-semibold">{enrollmentApproval.studentName}</p>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="grid gap-2">
+                  <span className="text-sm font-semibold">Monto pagado</span>
+                  <input type="number" min={0} step="0.01" value={String(enrollmentApproval.amount)} onChange={(event) => setEnrollmentApproval({ ...enrollmentApproval, amount: Number(event.target.value) })} className="premium-input" />
+                </label>
+                <label className="grid gap-2">
+                  <span className="text-sm font-semibold">Metodo de pago</span>
+                  <select value={enrollmentApproval.paymentMethod} onChange={(event) => setEnrollmentApproval({ ...enrollmentApproval, paymentMethod: event.target.value })} className="premium-input">
+                    {paymentMethods.map((method) => (
+                      <option key={method.id} value={method.code}>
+                        {method.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <label className="grid gap-2">
+                <span className="text-sm font-semibold">Notas administrativas</span>
+                <textarea value={enrollmentApproval.notes} onChange={(event) => setEnrollmentApproval({ ...enrollmentApproval, notes: event.target.value })} className="premium-input min-h-28" />
+              </label>
+            </div>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <button onClick={() => void submitEnrollmentApproval()} disabled={savingApproval} className="rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-60">
+                {savingApproval ? "Guardando..." : "Aprobar, bajar cupo y mandar a caja"}
+              </button>
+              <button onClick={() => setEnrollmentApproval(null)} className="rounded-full border border-[var(--color-border)] px-6 py-3 text-sm font-semibold">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -291,6 +386,7 @@ function AdminListRow({
   actorEmail,
   onEdit,
   onRefresh,
+  onOpenEnrollmentApproval,
 }: {
   module: Module;
   row: AdminRow;
@@ -300,6 +396,7 @@ function AdminListRow({
   actorEmail?: string | null;
   onEdit: () => void;
   onRefresh: () => void;
+  onOpenEnrollmentApproval?: (row: AdminRow) => void;
 }) {
   const title = getTitle(module, row);
   const meta = getMeta(module, row);
@@ -370,12 +467,17 @@ function AdminListRow({
         {(module === "solicitudes" || module === "inscripciones") && "status" in row && (
           <select
             defaultValue={row.status}
-            onChange={(event) =>
+            onChange={(event) => {
+              if (module === "inscripciones" && event.target.value === "Confirmado" && onOpenEnrollmentApproval) {
+                onOpenEnrollmentApproval(row);
+                return;
+              }
+
               void (module === "solicitudes"
                 ? updateInformationRequestStatus(row.id, event.target.value)
                 : updateEnrollmentStatus(row.id, event.target.value)
-              ).then(onRefresh)
-            }
+              ).then(onRefresh);
+            }}
             className="rounded-full border border-[var(--color-border)] bg-white/70 px-3 py-2 text-sm"
           >
             {(module === "solicitudes" ? requestStatuses : enrollmentStatuses).map((status) => <option key={status}>{status}</option>)}
@@ -387,7 +489,7 @@ function AdminListRow({
           </button>
         ) : null}
         {module === "inscripciones" && "payment_receipt_path" in row && row.payment_receipt_path && row.status !== "Confirmado" ? (
-          <button onClick={() => void updateEnrollmentStatus(row.id, "Confirmado").then(onRefresh)} className="rounded-full bg-[var(--color-mocha)] px-4 py-2 text-sm font-semibold text-white">
+          <button onClick={() => onOpenEnrollmentApproval?.(row)} className="rounded-full bg-[var(--color-mocha)] px-4 py-2 text-sm font-semibold text-white">
             Aprobar
           </button>
         ) : null}

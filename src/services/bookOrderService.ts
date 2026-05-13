@@ -13,11 +13,15 @@ export type BookOrderRow = DeletionMetadata & {
   phone: string | null;
   city: string | null;
   payment_receipt_path: string | null;
+  payment_amount?: number | null;
+  payment_method?: string | null;
+  cash_movement_id?: string | null;
+  cash_recorded_at?: string | null;
   status: string;
   admin_notes: string | null;
   created_at: string;
   verified_at: string | null;
-  books?: { title: string } | null;
+  books?: { title: string; price?: number | null } | null;
 };
 
 export async function createBookOrder(data: Record<string, unknown>) {
@@ -43,7 +47,7 @@ export async function attachPaymentReceipt(orderId: string, payment_receipt_path
 export async function getMyBookOrders(userId: string) {
   const { data, error } = await supabase
     .from("book_orders")
-    .select("*, books(title)")
+    .select("*, books(title, price)")
     .eq("user_id", userId)
     .eq("is_deleted", false)
     .order("created_at", { ascending: false });
@@ -52,7 +56,7 @@ export async function getMyBookOrders(userId: string) {
 }
 
 export async function getBookOrdersAdmin(includeDeleted = false) {
-  let query = supabase.from("book_orders").select("*, books(title)").order("created_at", { ascending: false });
+  let query = supabase.from("book_orders").select("*, books(title, price)").order("created_at", { ascending: false });
   const filter = getVisibleDeletionFilter("book_orders", includeDeleted);
   if (filter.column) query = query.eq(filter.column, filter.value);
   const { data, error } = await query;
@@ -65,10 +69,23 @@ export async function updateBookOrderStatus(orderId: string, status: string) {
   if (error) throw error;
 }
 
-export async function verifyBookOrder(orderId: string, adminNotes: string) {
+export async function verifyBookOrder(
+  orderId: string,
+  input: {
+    adminNotes?: string | null;
+    paymentAmount: number;
+    paymentMethod: string;
+  }
+) {
   const { data: row, error } = await supabase
     .from("book_orders")
-    .update({ status: "Aprobado", admin_notes: adminNotes, verified_at: new Date().toISOString() })
+    .update({
+      status: "Aprobado",
+      admin_notes: input.adminNotes ?? null,
+      payment_amount: input.paymentAmount,
+      payment_method: input.paymentMethod,
+      verified_at: new Date().toISOString(),
+    })
     .eq("id", orderId)
     .select("*")
     .single();

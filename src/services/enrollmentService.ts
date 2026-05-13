@@ -19,6 +19,10 @@ export type EnrollmentRow = DeletionMetadata & {
   payment_receipt_path?: string | null;
   payment_submitted_at?: string | null;
   payment_verified_at?: string | null;
+  payment_amount?: number | null;
+  payment_method?: string | null;
+  cash_movement_id?: string | null;
+  cash_recorded_at?: string | null;
   admin_notes?: string | null;
   created_at: string;
   courses?: {
@@ -149,6 +153,34 @@ export async function updateEnrollmentStatus(id: string, status: string) {
     p_enrollment_id: id,
     p_status: status,
     p_admin_notes: adminNotesResult.data?.admin_notes ?? null,
+  });
+  if (error) throw error;
+  return data as EnrollmentRow;
+}
+
+export async function approveEnrollmentPayment(
+  id: string,
+  input: {
+    adminNotes?: string | null;
+    paymentAmount: number;
+    paymentMethod: string;
+  }
+) {
+  const updateResult = await supabase
+    .from("course_enrollments")
+    .update({
+      payment_amount: input.paymentAmount,
+      payment_method: input.paymentMethod,
+      admin_notes: input.adminNotes ?? null,
+    })
+    .eq("id", id);
+
+  if (updateResult.error) throw updateResult.error;
+
+  const { data, error } = await supabase.rpc("set_course_enrollment_status", {
+    p_enrollment_id: id,
+    p_status: "Confirmado",
+    p_admin_notes: input.adminNotes ?? null,
   });
   if (error) throw error;
   return data as EnrollmentRow;

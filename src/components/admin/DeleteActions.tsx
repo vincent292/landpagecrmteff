@@ -28,10 +28,10 @@ export function DeleteActions({
             type="button"
             onClick={onRestore}
             className={`rounded-full border border-[var(--color-border)] ${compact ? "p-2" : "px-4 py-2 text-sm font-semibold"}`}
-            aria-label="Restaurar registro"
-            title="Restaurar"
+            aria-label="Recuperar registro"
+            title="Recuperar"
           >
-            {compact ? <RotateCcw className="h-4 w-4" /> : "Restaurar"}
+            {compact ? <RotateCcw className="h-4 w-4" /> : "Recuperar"}
           </button>
         ) : null}
         {canHardDelete(role) && onHardDelete ? (
@@ -39,10 +39,10 @@ export function DeleteActions({
             type="button"
             onClick={onHardDelete}
             className={`rounded-full border border-red-200 text-red-700 ${compact ? "p-2" : "px-4 py-2 text-sm font-semibold"}`}
-            aria-label="Eliminar permanentemente"
-            title="Eliminar permanentemente"
+            aria-label="Borrar definitivamente"
+            title="Borrar definitivamente"
           >
-            {compact ? <XCircle className="h-4 w-4" /> : "Eliminar permanente"}
+            {compact ? <XCircle className="h-4 w-4" /> : "Borrar definitivo"}
           </button>
         ) : null}
       </div>
@@ -55,20 +55,20 @@ export function DeleteActions({
         type="button"
         onClick={onSoftDelete}
         className={`rounded-full border border-[var(--color-border)] ${compact ? "p-2" : "px-4 py-2 text-sm font-semibold"}`}
-        aria-label="Ocultar registro"
-        title="Ocultar"
+        aria-label="Borrar de la vista"
+        title="Borrar"
       >
-        {compact ? <Trash2 className="h-4 w-4" /> : "Ocultar"}
+        {compact ? <Trash2 className="h-4 w-4" /> : "Borrar"}
       </button>
       {canHardDelete(role) && onHardDelete ? (
         <button
           type="button"
           onClick={onHardDelete}
           className={`rounded-full border border-red-200 text-red-700 ${compact ? "p-2" : "px-4 py-2 text-sm font-semibold"}`}
-          aria-label="Eliminar permanentemente"
-          title="Eliminar permanentemente"
+          aria-label="Borrar definitivamente"
+          title="Borrar definitivamente"
         >
-          {compact ? <XCircle className="h-4 w-4" /> : "Eliminar permanente"}
+          {compact ? <XCircle className="h-4 w-4" /> : "Borrar definitivo"}
         </button>
       ) : null}
     </div>
@@ -84,7 +84,7 @@ export function DeletedStatusNote({ row }: { row?: DeletionMetadata | null }) {
 
   return (
     <p className="mt-2 text-xs font-semibold text-amber-700">
-      Oculto por {actor}{role}{date ? ` · ${date}` : ""}
+      Borrado de la vista por {actor}{role}{date ? ` · ${date}` : ""}. Superadmin puede recuperarlo.
     </p>
   );
 }

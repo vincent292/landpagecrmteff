@@ -3,17 +3,34 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
-import { CalendarDays, ClipboardList, Download, ExternalLink, GraduationCap, Mail, MessageCircleMore, MessagesSquare, Sparkles, Users } from "lucide-react";
+import {
+  AlertTriangle,
+  Boxes,
+  CalendarDays,
+  ClipboardList,
+  Download,
+  ExternalLink,
+  GraduationCap,
+  Mail,
+  MessageCircleMore,
+  MessagesSquare,
+  ReceiptText,
+  Sparkles,
+  Users,
+  Wallet,
+} from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { LoadingState } from "../../components/common/AsyncState";
 import { getAdminCalendarEvents } from "../../services/calendarService";
+import { getCashMovements, getCashRegisterSessions, getCashSessionCounts } from "../../services/cashService";
 import { getAdminCourses } from "../../services/courseService";
 import { getCourseEnrollments } from "../../services/enrollmentService";
+import { getInventoryItems, getInventoryLots } from "../../services/inventoryService";
 import { getInformationRequests, type InformationRequestRow } from "../../services/requestService";
 import { getReservationsAdmin, type AppointmentReservationRow } from "../../services/reservationService";
 import { getAdminTreatments } from "../../services/treatmentService";
-import { formatDate } from "../../utils/text";
+import { formatDate, formatMoney } from "../../utils/text";
 
 export function AdminDashboard() {
   const [requests, setRequests] = useState<InformationRequestRow[]>([]);
@@ -22,6 +39,11 @@ export function AdminDashboard() {
   const [eventsCount, setEventsCount] = useState(0);
   const [treatmentsCount, setTreatmentsCount] = useState(0);
   const [reservations, setReservations] = useState<AppointmentReservationRow[]>([]);
+  const [cashOpenSessions, setCashOpenSessions] = useState(0);
+  const [cashIncomeToday, setCashIncomeToday] = useState(0);
+  const [cashDifferenceTotal, setCashDifferenceTotal] = useState(0);
+  const [inventoryLowStock, setInventoryLowStock] = useState(0);
+  const [inventoryExpiringLots, setInventoryExpiringLots] = useState(0);
   const [selectedReservation, setSelectedReservation] = useState<AppointmentReservationRow | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -33,14 +55,57 @@ export function AdminDashboard() {
       getAdminCalendarEvents(),
       getAdminTreatments(),
       getReservationsAdmin(),
+      getCashMovements(),
+      getCashRegisterSessions(),
+      getCashSessionCounts(),
+      getInventoryItems(),
+      getInventoryLots(),
     ])
-      .then(([requestRows, courseRows, enrollmentRows, eventRows, treatmentRows, reservationRows]) => {
+      .then(([
+        requestRows,
+        courseRows,
+        enrollmentRows,
+        eventRows,
+        treatmentRows,
+        reservationRows,
+        cashMovementRows,
+        cashSessionRows,
+        cashCountRows,
+        inventoryItemRows,
+        inventoryLotRows,
+      ]) => {
+        const today = new Date().toISOString().slice(0, 10);
+        const todayDate = new Date(`${today}T00:00:00`);
+        const nextThirtyDays = new Date(todayDate);
+        nextThirtyDays.setDate(nextThirtyDays.getDate() + 30);
+
         setRequests(requestRows);
         setCoursesCount(courseRows.filter((item) => item.is_active).length);
         setEnrollmentsPending(enrollmentRows.filter((item) => item.status === "Pendiente").length);
         setEventsCount(eventRows.filter((item) => item.is_active).length);
         setTreatmentsCount(treatmentRows.filter((item) => item.is_active).length);
         setReservations(reservationRows);
+        setCashOpenSessions(cashSessionRows.filter((item) => item.status === "abierta").length);
+        setCashIncomeToday(
+          cashMovementRows
+            .filter((item) => item.status !== "anulado" && item.movement_type === "ingreso" && item.movement_date === today)
+            .reduce((sum, item) => sum + Number(item.amount ?? 0), 0)
+        );
+        setCashDifferenceTotal(
+          cashCountRows.reduce((sum, item) => sum + Math.abs(Number(item.difference_amount ?? 0)), 0)
+        );
+        setInventoryLowStock(
+          inventoryItemRows.filter(
+            (item) => item.is_active && Number(item.current_stock ?? 0) <= Number(item.minimum_stock ?? 0)
+          ).length
+        );
+        setInventoryExpiringLots(
+          inventoryLotRows.filter((lot) => {
+            if (!lot.is_active || !lot.expiration_date || Number(lot.current_quantity ?? 0) <= 0) return false;
+            const expiration = new Date(`${lot.expiration_date}T00:00:00`);
+            return expiration >= todayDate && expiration <= nextThirtyDays;
+          }).length
+        );
       })
       .finally(() => setLoading(false));
   }, []);
@@ -49,6 +114,7 @@ export function AdminDashboard() {
     () => requests.filter((item) => item.status === "Nuevo").length,
     [requests]
   );
+
   const activeReservations = useMemo(
     () => reservations.filter((item) => item.status !== "Cancelada" && item.status !== "Rechazada"),
     [reservations]
@@ -65,27 +131,32 @@ export function AdminDashboard() {
         <div className="mt-4 grid gap-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-end">
           <div>
             <h1 className="font-display text-5xl font-semibold leading-[0.92] text-[var(--color-ink)] md:text-6xl">
-              Una vista clara para mover el día a día de la clínica con elegancia.
+              Una vista clara para mover el dia a dia de la clinica con elegancia.
             </h1>
             <p className="mt-5 max-w-2xl text-sm leading-7 text-[var(--color-copy)] md:text-base">
-              Aqui concentramos solicitudes, inscripciones, actividades y tratamientos
-              activos para que el seguimiento sea rapido, ordenado y amable.
+              Aqui concentramos solicitudes, inscripciones, agenda, caja e inventario
+              para que el seguimiento sea rapido, ordenado y amable.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <MiniStat label="Solicitudes nuevas" value={String(newRequests)} href="/panel/solicitudes" />
-            <MiniStat label="Pendientes por revisar" value={String(enrollmentsPending)} href="/panel/inscripciones" />
+            <MiniStat label="Ingresos de hoy" value={formatMoney(cashIncomeToday)} href="/panel/caja" />
           </div>
         </div>
       </section>
 
-      <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+      <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
         <Metric icon={<MessagesSquare className="h-5 w-5" />} label="Solicitudes nuevas" value={String(newRequests)} href="/panel/solicitudes" />
         <Metric icon={<ClipboardList className="h-5 w-5" />} label="Total solicitudes" value={String(requests.length)} href="/panel/solicitudes" />
         <Metric icon={<GraduationCap className="h-5 w-5" />} label="Cursos activos" value={String(coursesCount)} href="/panel/cursos" />
         <Metric icon={<Users className="h-5 w-5" />} label="Inscripciones pendientes" value={String(enrollmentsPending)} href="/panel/inscripciones" />
         <Metric icon={<CalendarDays className="h-5 w-5" />} label="Citas agendadas" value={String(activeReservations.length)} href="/panel/citas" />
         <Metric icon={<Sparkles className="h-5 w-5" />} label="Tratamientos activos" value={String(treatmentsCount)} href="/panel/tratamientos" />
+        <Metric icon={<Wallet className="h-5 w-5" />} label="Cajas abiertas" value={String(cashOpenSessions)} href="/panel/caja" />
+        <Metric icon={<ReceiptText className="h-5 w-5" />} label="Ingresos de hoy" value={formatMoney(cashIncomeToday)} href="/panel/caja" />
+        <Metric icon={<AlertTriangle className="h-5 w-5" />} label="Diferencias por revisar" value={formatMoney(cashDifferenceTotal)} href="/panel/caja" />
+        <Metric icon={<Boxes className="h-5 w-5" />} label="Items con stock bajo" value={String(inventoryLowStock)} href="/panel/inventario" />
+        <Metric icon={<AlertTriangle className="h-5 w-5" />} label="Lotes por vencer" value={String(inventoryExpiringLots)} href="/panel/inventario" />
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1fr_360px]">
@@ -167,7 +238,7 @@ export function AdminDashboard() {
                   <th className="py-3">Nombre</th>
                   <th>Celular</th>
                   <th>Ciudad</th>
-                  <th>Interés</th>
+                  <th>Interes</th>
                   <th>Estado</th>
                   <th>Fecha</th>
                 </tr>
@@ -207,6 +278,16 @@ export function AdminDashboard() {
                 href="/panel/inscripciones"
               />
               <PriorityItem
+                title="Controlar caja del dia"
+                detail={`${cashOpenSessions} cajas abiertas y ${formatMoney(cashDifferenceTotal)} en diferencias acumuladas.`}
+                href="/panel/caja"
+              />
+              <PriorityItem
+                title="Atender alertas de inventario"
+                detail={`${inventoryLowStock} items con stock bajo y ${inventoryExpiringLots} lotes por vencer.`}
+                href="/panel/inventario"
+              />
+              <PriorityItem
                 title="Validar agenda activa"
                 detail={`${eventsCount} actividades visibles para pacientes y asistentes.`}
                 href="/panel/agenda"
@@ -221,6 +302,10 @@ export function AdminDashboard() {
               <QuickCard label="Cursos publicados" value={String(coursesCount)} href="/panel/cursos" />
               <QuickCard label="Agenda visible" value={String(eventsCount)} href="/panel/agenda" />
               <QuickCard label="Catalogo activo" value={String(treatmentsCount)} href="/panel/tratamientos" />
+              <QuickCard label="Caja abierta hoy" value={String(cashOpenSessions)} href="/panel/caja" />
+              <QuickCard label="Ingreso visible hoy" value={formatMoney(cashIncomeToday)} href="/panel/caja" />
+              <QuickCard label="Stock bajo" value={String(inventoryLowStock)} href="/panel/inventario" />
+              <QuickCard label="Lotes por vencer" value={String(inventoryExpiringLots)} href="/panel/inventario" />
             </div>
           </div>
         </div>

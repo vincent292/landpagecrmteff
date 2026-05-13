@@ -8,24 +8,52 @@ import { useAdminNotifications } from "../hooks/useAdminNotifications";
 import { cn } from "../lib/cn";
 import { canAccessAdminModule, canManageUsers, roleLabels } from "../lib/roles";
 
-const adminLinks = [
-  ["Dashboard", "/panel", "dashboard"],
-  ["Pacientes", "/panel/pacientes", "pacientes"],
-  ["Doctoras", "/panel/doctoras", "doctoras"],
-  ["Tratamientos", "/panel/tratamientos", "tratamientos"],
-  ["Promociones", "/panel/promociones", "promociones"],
-  ["Cursos", "/panel/cursos", "cursos"],
-  ["Inscripciones", "/panel/inscripciones", "inscripciones"],
-  ["Solicitudes", "/panel/solicitudes", "solicitudes"],
-  ["Agenda", "/panel/agenda", "agenda"],
-  ["Calendario citas", "/panel/calendario-citas", "calendario-citas"],
-  ["Disponibilidad", "/panel/disponibilidad", "disponibilidad"],
-  ["Citas", "/panel/citas", "citas"],
-  ["Libros", "/panel/libros", "libros"],
-  ["Pedidos libros", "/panel/pedidos-libros", "pedidos-libros"],
-  ["Galeria", "/panel/galeria", "galeria"],
-  ["Usuarios", "/panel/usuarios", "usuarios"],
-  ["Configuracion", "/panel/configuracion", "configuracion"],
+type AdminLink = {
+  label: string;
+  href: string;
+  module: string;
+};
+
+const adminSections: Array<{ title: string; links: AdminLink[] }> = [
+  {
+    title: "General",
+    links: [
+      { label: "Dashboard", href: "/panel", module: "dashboard" },
+      { label: "Solicitudes", href: "/panel/solicitudes", module: "solicitudes" },
+      { label: "Inscripciones", href: "/panel/inscripciones", module: "inscripciones" },
+      { label: "Citas", href: "/panel/citas", module: "citas" },
+      { label: "Calendario citas", href: "/panel/calendario-citas", module: "calendario-citas" },
+      { label: "Agenda", href: "/panel/agenda", module: "agenda" },
+      { label: "Disponibilidad", href: "/panel/disponibilidad", module: "disponibilidad" },
+      { label: "Pacientes", href: "/panel/pacientes", module: "pacientes" },
+    ],
+  },
+  {
+    title: "Operacion",
+    links: [
+      { label: "Inventario", href: "/panel/inventario", module: "inventario" },
+      { label: "Caja", href: "/panel/caja", module: "caja" },
+      { label: "Libros", href: "/panel/libros", module: "libros" },
+      { label: "Pedidos libros", href: "/panel/pedidos-libros", module: "pedidos-libros" },
+    ],
+  },
+  {
+    title: "Contenido",
+    links: [
+      { label: "Doctoras", href: "/panel/doctoras", module: "doctoras" },
+      { label: "Tratamientos", href: "/panel/tratamientos", module: "tratamientos" },
+      { label: "Promociones", href: "/panel/promociones", module: "promociones" },
+      { label: "Cursos", href: "/panel/cursos", module: "cursos" },
+      { label: "Galeria", href: "/panel/galeria", module: "galeria" },
+    ],
+  },
+  {
+    title: "Sistema",
+    links: [
+      { label: "Usuarios", href: "/panel/usuarios", module: "usuarios" },
+      { label: "Configuracion", href: "/panel/configuracion", module: "configuracion" },
+    ],
+  },
 ];
 
 export function AdminLayout() {
@@ -35,12 +63,18 @@ export function AdminLayout() {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const mobileNotificationsRef = useRef<HTMLDivElement | null>(null);
   const desktopNotificationsRef = useRef<HTMLDivElement | null>(null);
-  const visibleLinks = adminLinks.filter(([label, , module]) => {
-    if (label === "Usuarios" && !canManageUsers(role)) return false;
-    return canAccessAdminModule(role, module);
-  });
   const activeModule = location.pathname.replace(/^\/panel\/?/, "").split("/")[0] || "dashboard";
   const { items: notifications, unreadCount, markAllAsSeen } = useAdminNotifications(user?.id ?? null);
+
+  const visibleSections = adminSections
+    .map((section) => ({
+      ...section,
+      links: section.links.filter((link) => {
+        if (link.label === "Usuarios" && !canManageUsers(role)) return false;
+        return canAccessAdminModule(role, link.module);
+      }),
+    }))
+    .filter((section) => section.links.length > 0);
 
   useEffect(() => {
     setOpen(false);
@@ -90,6 +124,7 @@ export function AdminLayout() {
         </main>
       );
     }
+
     return <Navigate to="/panel" replace />;
   }
 
@@ -130,15 +165,22 @@ export function AdminLayout() {
         </button>
       </div>
 
-      {open && <button type="button" aria-label="Cerrar menu" className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm lg:hidden" onClick={() => setOpen(false)} />}
+      {open ? (
+        <button
+          type="button"
+          aria-label="Cerrar menu"
+          className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm lg:hidden"
+          onClick={() => setOpen(false)}
+        />
+      ) : null}
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-[min(84vw,300px)] -translate-x-full flex-col overflow-y-auto overscroll-contain border-r border-[rgba(198,162,123,0.18)] bg-[rgba(255,249,244,0.96)] p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] shadow-[20px_0_60px_rgba(43,33,27,0.18)] backdrop-blur-2xl transition-transform duration-300 [webkit-overflow-scrolling:touch] touch-pan-y lg:sticky lg:top-0 lg:z-40 lg:h-screen lg:w-auto lg:translate-x-0 lg:pb-5 lg:shadow-none",
+          "fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-[min(84vw,300px)] -translate-x-full flex-col overflow-hidden overscroll-contain border-r border-[rgba(198,162,123,0.18)] bg-[rgba(255,249,244,0.96)] p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] shadow-[20px_0_60px_rgba(43,33,27,0.18)] backdrop-blur-2xl transition-transform duration-300 [webkit-overflow-scrolling:touch] touch-pan-y lg:sticky lg:top-0 lg:z-40 lg:h-screen lg:w-auto lg:translate-x-0 lg:pb-5 lg:shadow-none",
           open && "translate-x-0"
         )}
       >
-        <div className="flex items-start justify-between gap-4 lg:block">
+        <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <BrandSignature
               subtitle="Panel administrativo"
@@ -161,31 +203,42 @@ export function AdminLayout() {
           </button>
         </div>
 
-        <nav className="mt-8 grid gap-2 pb-6">
-          {visibleLinks.map(([label, href]) => (
-            <NavLink
-              key={href}
-              to={href}
-              end={href === "/panel"}
-              onClick={() => setOpen(false)}
-              className={({ isActive }) =>
-                cn(
-                  "rounded-2xl px-4 py-3 text-sm font-medium transition",
-                  isActive
-                    ? "bg-[var(--color-mocha)] text-white"
-                    : "text-[var(--color-copy)] hover:bg-white/60 hover:text-[var(--color-ink)]"
-                )
-              }
-            >
-              {label}
-            </NavLink>
-          ))}
+        <nav className="mt-8 flex-1 overflow-y-auto pr-1">
+          <div className="grid gap-6 pb-6">
+            {visibleSections.map((section) => (
+              <div key={section.title}>
+                <p className="px-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">
+                  {section.title}
+                </p>
+                <div className="mt-2 grid gap-2">
+                  {section.links.map((link) => (
+                    <NavLink
+                      key={link.href}
+                      to={link.href}
+                      end={link.href === "/panel"}
+                      onClick={() => setOpen(false)}
+                      className={({ isActive }) =>
+                        cn(
+                          "rounded-2xl px-4 py-3 text-sm font-medium transition",
+                          isActive
+                            ? "bg-[var(--color-mocha)] text-white"
+                            : "text-[var(--color-copy)] hover:bg-white/60 hover:text-[var(--color-ink)]"
+                        )
+                      }
+                    >
+                      {link.label}
+                    </NavLink>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         </nav>
 
         <button
           type="button"
           onClick={() => void signOut()}
-          className="mt-auto hidden w-full items-center justify-center gap-2 rounded-full border border-[var(--color-border)] px-4 py-3 pt-8 text-sm font-semibold lg:inline-flex"
+          className="mt-4 hidden w-full items-center justify-center gap-2 rounded-full border border-[var(--color-border)] px-4 py-3 text-sm font-semibold lg:inline-flex"
         >
           <LogOut className="h-4 w-4" />
           Cerrar sesion
@@ -221,7 +274,7 @@ export function AdminLayout() {
               className="hidden items-center gap-2 rounded-full border border-[var(--color-border)] bg-white/60 px-4 py-2 text-sm font-semibold sm:inline-flex"
             >
               <LogOut className="h-4 w-4" />
-              Logout
+              Cerrar sesion
             </button>
           </div>
         </header>

@@ -27,6 +27,10 @@ export type AppointmentReservationRow = DeletionMetadata & {
   payment_submitted_at?: string | null;
   payment_verified_at?: string | null;
   payment_expires_at?: string | null;
+  payment_amount?: number | null;
+  payment_method?: string | null;
+  cash_movement_id?: string | null;
+  cash_recorded_at?: string | null;
   admin_notes?: string | null;
   created_at: string;
   updated_at: string;
@@ -207,12 +211,21 @@ export async function getReservationReceiptUrl(path?: string | null) {
   return getSignedUrl(receiptsBucket, path);
 }
 
-export async function approveReservationPayment(reservationId: string, adminNotes: string) {
+export async function approveReservationPayment(
+  reservationId: string,
+  input: {
+    adminNotes?: string | null;
+    paymentAmount: number;
+    paymentMethod: string;
+  }
+) {
   const { data, error } = await supabase
     .from("appointment_reservations")
     .update({
       status: "Confirmada",
-      admin_notes: adminNotes,
+      admin_notes: input.adminNotes ?? null,
+      payment_amount: input.paymentAmount,
+      payment_method: input.paymentMethod,
       payment_verified_at: new Date().toISOString(),
     })
     .eq("id", reservationId)

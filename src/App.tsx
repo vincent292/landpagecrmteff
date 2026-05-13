@@ -36,6 +36,8 @@ const DoctorsAdminPage = lazyPage(() => import("./pages/admin/DoctorsAdminPage")
 const BookOrdersAdminPage = lazyPage(() => import("./pages/admin/BookOrdersAdminPage"), "BookOrdersAdminPage");
 const BookTokensAdminPage = lazyPage(() => import("./pages/admin/BookTokensAdminPage"), "BookTokensAdminPage");
 const BooksAdminPage = lazyPage(() => import("./pages/admin/BooksAdminPage"), "BooksAdminPage");
+const InventoryAdminPage = lazyPage(() => import("./pages/admin/InventoryAdminPage"), "InventoryAdminPage");
+const CashAdminPage = lazyPage(() => import("./pages/admin/CashAdminPage"), "CashAdminPage");
 const PatientAppointmentsAdminPage = lazyPage(() => import("./pages/admin/PatientAppointmentsAdminPage"), "PatientAppointmentsAdminPage");
 const PatientCaresAdminPage = lazyPage(() => import("./pages/admin/PatientCaresAdminPage"), "PatientCaresAdminPage");
 const PatientClinicalHistoryPage = lazyPage(() => import("./pages/admin/PatientClinicalHistoryPage"), "PatientClinicalHistoryPage");
@@ -123,6 +125,8 @@ export default function App() {
           <Route path="calendario-citas" element={<AppointmentsCalendarPage />} />
           <Route path="disponibilidad" element={<AvailabilityAdminPage />} />
           <Route path="citas" element={<ReservationsAdminPage />} />
+          <Route path="inventario" element={<InventoryAdminPage />} />
+          <Route path="caja" element={<CashAdminPage />} />
           <Route path="libros" element={<BooksAdminPage />} />
           <Route path="libros/nuevo" element={<BooksAdminPage />} />
           <Route path="libros/:id/editar" element={<BooksAdminPage />} />

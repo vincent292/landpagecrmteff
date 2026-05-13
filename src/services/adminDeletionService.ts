@@ -34,7 +34,21 @@ export type DeletableTable =
   | "doctor_profiles"
   | "doctor_availability_rules"
   | "availability_blocks"
-  | "appointment_reservations";
+  | "appointment_reservations"
+  | "inventory_items"
+  | "inventory_adjustments"
+  | "cash_movements"
+  | "cash_closures"
+  | "cash_drawers"
+  | "inventory_locations"
+  | "cash_register_sessions"
+  | "cash_session_counts"
+  | "inventory_categories"
+  | "inventory_units"
+  | "inventory_suppliers"
+  | "inventory_lots"
+  | "inventory_movements"
+  | "inventory_counts";
 
 type DeleteMode = "active" | "deleted";
 
@@ -62,6 +76,20 @@ const tableModes: Record<DeletableTable, DeleteMode> = {
   doctor_availability_rules: "active",
   availability_blocks: "active",
   appointment_reservations: "deleted",
+  inventory_items: "deleted",
+  inventory_adjustments: "deleted",
+  cash_movements: "deleted",
+  cash_closures: "deleted",
+  cash_drawers: "deleted",
+  inventory_locations: "deleted",
+  cash_register_sessions: "deleted",
+  cash_session_counts: "deleted",
+  inventory_categories: "deleted",
+  inventory_units: "deleted",
+  inventory_suppliers: "deleted",
+  inventory_lots: "deleted",
+  inventory_movements: "deleted",
+  inventory_counts: "deleted",
 };
 
 export function canHardDelete(role: UserRole) {

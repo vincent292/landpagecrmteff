@@ -11,11 +11,13 @@ import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
 import { createAppointment, getAppointmentsByPatient, updateAppointmentStatus, type AppointmentRow } from "../../services/appointmentService";
 import { getAvailableSlots, getAvailabilityRulesByIds, type AvailableSlot } from "../../services/availabilityService";
+import { getCashPaymentMethods, type CashPaymentMethodRow } from "../../services/cashService";
 import { getAdminDoctors, type DoctorProfileRow } from "../../services/doctorService";
 import { getPatientById, type PatientRow } from "../../services/patientService";
 import {
   bookAppointmentSlot,
   getReservationsByPatientId,
+  updateReservation,
   updateReservationStatus,
   type AppointmentReservationRow,
 } from "../../services/reservationService";
@@ -26,9 +28,13 @@ const schema = z.object({
   date: z.string().min(1, "Selecciona la fecha."),
   doctor_id: z.string().optional(),
   notes: z.string().optional(),
+  register_payment_now: z.boolean().default(false),
+  payment_amount: z.coerce.number().min(0, "El monto no puede ser negativo."),
+  payment_method: z.string().min(1, "Selecciona metodo."),
 });
 
-type FormValues = z.infer<typeof schema>;
+type FormValuesInput = z.input<typeof schema>;
+type FormValues = z.output<typeof schema>;
 
 type SlotWithDoctor = AvailableSlot & {
   doctor_id: string | null;
@@ -62,25 +68,30 @@ export function PatientAppointmentsAdminPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [slotTypeFilter, setSlotTypeFilter] = useState("Todos");
+  const [paymentMethods, setPaymentMethods] = useState<CashPaymentMethodRow[]>([]);
 
-  const form = useForm<FormValues>({
+  const form = useForm<FormValuesInput, undefined, FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       city: "Cochabamba",
       date: "",
       doctor_id: "",
       notes: "",
+      register_payment_now: false,
+      payment_amount: 0,
+      payment_method: "efectivo",
     },
   });
 
   const watched = form.watch();
 
   const load = () =>
-    void Promise.all([getAppointmentsByPatient(id), getReservationsByPatientId(id), getPatientById(id), getAdminDoctors()]).then(([appointments, reservationRows, patientRow, doctorRows]) => {
+    void Promise.all([getAppointmentsByPatient(id), getReservationsByPatientId(id), getPatientById(id), getAdminDoctors(), getCashPaymentMethods(true)]).then(([appointments, reservationRows, patientRow, doctorRows, methods]) => {
       setItems(appointments);
       setReservations(reservationRows);
       setPatient(patientRow);
       setDoctors(doctorRows.filter((doctor) => doctor.is_active));
+      setPaymentMethods(methods);
     });
 
   useEffect(load, [id]);
@@ -162,7 +173,7 @@ export function PatientAppointmentsAdminPage() {
     setMessage("");
     try {
       if (patient?.profile_id) {
-        await bookAppointmentSlot({
+        const reservation = await bookAppointmentSlot({
           user_id: patient.profile_id,
           patient_id: patient.id,
           rule_id: selectedSlot.rule_id,
@@ -173,6 +184,14 @@ export function PatientAppointmentsAdminPage() {
           appointment_type: selectedSlot.appointment_type,
           notes: values.notes,
         });
+        if (values.register_payment_now && values.payment_amount > 0) {
+          await updateReservationStatus(reservation.id, "Confirmada");
+          await updateReservation(reservation.id, {
+            payment_amount: values.payment_amount,
+            payment_method: values.payment_method,
+            payment_verified_at: new Date().toISOString(),
+          });
+        }
       } else {
         await createAppointment({
           patient_id: id,
@@ -184,7 +203,10 @@ export function PatientAppointmentsAdminPage() {
           end_time: selectedSlot.end_time,
           city: values.city,
           location: selectedSlot.location,
-          status: "Programada",
+          status: values.register_payment_now && values.payment_amount > 0 ? "Confirmada" : "Programada",
+          payment_amount: values.register_payment_now && values.payment_amount > 0 ? values.payment_amount : null,
+          payment_method: values.register_payment_now && values.payment_amount > 0 ? values.payment_method : null,
+          payment_status: values.register_payment_now && values.payment_amount > 0 ? "Pagado" : "Pendiente",
           notes: values.notes,
         });
       }
@@ -193,13 +215,20 @@ export function PatientAppointmentsAdminPage() {
         date: "",
         doctor_id: "",
         notes: "",
+        register_payment_now: false,
+        payment_amount: 0,
+        payment_method: values.payment_method,
       });
       setSlots([]);
       setSelectedSlot(null);
       setMessage(
         patient?.profile_id
-          ? "Reserva creada correctamente. La paciente ya puede entrar a su panel, pagar por QR y subir su comprobante."
-          : "Cita programada correctamente. Esta paciente no tiene usuario enlazado, por eso se guardo como cita interna."
+          ? values.register_payment_now && values.payment_amount > 0
+            ? "Reserva creada, confirmada y mandada a caja."
+            : "Reserva creada correctamente. La paciente ya puede entrar a su panel, pagar por QR y subir su comprobante."
+          : values.register_payment_now && values.payment_amount > 0
+            ? "Cita interna creada y cobrada. El ingreso ya fue enviado a caja."
+            : "Cita programada correctamente. Esta paciente no tiene usuario enlazado, por eso se guardo como cita interna."
       );
       load();
     } catch (error) {
@@ -252,6 +281,29 @@ export function PatientAppointmentsAdminPage() {
           <Field label="Notas internas">
             <textarea {...form.register("notes")} className="premium-input min-h-24" />
           </Field>
+
+          <div className="rounded-[24px] border border-[var(--color-border)] bg-[rgba(247,242,236,0.72)] p-4">
+            <label className="flex items-center gap-3 text-sm font-semibold">
+              <input type="checkbox" {...form.register("register_payment_now")} className="h-4 w-4" />
+              Registrar pago ahora y mandar a caja
+            </label>
+            {watched.register_payment_now ? (
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <Field label="Monto pagado" error={form.formState.errors.payment_amount?.message}>
+                  <input type="number" min={0} step="0.01" {...form.register("payment_amount")} className="premium-input" />
+                </Field>
+                <Field label="Metodo de pago" error={form.formState.errors.payment_method?.message}>
+                  <select {...form.register("payment_method")} className="premium-input">
+                    {paymentMethods.map((method) => (
+                      <option key={method.id} value={method.code}>
+                        {method.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+            ) : null}
+          </div>
 
           <div className="rounded-[24px] border border-[var(--color-border)] bg-[rgba(247,242,236,0.72)] p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

@@ -20,6 +20,11 @@ export type AppointmentRow = DeletionMetadata & {
   city: string;
   location: string | null;
   status: string;
+  payment_amount?: number | null;
+  payment_method?: string | null;
+  payment_status?: "Pendiente" | "Pagado" | "Devuelto";
+  cash_movement_id?: string | null;
+  cash_recorded_at?: string | null;
   notes: string | null;
   created_at: string;
 };
@@ -36,6 +41,11 @@ type AppointmentBaseRow = DeletionMetadata & {
   city: string;
   location: string | null;
   status: string;
+  payment_amount?: number | null;
+  payment_method?: string | null;
+  payment_status?: "Pendiente" | "Pagado" | "Devuelto";
+  cash_movement_id?: string | null;
+  cash_recorded_at?: string | null;
   notes: string | null;
   created_at: string;
 };
@@ -69,9 +79,9 @@ async function enrichAppointments(rows: AppointmentBaseRow[]) {
 }
 
 export async function createAppointment(data: Record<string, unknown>) {
-  const { error } = await supabase.from("appointments").insert(data);
+  const { data: row, error } = await supabase.from("appointments").insert(data).select("*").single();
   if (error) throw error;
-  return null;
+  return row as AppointmentRow;
 }
 
 export async function getAppointmentsByPatient(patientId: string) {
