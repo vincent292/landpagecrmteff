@@ -33,6 +33,7 @@ const adminSections: Array<{ title: string; links: AdminLink[] }> = [
     links: [
       { label: "Inventario", href: "/panel/inventario", module: "inventario" },
       { label: "Caja", href: "/panel/caja", module: "caja" },
+      { label: "Pedidos promociones", href: "/panel/pedidos-promociones", module: "pedidos-promociones" },
       { label: "Libros", href: "/panel/libros", module: "libros" },
       { label: "Pedidos libros", href: "/panel/pedidos-libros", module: "pedidos-libros" },
     ],

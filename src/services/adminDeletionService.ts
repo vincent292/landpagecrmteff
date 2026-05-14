@@ -48,7 +48,8 @@ export type DeletableTable =
   | "inventory_suppliers"
   | "inventory_lots"
   | "inventory_movements"
-  | "inventory_counts";
+  | "inventory_counts"
+  | "promotion_orders";
 
 type DeleteMode = "active" | "deleted";
 
@@ -90,6 +91,7 @@ const tableModes: Record<DeletableTable, DeleteMode> = {
   inventory_lots: "deleted",
   inventory_movements: "deleted",
   inventory_counts: "deleted",
+  promotion_orders: "deleted",
 };
 
 export function canHardDelete(role: UserRole) {

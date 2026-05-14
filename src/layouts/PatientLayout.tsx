@@ -11,6 +11,7 @@ const patientLinks = [
   ["Perfil", "/mi-panel/perfil"],
   ["Citas", "/mi-panel/citas"],
   ["Cursos", "/mi-panel/cursos"],
+  ["Promociones", "/mi-panel/promociones"],
   ["Reservar cita", "/mi-panel/reservar-cita"],
   ["Cuidados", "/mi-panel/cuidados"],
   ["Recetas", "/mi-panel/recetas"],

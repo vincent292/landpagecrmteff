@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { MessageCircleMore, Pencil, Plus, Save, X } from "lucide-react";
+import { MessageCircleMore, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteActions";
@@ -33,6 +33,7 @@ import {
   getAdminPromotions,
   updatePromotion,
   type PromotionRow,
+  type PromotionVariantInput,
 } from "../../services/promotionService";
 import {
   getInformationRequests,
@@ -570,6 +571,7 @@ function AdminEntityForm({
 }) {
   const { role, profile } = useAuth();
   const [values, setValues] = useState<Record<string, string | boolean | number>>(() => getInitialValues(module, row));
+  const [promotionVariants, setPromotionVariants] = useState<PromotionVariantInput[]>(() => getInitialPromotionVariants(module, row));
   const [error, setError] = useState("");
   const [doctorProfileId, setDoctorProfileId] = useState<string | null>(null);
   const [doctors, setDoctors] = useState<DoctorProfileRow[]>([]);
@@ -642,10 +644,22 @@ function AdminEntityForm({
       }
 
       const payload = normalizePayload(module, values, selectedDoctorId);
+      const cleanPromotionVariants =
+        module === "promociones"
+          ? promotionVariants
+              .map((variant) => ({
+                ...variant,
+                title: variant.title.trim(),
+                price_total: Number(variant.price_total ?? 0),
+                available_slots: Number(variant.available_slots ?? 0),
+                partial_payment_percent: Number(variant.partial_payment_percent ?? 0),
+              }))
+              .filter((variant) => variant.title.length > 0 && variant.price_total > 0)
+          : [];
       if (row) {
-        await handleUpdate(module, row.id, payload);
+        await handleUpdate(module, row.id, payload, cleanPromotionVariants);
       } else {
-        await handleCreate(module, payload);
+        await handleCreate(module, payload, cleanPromotionVariants);
       }
       onSaved();
     } catch (submitError) {
@@ -710,6 +724,9 @@ function AdminEntityForm({
             </label>
           ))}
         </div>
+        {module === "promociones" ? (
+          <PromotionVariantsEditor variants={promotionVariants} onChange={setPromotionVariants} />
+        ) : null}
         {error && (
           <div className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
             {error}
@@ -737,6 +754,130 @@ async function getRows(module: Module, includeDeleted: boolean): Promise<AdminRo
   if (module === "agenda") return getAdminCalendarEvents(includeDeleted);
   if (module === "galeria") return getAdminGalleryAlbums(includeDeleted);
   return getProfiles(includeDeleted);
+}
+
+function PromotionVariantsEditor({
+  variants,
+  onChange,
+}: {
+  variants: PromotionVariantInput[];
+  onChange: (variants: PromotionVariantInput[]) => void;
+}) {
+  const addVariant = () => {
+    onChange([
+      ...variants,
+      {
+        title: "",
+        price_total: 0,
+        available_slots: 0,
+        allows_partial_payment: true,
+        partial_payment_percent: 50,
+        is_active: true,
+      },
+    ]);
+  };
+
+  const updateVariant = (index: number, patch: Partial<PromotionVariantInput>) => {
+    onChange(variants.map((variant, currentIndex) => (currentIndex === index ? { ...variant, ...patch } : variant)));
+  };
+
+  const removeVariant = (index: number) => {
+    onChange(variants.filter((_, currentIndex) => currentIndex !== index));
+  };
+
+  return (
+    <section className="mt-8 rounded-[24px] border border-[var(--color-border)] bg-white/65 p-4 md:p-5">
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+        <div>
+          <p className="text-sm font-semibold text-[var(--color-ink)]">Opciones de la promocion</p>
+          <p className="mt-1 text-xs leading-5 text-[var(--color-copy)]">Agrega cada tratamiento o paquete con su precio y cupos.</p>
+        </div>
+        <button type="button" onClick={addVariant} className="inline-flex items-center justify-center gap-2 rounded-full bg-[var(--color-mocha)] px-4 py-2 text-sm font-semibold text-white">
+          <Plus className="h-4 w-4" />
+          Agregar opcion
+        </button>
+      </div>
+
+      <div className="mt-5 grid gap-4">
+        {variants.map((variant, index) => (
+          <div key={variant.id ?? `variant-${index}`} className="rounded-[20px] border border-[rgba(198,162,123,0.18)] bg-[rgba(247,242,236,0.72)] p-4">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_120px_120px_150px_120px_auto] lg:items-end">
+              <label className="grid gap-2">
+                <span className="text-sm font-semibold">Titulo de la opcion</span>
+                <input
+                  value={variant.title}
+                  onChange={(event) => updateVariant(index, { title: event.target.value })}
+                  className="premium-input"
+                  placeholder="Limpieza Facial Premium + Vitamina C"
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm font-semibold">Precio</span>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={String(variant.price_total)}
+                  onChange={(event) => updateVariant(index, { price_total: Number(event.target.value) })}
+                  className="premium-input"
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm font-semibold">Cupos</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={String(variant.available_slots)}
+                  onChange={(event) => updateVariant(index, { available_slots: Number(event.target.value) })}
+                  className="premium-input"
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm font-semibold">Anticipo</span>
+                <select
+                  value={variant.allows_partial_payment ? "si" : "no"}
+                  onChange={(event) => updateVariant(index, { allows_partial_payment: event.target.value === "si" })}
+                  className="premium-input"
+                >
+                  <option value="si">Permite</option>
+                  <option value="no">No permite</option>
+                </select>
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm font-semibold">% anticipo</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={String(variant.partial_payment_percent)}
+                  onChange={(event) => updateVariant(index, { partial_payment_percent: Number(event.target.value) })}
+                  className="premium-input"
+                  disabled={!variant.allows_partial_payment}
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => removeVariant(index)}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-red-200 text-red-700"
+                aria-label="Quitar opcion"
+                title="Quitar opcion"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+            {variant.id ? (
+              <p className="mt-3 text-xs text-[var(--color-copy)]">ID interno: {variant.id}</p>
+            ) : null}
+          </div>
+        ))}
+        {variants.length === 0 ? (
+          <div className="rounded-[20px] border border-dashed border-[var(--color-border)] bg-white/60 p-5 text-sm text-[var(--color-copy)]">
+            Todavia no hay opciones. Agrega la primera para que aparezca en la landing.
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
 }
 
 function filterRows(module: Module, rows: AdminRow[], filters: { query: string; status: string; city: string; courseId: string }) {
@@ -817,6 +958,9 @@ function getFields(module: Exclude<Module, "inscripciones" | "solicitudes" | "us
     { name: "start_date", label: "Fecha inicio", type: "date" },
     { name: "end_date", label: "Fecha fin", type: "date" },
     { name: "available_slots", label: "Cupos", type: "number" },
+    { name: "allows_direct_booking", label: "Permite pedir y pagar directo", type: "checkbox" },
+    { name: "allows_partial_payment", label: "Permite anticipo", type: "checkbox" },
+    { name: "partial_payment_percent", label: "Porcentaje de anticipo", type: "number" },
     { name: "is_active", label: "Activa", type: "checkbox" },
   ];
   if (module === "cursos") return [
@@ -872,7 +1016,7 @@ function getInitialValues(module: Exclude<Module, "inscripciones" | "solicitudes
     }
 
     if (field.type === "number") {
-      defaults[field.name] = 0;
+      defaults[field.name] = field.name === "partial_payment_percent" ? 50 : 0;
       return;
     }
 
@@ -899,6 +1043,23 @@ function getInitialValues(module: Exclude<Module, "inscripciones" | "solicitudes
   });
 
   return next;
+}
+
+function getInitialPromotionVariants(
+  module: Exclude<Module, "inscripciones" | "solicitudes" | "usuarios">,
+  row: AdminRow | null
+) {
+  if (module !== "promociones" || !row || !("promotion_variants" in row)) return [];
+
+  return ((row as PromotionRow).promotion_variants ?? []).map((variant) => ({
+    id: variant.id,
+    title: variant.title,
+    price_total: Number(variant.price_total ?? 0),
+    available_slots: Number(variant.available_slots ?? 0),
+    allows_partial_payment: Boolean(variant.allows_partial_payment),
+    partial_payment_percent: Number(variant.partial_payment_percent ?? 0),
+    is_active: variant.is_active,
+  }));
 }
 
 function requiresDoctorAssignment(module: Exclude<Module, "inscripciones" | "solicitudes" | "usuarios">) {
@@ -954,17 +1115,26 @@ function formatSubmitError(error: unknown) {
   return error instanceof Error ? error.message : "No se pudo guardar el registro.";
 }
 
-async function handleCreate(module: Exclude<Module, "inscripciones" | "solicitudes" | "usuarios">, payload: Record<string, unknown>) {
+async function handleCreate(
+  module: Exclude<Module, "inscripciones" | "solicitudes" | "usuarios">,
+  payload: Record<string, unknown>,
+  promotionVariants: PromotionVariantInput[] = []
+) {
   if (module === "tratamientos") return createTreatment(payload);
-  if (module === "promociones") return createPromotion(payload);
+  if (module === "promociones") return createPromotion(payload, promotionVariants);
   if (module === "cursos") return createCourse(payload);
   if (module === "agenda") return createCalendarEvent(payload);
   return createGalleryAlbum(payload);
 }
 
-async function handleUpdate(module: Exclude<Module, "inscripciones" | "solicitudes" | "usuarios">, id: string, payload: Record<string, unknown>) {
+async function handleUpdate(
+  module: Exclude<Module, "inscripciones" | "solicitudes" | "usuarios">,
+  id: string,
+  payload: Record<string, unknown>,
+  promotionVariants: PromotionVariantInput[] = []
+) {
   if (module === "tratamientos") return updateTreatment(id, payload);
-  if (module === "promociones") return updatePromotion(id, payload);
+  if (module === "promociones") return updatePromotion(id, payload, promotionVariants);
   if (module === "cursos") return updateCourse(id, payload);
   if (module === "agenda") return updateCalendarEvent(id, payload);
   return updateGalleryAlbum(id, payload);
