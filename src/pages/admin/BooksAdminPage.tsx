@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteActions";
+import { PublicImageUpload } from "../../components/admin/PublicImageUpload";
 import { useAuth } from "../../hooks/useAuth";
 import { hardDeleteRecord, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
 import {
@@ -10,9 +11,7 @@ import {
   getBookById,
   getBooksAdmin,
   updateBook,
-  uploadBookCover,
   uploadBookFile,
-  uploadBookQr,
   type BookRow,
 } from "../../services/bookService";
 import { formatMoney, slugify } from "../../utils/text";
@@ -40,9 +39,7 @@ export function BooksAdminPage() {
     default_token_max_uses: 1,
     is_active: true,
   });
-  const [coverFile, setCoverFile] = useState<File | null>(null);
   const [bookFile, setBookFile] = useState<File | null>(null);
-  const [qrFile, setQrFile] = useState<File | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -77,16 +74,8 @@ export function BooksAdminPage() {
     let filePath = form.file_path;
     let qrImage = form.qr_payment_image;
 
-    if (coverFile) {
-      const uploaded = await uploadBookCover(coverFile);
-      coverImage = uploaded.publicUrl;
-    }
     if (bookFile) {
       filePath = await uploadBookFile(bookFile);
-    }
-    if (qrFile) {
-      const uploadedQr = await uploadBookQr(qrFile);
-      qrImage = uploadedQr.publicUrl;
     }
 
     const payload = {
@@ -180,9 +169,28 @@ export function BooksAdminPage() {
           </select>
         </Field>
         <Field label="Máximo de usos"><input type="number" value={String(form.default_token_max_uses)} onChange={(event) => setForm({ ...form, default_token_max_uses: Number(event.target.value) })} className="premium-input mt-2" /></Field>
-        <Field label="Portada"><input type="file" accept="image/*" onChange={(event) => setCoverFile(event.target.files?.[0] ?? null)} className="premium-input mt-2" /></Field>
+        <div>
+          <PublicImageUpload
+            label="Portada"
+            value={form.cover_image}
+            folder="books/covers"
+            aspectRatio={2 / 3}
+            helperText="Recomendado: portada vertical 1200 x 1800 px. Se optimiza automaticamente en WebP."
+            onChange={(url) => setForm({ ...form, cover_image: url })}
+          />
+        </div>
         <Field label="Archivo del libro"><input type="file" accept=".pdf,.epub" onChange={(event) => setBookFile(event.target.files?.[0] ?? null)} className="premium-input mt-2" /></Field>
-        <Field label="QR de pago"><input type="file" accept="image/*" onChange={(event) => setQrFile(event.target.files?.[0] ?? null)} className="premium-input mt-2" /></Field>
+        <div>
+          <PublicImageUpload
+            label="QR de pago"
+            value={form.qr_payment_image}
+            folder="books/payments"
+            aspectRatio={1}
+            optimize={false}
+            helperText="El QR se sube como imagen original para mantener la lectura correcta."
+            onChange={(url) => setForm({ ...form, qr_payment_image: url })}
+          />
+        </div>
         <label className="flex items-center gap-3 pt-7">
           <input type="checkbox" checked={form.is_active} onChange={(event) => setForm({ ...form, is_active: event.target.checked })} />
           <span className="text-sm font-semibold">Libro activo</span>

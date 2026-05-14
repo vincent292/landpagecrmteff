@@ -103,6 +103,16 @@ svg {
   }
 }
 
+@keyframes route-loader {
+  0% {
+    transform: translateX(-120%);
+  }
+
+  100% {
+    transform: translateX(420%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

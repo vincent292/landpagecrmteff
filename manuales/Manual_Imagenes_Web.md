@@ -118,6 +118,14 @@ Este manual sirve para que el equipo suba imagenes con buena calidad, sin que la
 4. Verificar el peso final.
 5. Subirla y revisar rapidamente en celular y escritorio.
 
+## Optimizacion automatica del sistema
+
+- Las imagenes publicas de doctoras, tratamientos, promociones, cursos, libros y galeria se previsualizan antes de subir.
+- En la previsualizacion se puede mover la imagen, hacer zoom y centrar el recorte.
+- Al confirmar, el sistema convierte la foto a `WebP` y reduce el peso antes de subirla.
+- El QR de pago se mantiene como imagen original para que el escaneo no falle.
+- Las fotos clinicas privadas se optimizan antes de subir, pero no se recortan automaticamente para conservar la informacion visual.
+
 ## Checklist rapido por subida
 
 - Se ve nitida.

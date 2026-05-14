@@ -1,6 +1,7 @@
 import { getSignedUrl, uploadPrivateFile } from "./storageService";
 import { supabase } from "../lib/supabaseClient";
 import { type DeletionMetadata } from "./adminDeletionService";
+import { optimizeImageFile } from "../utils/imageOptimizer";
 
 const bucket = "patient-photos-private";
 
@@ -34,9 +35,15 @@ export type PhotoComparisonRow = DeletionMetadata & {
 };
 
 export async function uploadPatientPhoto(file: File, patientId: string, metadata: Record<string, unknown>) {
-  const fileExt = file.name.split(".").pop() ?? "jpg";
+  const optimized = await optimizeImageFile(file, {
+    maxWidth: 1800,
+    maxHeight: 1800,
+    quality: 0.88,
+  });
+  const uploadFile = optimized.file;
+  const fileExt = uploadFile.name.split(".").pop() ?? "webp";
   const path = `${patientId}/${crypto.randomUUID()}.${fileExt}`;
-  const imagePath = await uploadPrivateFile(bucket, path, file);
+  const imagePath = await uploadPrivateFile(bucket, path, uploadFile);
 
   const payload = {
     patient_id: patientId,

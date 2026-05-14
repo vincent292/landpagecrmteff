@@ -238,6 +238,7 @@ function DoctorForm({ row, onClose, onSaved }: { row: DoctorProfileRow | null; o
             label="Foto de la doctora"
             value={String(values.photo_url ?? "")}
             folder="doctoras"
+            aspectRatio={4 / 5}
             helperText="Recomendado: imagen vertical 1200 x 1500 px o relacion 4:5, en JPG o PNG, bien iluminada y centrada."
             onChange={(url) => setValue("photo_url", url)}
           />

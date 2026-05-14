@@ -690,6 +690,7 @@ function AdminEntityForm({
                     label={field.label}
                     value={String(values[field.name] ?? "")}
                     folder={module}
+                    aspectRatio={getUploadAspectRatio(module)}
                     onChange={(url) => setValue(field.name, url)}
                   />
                 </div>
@@ -754,6 +755,11 @@ async function getRows(module: Module, includeDeleted: boolean): Promise<AdminRo
   if (module === "agenda") return getAdminCalendarEvents(includeDeleted);
   if (module === "galeria") return getAdminGalleryAlbums(includeDeleted);
   return getProfiles(includeDeleted);
+}
+
+function getUploadAspectRatio(module: Module) {
+  if (module === "galeria") return 16 / 10;
+  return 4 / 5;
 }
 
 function PromotionVariantsEditor({

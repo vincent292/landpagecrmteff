@@ -247,6 +247,8 @@ export function SiteSettingsAdminPage() {
               value={paymentQrDraft}
               folder="site-settings/general-payment-qr"
               helperText="Sube aqui la imagen QR general que se mostrara en cursos, citas y cualquier flujo de pago."
+              aspectRatio={1}
+              optimize={false}
               onChange={setPaymentQrDraft}
             />
             <Field label="Clave de confirmacion del QR">

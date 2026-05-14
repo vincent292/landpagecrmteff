@@ -16,7 +16,7 @@ import {
   uploadPatientPhoto,
 } from "../../services/patientPhotoService";
 
-const maxPhotoSize = 8 * 1024 * 1024;
+const maxPhotoSize = 20 * 1024 * 1024;
 
 const uploadSchema = z.object({
   photo_type: z.enum(["antes", "despues", "evolucion", "otro"]),
@@ -114,7 +114,7 @@ export function PatientPhotosPage() {
     }
 
     if (nextFile.size > maxPhotoSize) {
-      setState({ type: "error", text: "La imagen supera el maximo de 8 MB." });
+      setState({ type: "error", text: "La imagen supera el maximo de 20 MB." });
       return;
     }
 
@@ -167,7 +167,7 @@ export function PatientPhotosPage() {
       <section className="rounded-[28px] border border-[var(--color-border)] bg-white/75 p-6 shadow-[0_18px_50px_rgba(62,42,31,0.08)]">
         <h1 className="font-display text-5xl font-semibold">Fotos antes, después y evolución</h1>
         <p className="mt-4 max-w-2xl text-sm leading-7 text-[var(--color-copy)]">
-          Todas las imagenes se guardan en storage privado y se muestran con signed URLs temporales.
+          Todas las imagenes se optimizan antes de subir, se guardan en storage privado y se muestran con signed URLs temporales.
         </p>
         {state ? (
           <div className={`mt-5 rounded-[20px] p-4 text-sm ${state.type === "success" ? "bg-[rgba(111,122,96,0.12)] text-[var(--color-copy)]" : "bg-red-50 text-red-700"}`}>

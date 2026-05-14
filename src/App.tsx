@@ -1,4 +1,4 @@
-import { lazy, Suspense, type ComponentType } from "react";
+import { lazy, Suspense, useEffect, type ComponentType } from "react";
 
 import { Navigate, Route, Routes } from "react-router-dom";
 
@@ -29,6 +29,16 @@ const lazyPage = <P extends object = Record<string, never>>(
     return { default: module[exportName] };
   });
 
+const loadHomePage = () => import("./pages/HomePage");
+const loadTreatmentsPage = () => import("./pages/platform/TreatmentsPage");
+const loadPromotionsPage = () => import("./pages/platform/PromotionsPage");
+const loadCoursesPage = () => import("./pages/platform/CoursesPage");
+const loadBooksPage = () => import("./pages/public/BooksPage");
+const loadGalleryPage = () => import("./pages/platform/GalleryPage");
+const loadDoctorsPage = () => import("./pages/platform/DoctorsPage");
+const loadContactPage = () => import("./pages/platform/ContactPage");
+const loadAuthPages = () => import("./pages/platform/AuthPages");
+
 const AdminCollectionPage = lazyPage<{ module: AdminModule }>(() => import("./pages/admin/AdminCollectionPage"), "AdminCollectionPage");
 const AdminDashboard = lazyPage(() => import("./pages/admin/AdminDashboard"), "AdminDashboard");
 const AppointmentsCalendarPage = lazyPage(() => import("./pages/admin/AppointmentsCalendarPage"), "AppointmentsCalendarPage");
@@ -50,7 +60,7 @@ const PatientsPage = lazyPage(() => import("./pages/admin/PatientsPage"), "Patie
 const ReservationsAdminPage = lazyPage(() => import("./pages/admin/ReservationsAdminPage"), "ReservationsAdminPage");
 const SiteSettingsAdminPage = lazyPage(() => import("./pages/admin/SiteSettingsAdminPage"), "SiteSettingsAdminPage");
 const BookingPage = lazyPage(() => import("./pages/BookingPage"), "BookingPage");
-const HomePage = lazyPage(() => import("./pages/HomePage"), "HomePage");
+const HomePage = lazyPage(loadHomePage, "HomePage");
 const PatientAppointmentsPage = lazyPage(() => import("./pages/patient/PatientAppointmentsPage"), "PatientAppointmentsPage");
 const PatientBooksPage = lazyPage(() => import("./pages/patient/PatientBooksPage"), "PatientBooksPage");
 const PatientCaresPage = lazyPage(() => import("./pages/patient/PatientCaresPage"), "PatientCaresPage");
@@ -63,23 +73,44 @@ const PatientProfilePage = lazyPage(() => import("./pages/patient/PatientProfile
 const ReserveAppointmentPage = lazyPage<{ publicView?: boolean }>(() => import("./pages/patient/ReserveAppointmentPage"), "ReserveAppointmentPage");
 const PatientTreatmentsPage = lazyPage(() => import("./pages/patient/PatientTreatmentsPage"), "PatientTreatmentsPage");
 const BookDetailPage = lazyPage(() => import("./pages/public/BookDetailPage"), "BookDetailPage");
-const BooksPage = lazyPage(() => import("./pages/public/BooksPage"), "BooksPage");
+const BooksPage = lazyPage(loadBooksPage, "BooksPage");
 const BuyBookPage = lazyPage(() => import("./pages/public/BuyBookPage"), "BuyBookPage");
 const AgendaPage = lazyPage(() => import("./pages/platform/AgendaPage"), "AgendaPage");
-const LoginPage = lazyPage(() => import("./pages/platform/AuthPages"), "LoginPage");
-const RegisterPage = lazyPage(() => import("./pages/platform/AuthPages"), "RegisterPage");
-const ContactPage = lazyPage(() => import("./pages/platform/ContactPage"), "ContactPage");
+const LoginPage = lazyPage(loadAuthPages, "LoginPage");
+const RegisterPage = lazyPage(loadAuthPages, "RegisterPage");
+const ContactPage = lazyPage(loadContactPage, "ContactPage");
 const CourseDetailPage = lazyPage(() => import("./pages/platform/CourseDetailPage"), "CourseDetailPage");
-const CoursesPage = lazyPage(() => import("./pages/platform/CoursesPage"), "CoursesPage");
+const CoursesPage = lazyPage(loadCoursesPage, "CoursesPage");
 const GalleryDetailPage = lazyPage(() => import("./pages/platform/GalleryDetailPage"), "GalleryDetailPage");
-const GalleryPage = lazyPage(() => import("./pages/platform/GalleryPage"), "GalleryPage");
+const GalleryPage = lazyPage(loadGalleryPage, "GalleryPage");
 const PromotionDetailPage = lazyPage(() => import("./pages/platform/PromotionDetailPage"), "PromotionDetailPage");
-const PromotionsPage = lazyPage(() => import("./pages/platform/PromotionsPage"), "PromotionsPage");
+const PromotionsPage = lazyPage(loadPromotionsPage, "PromotionsPage");
 const TreatmentDetailPage = lazyPage(() => import("./pages/platform/TreatmentDetailPage"), "TreatmentDetailPage");
-const TreatmentsPage = lazyPage(() => import("./pages/platform/TreatmentsPage"), "TreatmentsPage");
-const DoctorsPage = lazyPage(() => import("./pages/platform/DoctorsPage"), "DoctorsPage");
+const TreatmentsPage = lazyPage(loadTreatmentsPage, "TreatmentsPage");
+const DoctorsPage = lazyPage(loadDoctorsPage, "DoctorsPage");
 
 export default function App() {
+  useEffect(() => {
+    const preload = () => {
+      void loadTreatmentsPage();
+      void loadPromotionsPage();
+      void loadCoursesPage();
+      void loadBooksPage();
+      void loadGalleryPage();
+      void loadDoctorsPage();
+      void loadContactPage();
+      void loadAuthPages();
+    };
+
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      const idleId = window.requestIdleCallback(preload, { timeout: 1800 });
+      return () => window.cancelIdleCallback(idleId);
+    }
+
+    const timeoutId = globalThis.setTimeout(preload, 1200);
+    return () => globalThis.clearTimeout(timeoutId);
+  }, []);
+
   return (
     <Suspense fallback={<RouteLoadingScreen />}>
       <ScrollToTop />
