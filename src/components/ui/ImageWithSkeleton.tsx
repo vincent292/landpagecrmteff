@@ -1,7 +1,5 @@
 import { useEffect, useState, type ImgHTMLAttributes } from "react";
 
-import { ScrollTrigger } from "gsap/ScrollTrigger";
-
 import { cn } from "../../lib/cn";
 
 type ImageWithSkeletonProps = ImgHTMLAttributes<HTMLImageElement> & {
@@ -36,7 +34,6 @@ export function ImageWithSkeleton({
         src={currentSrc}
         onLoad={(event) => {
           setLoaded(true);
-          requestAnimationFrame(() => ScrollTrigger.refresh());
           onLoad?.(event);
         }}
         onError={(event) => {

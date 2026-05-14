@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { getGalleryAlbums, type GalleryAlbumRow } from "../../services/galleryService";
 import { getMediaKind } from "../../services/mediaStorageService";
 import { formatPublicDate, getDisplayCity } from "../../utils/publicContent";
+import { ImageWithSkeleton } from "../ui/ImageWithSkeleton";
 import { SectionHeading } from "../ui/SectionHeading";
 import { SectionReveal } from "../ui/SectionReveal";
 
@@ -48,13 +49,14 @@ export function GalleryPreviewSection() {
                   playsInline
                   preload="metadata"
                 />
-              ) : (
-                <img
-                  src={album.cover_image ?? "/doctora/dra5.jpg"}
-                  alt={album.title}
-                  className="h-72 w-full object-cover transition duration-700 group-hover:scale-[1.02]"
-                />
-              )}
+                ) : (
+                  <ImageWithSkeleton
+                    src={album.cover_image ?? "/doctora/dra5.jpg"}
+                    alt={album.title}
+                    loading="lazy"
+                    className="h-72 w-full object-cover transition duration-700 group-hover:scale-[1.02]"
+                  />
+                )}
               <div className="p-6">
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-accent-strong)]">
                   {album.category ?? "Galeria"} · {getDisplayCity(album.city)} · {formatPublicDate(album.event_date)}

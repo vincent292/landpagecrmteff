@@ -3,6 +3,7 @@ import { Navigate, useParams } from "react-router-dom";
 import "swiper/css";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
+import { ImageWithSkeleton } from "../../components/ui/ImageWithSkeleton";
 import { getGalleryAlbumBySlug, type GalleryAlbumRow } from "../../services/galleryService";
 import { getMediaKind } from "../../services/mediaStorageService";
 import { formatPublicDate, getDisplayCity } from "../../utils/publicContent";
@@ -64,7 +65,7 @@ export function GalleryDetailPage() {
           {activeMedia && getMediaKind(activeMedia) === "video" ? (
             <video src={activeMedia} controls className="h-[460px] w-full rounded-[24px] object-cover" />
           ) : (
-            <img src={activeMedia ?? "/doctora/dra5.jpg"} alt={album.title} className="h-[460px] w-full rounded-[24px] object-cover" />
+            <ImageWithSkeleton src={activeMedia ?? "/doctora/dra5.jpg"} alt={album.title} loading="eager" className="h-[460px] w-full rounded-[24px] object-cover" />
           )}
         </div>
 
@@ -82,7 +83,7 @@ export function GalleryDetailPage() {
                 {isVideo ? (
                   <video src={item.url} className="h-44 w-full object-cover" muted playsInline preload="metadata" />
                 ) : (
-                  <img src={item.url} alt={item.label} className="h-44 w-full object-cover" />
+                  <ImageWithSkeleton src={item.url} alt={item.label} loading="lazy" className="h-44 w-full object-cover" />
                 )}
                 <div className="p-4 text-sm leading-6 text-[var(--color-copy)]">{item.label}</div>
               </button>

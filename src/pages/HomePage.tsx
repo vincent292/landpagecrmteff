@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -7,17 +7,38 @@ import { Footer } from "../components/layout/Footer";
 import { PremiumNavbar } from "../components/layout/PremiumNavbar";
 import { InfoRequestModal } from "../components/platform/InfoRequestModal";
 import { WhatsAppButton } from "../components/platform/WhatsAppButton";
-import { AgendaPreviewSection } from "../components/sections/AgendaPreviewSection";
-import { DoctorSection } from "../components/sections/DoctorSection";
-import { FinalCTA } from "../components/sections/FinalCTA";
-import { GalleryPreviewSection } from "../components/sections/GalleryPreviewSection";
 import { Hero } from "../components/sections/Hero";
 import { Services } from "../components/sections/Services";
 import { StickyLeadCTA } from "../components/sections/StickyLeadCTA";
-import { TestimonialsSection } from "../components/sections/TestimonialsSection";
 import { WelcomeSpotlightModal } from "../components/sections/WelcomeSpotlightModal";
 
 gsap.registerPlugin(ScrollTrigger);
+
+const AgendaPreviewSection = lazy(() =>
+  import("../components/sections/AgendaPreviewSection").then((module) => ({
+    default: module.AgendaPreviewSection,
+  }))
+);
+const DoctorSection = lazy(() =>
+  import("../components/sections/DoctorSection").then((module) => ({
+    default: module.DoctorSection,
+  }))
+);
+const FinalCTA = lazy(() =>
+  import("../components/sections/FinalCTA").then((module) => ({
+    default: module.FinalCTA,
+  }))
+);
+const GalleryPreviewSection = lazy(() =>
+  import("../components/sections/GalleryPreviewSection").then((module) => ({
+    default: module.GalleryPreviewSection,
+  }))
+);
+const TestimonialsSection = lazy(() =>
+  import("../components/sections/TestimonialsSection").then((module) => ({
+    default: module.TestimonialsSection,
+  }))
+);
 
 export function HomePage() {
   const mainRef = useRef<HTMLElement | null>(null);
@@ -102,11 +123,13 @@ export function HomePage() {
       <PremiumNavbar />
       <Hero onRequestInfo={() => setInfoOpen(true)} />
       <Services />
-      <AgendaPreviewSection />
-      <TestimonialsSection />
-      <GalleryPreviewSection />
-      <DoctorSection />
-      <FinalCTA />
+      <Suspense fallback={<SectionSkeleton label="Cargando contenido destacado..." />}>
+        <AgendaPreviewSection />
+        <TestimonialsSection />
+        <GalleryPreviewSection />
+        <DoctorSection />
+        <FinalCTA />
+      </Suspense>
       <Footer />
       <StickyLeadCTA onRequestInfo={() => setInfoOpen(true)} />
       <WelcomeSpotlightModal />
@@ -117,5 +140,20 @@ export function HomePage() {
       />
       <WhatsAppButton />
     </main>
+  );
+}
+
+function SectionSkeleton({ label }: { label: string }) {
+  return (
+    <section className="mx-auto max-w-7xl px-6 py-20 md:px-8 md:py-24">
+      <div className="rounded-[32px] border border-[var(--color-border)] bg-[rgba(255,249,244,0.72)] p-6 shadow-[0_18px_50px_rgba(62,42,31,0.08)]">
+        <p className="text-center text-sm font-medium text-[var(--color-copy)]">{label}</p>
+        <div className="mt-6 grid gap-4 md:grid-cols-3">
+          <div className="skeleton-shimmer h-56 rounded-[28px]" />
+          <div className="skeleton-shimmer h-56 rounded-[28px]" />
+          <div className="skeleton-shimmer h-56 rounded-[28px]" />
+        </div>
+      </div>
+    </section>
   );
 }

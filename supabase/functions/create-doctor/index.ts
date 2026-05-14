@@ -63,7 +63,8 @@ Deno.serve(async (request) => {
       return json({ error: "Email y nombre son obligatorios." }, 400);
     }
 
-    const password = body.password?.trim() || crypto.randomUUID();
+    const providedPassword = typeof body.password === "string" ? body.password : "";
+    const password = providedPassword.trim().length > 0 ? providedPassword : crypto.randomUUID();
     const { data: createdUser, error: createUserError } = await adminClient.auth.admin.createUser({
       email: body.email.trim(),
       password,

@@ -32,6 +32,10 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
 function isInvalidStoredSession(message: string) {
   const normalized = message.toLowerCase();
 
@@ -123,13 +127,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profile,
       loading,
       signIn: async (email, password) => {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const normalizedEmail = normalizeEmail(email);
+        const { error } = await supabase.auth.signInWithPassword({
+          email: normalizedEmail,
+          password,
+        });
         if (error) throw error;
       },
       signUp: async (email, password, fullName, extra) => {
+        const normalizedEmail = normalizeEmail(email);
         const roleToUse = extra?.role ?? "patient";
         const { data, error } = await supabase.auth.signUp({
-          email,
+          email: normalizedEmail,
           password,
           options: {
             data: {

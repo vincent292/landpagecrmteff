@@ -3,6 +3,7 @@
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { BadgeCheck, Sparkles } from "lucide-react";
+import { Link } from "react-router-dom";
 
 import { placeholder, stats } from "../../data/landing";
 import { SoftButton } from "../ui/SoftButton";
@@ -194,9 +195,9 @@ export function Hero({ onRequestInfo }: HeroProps) {
 
             <div data-gsap="hero-copy" className="mt-10 grid gap-3 sm:grid-cols-3">
               {quickLinks.map((item) => (
-                <a
+                <Link
                   key={item.href}
-                  href={item.href}
+                  to={item.href}
                   className="rounded-[24px] border border-[var(--color-border)] bg-[rgba(255,249,244,0.50)] px-4 py-4 shadow-[0_14px_32px_rgba(110,74,47,0.06)] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:shadow-[0_20px_42px_rgba(110,74,47,0.10)]"
                 >
                   <span className="block text-sm font-semibold text-[var(--color-ink)]">
@@ -205,7 +206,7 @@ export function Hero({ onRequestInfo }: HeroProps) {
                   <span className="mt-1 block text-xs uppercase tracking-[0.18em] text-[var(--color-accent-strong)]">
                     {item.detail}
                   </span>
-                </a>
+                </Link>
               ))}
             </div>
           </div>

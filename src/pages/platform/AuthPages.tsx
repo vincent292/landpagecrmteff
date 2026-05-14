@@ -155,13 +155,27 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
 
           <label className="mt-5 block">
             <span className="text-sm font-semibold text-[var(--color-ink)]">Email</span>
-            <input {...register("email")} className="premium-input mt-2" />
+            <input
+              type="email"
+              autoComplete="username"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              inputMode="email"
+              {...register("email")}
+              className="premium-input mt-2"
+            />
             {errors.email ? <span className="mt-1 block text-sm text-red-700">{errors.email.message}</span> : null}
           </label>
 
           <label className="mt-5 block">
             <span className="text-sm font-semibold text-[var(--color-ink)]">Contraseña</span>
-            <input type="password" {...register("password")} className="premium-input mt-2" />
+            <input
+              type="password"
+              autoComplete={isLogin ? "current-password" : "new-password"}
+              {...register("password")}
+              className="premium-input mt-2"
+            />
             {errors.password ? <span className="mt-1 block text-sm text-red-700">{errors.password.message}</span> : null}
           </label>
 

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { ArrowRight } from "lucide-react";
+import { Link } from "react-router-dom";
 
 import { cn } from "../../lib/cn";
 
@@ -11,6 +12,10 @@ type SoftButtonProps = {
   type?: "button" | "submit" | "reset";
   variant?: "primary" | "secondary";
 };
+
+function isInternalHref(href: string) {
+  return href.startsWith("/") && !href.startsWith("//");
+}
 
 export function SoftButton({
   children,
@@ -36,6 +41,14 @@ export function SoftButton({
   );
 
   if (href) {
+    if (isInternalHref(href)) {
+      return (
+        <Link to={href} className={cn(base, styles)}>
+          {content}
+        </Link>
+      );
+    }
+
     return (
       <a href={href} className={cn(base, styles)}>
         {content}

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
+import { ImageWithSkeleton } from "../../components/ui/ImageWithSkeleton";
 import { boliviaCities } from "../../data/cities";
 import { getGalleryAlbums, type GalleryAlbumRow } from "../../services/galleryService";
 import { getMediaKind } from "../../services/mediaStorageService";
@@ -71,7 +72,12 @@ export function GalleryPage() {
                 {isVideo && previewMedia ? (
                   <video src={previewMedia} className="h-80 w-full object-cover transition duration-700 group-hover:scale-[1.02]" muted playsInline preload="metadata" />
                 ) : (
-                  <img src={album.cover_image ?? "/doctora/dra5.jpg"} alt={album.title} className="h-80 w-full object-cover transition duration-700 group-hover:scale-[1.02]" />
+                  <ImageWithSkeleton
+                    src={album.cover_image ?? "/doctora/dra5.jpg"}
+                    alt={album.title}
+                    loading="lazy"
+                    className="h-80 w-full object-cover transition duration-700 group-hover:scale-[1.02]"
+                  />
                 )}
                 <div className="p-6">
                   <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-accent-strong)]">

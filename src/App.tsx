@@ -3,6 +3,7 @@ import { lazy, Suspense, type ComponentType } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import { ProtectedRoute } from "./components/platform/ProtectedRoute";
+import { RouteLoadingScreen } from "./components/common/RouteLoadingScreen";
 import { ScrollToTop } from "./components/common/ScrollToTop";
 import { AdminLayout } from "./layouts/AdminLayout";
 import { PatientLayout } from "./layouts/PatientLayout";
@@ -80,7 +81,7 @@ const DoctorsPage = lazyPage(() => import("./pages/platform/DoctorsPage"), "Doct
 
 export default function App() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<RouteLoadingScreen />}>
       <ScrollToTop />
       <Routes>
         <Route path="/" element={<HomePage />} />
