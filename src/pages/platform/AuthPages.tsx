@@ -6,6 +6,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { z } from "zod";
 
 import { BrandSignature } from "../../components/common/BrandSignature";
+import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
 import { supabase } from "../../lib/supabaseClient";
 import { isPortalRole, isStaffRole, normalizeRole } from "../../lib/roles";
@@ -148,7 +149,14 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
               </label>
               <label className="block">
                 <span className="text-sm font-semibold text-[var(--color-ink)]">Ciudad</span>
-                <input {...register("city")} className="premium-input mt-2" />
+                <select {...register("city")} className="premium-input mt-2">
+                  <option value="">Selecciona ciudad</option>
+                  {boliviaCities.map((city) => (
+                    <option key={city} value={city}>
+                      {city}
+                    </option>
+                  ))}
+                </select>
               </label>
             </div>
           ) : null}

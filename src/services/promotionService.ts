@@ -44,6 +44,9 @@ export type PromotionRow = DeletionMetadata & {
   allows_direct_booking?: boolean | null;
   allows_partial_payment?: boolean | null;
   partial_payment_percent?: number | null;
+  agenda_mode?: "none" | "coordinate" | "choose_slot" | null;
+  appointment_type?: string | null;
+  agenda_tag?: string | null;
   promotion_variants?: PromotionVariantRow[] | null;
   doctor_profiles?: {
     full_name: string;

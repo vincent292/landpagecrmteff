@@ -11,6 +11,7 @@ export type AvailabilityRuleRow = DeletionMetadata & {
     whatsapp: string | null;
     email: string | null;
   } | null;
+  agenda_tag?: string | null;
   city: string;
   location: string | null;
   appointment_type: string;
@@ -43,6 +44,8 @@ export type AvailabilityBlockRow = DeletionMetadata & {
 
 export type AvailableSlot = {
   rule_id: string;
+  doctor_id?: string | null;
+  agenda_tag?: string | null;
   date: string;
   start_time: string;
   end_time: string;
@@ -56,6 +59,8 @@ export type AvailableSlot = {
 export type SlotFilters = {
   city?: string;
   appointment_type?: string;
+  doctor_id?: string | null;
+  agenda_tag?: string | null;
   date_from: string;
   date_to: string;
 };
@@ -161,6 +166,8 @@ export async function getAvailableSlots(filters: SlotFilters) {
     p_appointment_type: filters.appointment_type ?? null,
     p_date_from: filters.date_from,
     p_date_to: filters.date_to,
+    p_doctor_id: filters.doctor_id ?? null,
+    p_agenda_tag: filters.agenda_tag ?? null,
   });
 
   if (error) throw error;

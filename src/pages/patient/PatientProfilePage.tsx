@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
 import { updateMyProfile } from "../../services/profileService";
 
@@ -49,7 +50,14 @@ export function PatientProfilePage() {
         </label>
         <label>
           <span className="text-sm font-semibold">Ciudad</span>
-          <input value={city} onChange={(event) => setCity(event.target.value)} className="premium-input mt-2" />
+          <select value={city} onChange={(event) => setCity(event.target.value)} className="premium-input mt-2">
+            <option value="">Selecciona ciudad</option>
+            {boliviaCities.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
         </label>
         <label>
           <span className="text-sm font-semibold">Numero de carnet</span>

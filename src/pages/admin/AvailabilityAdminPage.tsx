@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteActions";
+import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
 import { hardDeleteRecord, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
 import {
@@ -32,7 +33,7 @@ const days = [
   { value: 0, label: "Domingo" },
 ];
 
-const appointmentTypes = ["Valoracion estetica", "Control", "Procedimiento", "Revision postratamiento", "Consulta general"];
+const appointmentTypes = ["Valoracion estetica", "Control", "Procedimiento", "Promocion directa", "Revision postratamiento", "Consulta general"];
 
 const ruleSchema = z
   .object({
@@ -40,6 +41,7 @@ const ruleSchema = z
     city: z.string().min(2, "La ciudad es obligatoria."),
     location: z.string().optional(),
     appointment_type: z.string().min(2, "El tipo de cita es obligatorio."),
+    agenda_tag: z.string().optional(),
     availability_type: z.enum(["recurring", "specific"]),
     start_date: z.string().optional(),
     end_date: z.string().optional(),
@@ -105,6 +107,7 @@ export function AvailabilityAdminPage() {
       city: "Cochabamba",
       location: "",
       appointment_type: "Valoracion estetica",
+      agenda_tag: "",
       availability_type: "recurring",
       start_date: "",
       end_date: "",
@@ -183,6 +186,7 @@ export function AvailabilityAdminPage() {
         city: values.city,
         location: values.location || null,
         appointment_type: values.appointment_type,
+        agenda_tag: values.agenda_tag?.trim() || null,
         availability_type: values.availability_type,
         start_time: values.start_time,
         end_time: values.end_time,
@@ -302,7 +306,14 @@ export function AvailabilityAdminPage() {
               </select>
             </Field>
             <Field label="¿En que ciudad atenderas?" error={ruleForm.formState.errors.city?.message}>
-              <input {...ruleForm.register("city")} className="premium-input" />
+              <select {...ruleForm.register("city")} className="premium-input">
+                <option value="">Selecciona ciudad</option>
+                {boliviaCities.map((city) => (
+                  <option key={city} value={city}>
+                    {city}
+                  </option>
+                ))}
+              </select>
             </Field>
             <Field label="Ubicacion">
               <input {...ruleForm.register("location")} className="premium-input" placeholder="Clinica central" />
@@ -311,6 +322,9 @@ export function AvailabilityAdminPage() {
               <select {...ruleForm.register("appointment_type")} className="premium-input">
                 {appointmentTypes.map((item) => <option key={item}>{item}</option>)}
               </select>
+            </Field>
+            <Field label="Tag de agenda opcional">
+              <input {...ruleForm.register("agenda_tag")} className="premium-input" placeholder="Ej: madres-mayo-2026" />
             </Field>
             <Field label="Modalidad">
               <select {...ruleForm.register("availability_type")} className="premium-input">
@@ -418,7 +432,14 @@ export function AvailabilityAdminPage() {
                 <input type="date" {...blockForm.register("block_date")} className="premium-input" />
               </Field>
               <Field label="Ciudad opcional">
-                <input {...blockForm.register("city")} className="premium-input" placeholder="Todas las ciudades" />
+                <select {...blockForm.register("city")} className="premium-input">
+                  <option value="">Todas las ciudades</option>
+                  {boliviaCities.map((city) => (
+                    <option key={city} value={city}>
+                      {city}
+                    </option>
+                  ))}
+                </select>
               </Field>
               <label className="flex items-center gap-3 text-sm font-semibold">
                 <input type="checkbox" {...blockForm.register("full_day")} />
@@ -465,6 +486,7 @@ export function AvailabilityAdminPage() {
                       : `${days.find((day) => day.value === rule.day_of_week)?.label ?? "Dia"} · ${rule.start_date ?? "sin inicio"} a ${rule.end_date ?? "sin fin"}`}
                     <br />
                     {rule.start_time} - {rule.end_time} · {rule.slot_duration_minutes} min · descanso {rule.break_minutes} min · cupos {rule.capacity_per_slot}
+                    {rule.agenda_tag ? ` · tag ${rule.agenda_tag}` : ""}
                   </p>
                   <DeletedStatusNote row={rule} />
                 </div>

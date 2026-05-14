@@ -4,6 +4,7 @@ import { Archive, Building2, Calculator, Landmark, Pencil, Wallet } from "lucide
 
 import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteActions";
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
+import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
 import { isSoftDeleted, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
 import {
@@ -785,7 +786,14 @@ export function CashAdminPage() {
               </select>
             </Field>
             <Field label="Ciudad">
-              <input value={sessionForm.city} onChange={(event) => setSessionForm({ ...sessionForm, city: event.target.value })} className="premium-input" />
+              <select value={sessionForm.city} onChange={(event) => setSessionForm({ ...sessionForm, city: event.target.value })} className="premium-input">
+                <option value="">Selecciona ciudad</option>
+                {boliviaCities.map((city) => (
+                  <option key={city} value={city}>
+                    {city}
+                  </option>
+                ))}
+              </select>
             </Field>
             <Field label="Lugar o caja">
               <input value={sessionForm.location_name} onChange={(event) => setSessionForm({ ...sessionForm, location_name: event.target.value })} className="premium-input" />
@@ -855,7 +863,14 @@ export function CashAdminPage() {
               <input value={movementForm.reference_name} onChange={(event) => setMovementForm({ ...movementForm, reference_name: event.target.value })} className="premium-input" />
             </Field>
             <Field label="Ciudad">
-              <input value={movementForm.city} onChange={(event) => setMovementForm({ ...movementForm, city: event.target.value })} className="premium-input" />
+              <select value={movementForm.city} onChange={(event) => setMovementForm({ ...movementForm, city: event.target.value })} className="premium-input">
+                <option value="">Selecciona ciudad</option>
+                {boliviaCities.map((city) => (
+                  <option key={city} value={city}>
+                    {city}
+                  </option>
+                ))}
+              </select>
             </Field>
             <Field label="Fecha">
               <input type="date" value={movementForm.movement_date} onChange={(event) => setMovementForm({ ...movementForm, movement_date: event.target.value })} className="premium-input" />
@@ -882,7 +897,14 @@ export function CashAdminPage() {
               <input value={drawerForm.name} onChange={(event) => setDrawerForm({ ...drawerForm, name: event.target.value })} className="premium-input" />
             </Field>
             <Field label="Ciudad">
-              <input value={drawerForm.city} onChange={(event) => setDrawerForm({ ...drawerForm, city: event.target.value })} className="premium-input" />
+              <select value={drawerForm.city} onChange={(event) => setDrawerForm({ ...drawerForm, city: event.target.value })} className="premium-input">
+                <option value="">Selecciona ciudad</option>
+                {boliviaCities.map((city) => (
+                  <option key={city} value={city}>
+                    {city}
+                  </option>
+                ))}
+              </select>
             </Field>
             <Field label="Ubicacion">
               <input value={drawerForm.location_name} onChange={(event) => setDrawerForm({ ...drawerForm, location_name: event.target.value })} className="premium-input" />

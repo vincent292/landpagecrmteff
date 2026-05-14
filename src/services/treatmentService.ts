@@ -19,6 +19,9 @@ export type TreatmentRow = DeletionMetadata & {
   is_featured: boolean | null;
   is_active: boolean | null;
   doctor_id: string | null;
+  agenda_mode?: "none" | "coordinate" | "choose_slot" | null;
+  appointment_type?: string | null;
+  agenda_tag?: string | null;
   doctor_profiles?: {
     full_name: string;
     specialty: string | null;

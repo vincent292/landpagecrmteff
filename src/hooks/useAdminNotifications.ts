@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 
 import { supabase } from "../lib/supabaseClient";
 import { getEnrollmentById } from "../services/enrollmentService";
+import { getPromotionOrderById } from "../services/promotionOrderService";
 import { getInformationRequestById } from "../services/requestService";
 import { getReservationById } from "../services/reservationService";
 
 export type AdminNotification = {
   id: string;
   entityId: string;
-  type: "request" | "enrollment" | "reservation";
+  type: "request" | "enrollment" | "reservation" | "promotion_order";
   title: string;
   detail: string;
   href: string;
@@ -87,6 +88,24 @@ export function useAdminNotifications(userId?: string | null) {
             title: "Nueva inscripción",
             detail: `${row.full_name ?? "Alumno"} · ${row.courses?.title ?? "Curso"}`,
             href: "/panel/inscripciones",
+            createdAt: row.created_at,
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "promotion_orders" },
+        async (payload) => {
+          if (!active) return;
+          const row = await getPromotionOrderById(payload.new.id).catch(() => null);
+          if (!row) return;
+          prepend({
+            id: `promotion-order-${row.id}`,
+            entityId: row.id,
+            type: "promotion_order",
+            title: "Nueva solicitud de promocion",
+            detail: `${row.full_name} · ${row.promotions?.title ?? "Promocion"}`,
+            href: "/panel/pedidos-promociones",
             createdAt: row.created_at,
           });
         }

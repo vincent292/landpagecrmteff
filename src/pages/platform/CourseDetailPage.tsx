@@ -6,6 +6,7 @@ import { Link, Navigate, useParams } from "react-router-dom";
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { DoctorByline } from "../../components/platform/DoctorByline";
 import { ContentCover } from "../../components/ui/ContentCover";
+import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
 import {
   attachCourseEnrollmentPaymentReceipt,
@@ -347,7 +348,14 @@ export function CourseDetailPage() {
                 <input value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} className="premium-input" disabled={alreadySubmittedEnrollment} />
               </Field>
               <Field label="Ciudad">
-                <input value={form.city} onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))} className="premium-input" disabled={alreadySubmittedEnrollment} />
+                <select value={form.city} onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))} className="premium-input" disabled={alreadySubmittedEnrollment}>
+                  <option value="">Selecciona ciudad</option>
+                  {boliviaCities.map((city) => (
+                    <option key={city} value={city}>
+                      {city}
+                    </option>
+                  ))}
+                </select>
               </Field>
               <Field label="Numero de carnet">
                 <input value={form.document_number} onChange={(event) => setForm((current) => ({ ...current, document_number: event.target.value }))} className="premium-input" disabled={alreadySubmittedEnrollment} />

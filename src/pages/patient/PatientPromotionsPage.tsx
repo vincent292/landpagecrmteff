@@ -5,6 +5,7 @@ import { EmptyState, ErrorState, LoadingState } from "../../components/common/As
 import { useAuth } from "../../hooks/useAuth";
 import {
   getMyPromotionOrders,
+  getPromotionOrderItemPreferredSlot,
   getPromotionOrderItems,
   getPromotionOrderReceiptUrl,
   type PromotionOrderRow,
@@ -69,12 +70,23 @@ export function PatientPromotionsPage() {
             </p>
 
             <div className="mt-4 grid gap-2">
-              {items.map((item) => (
-                <div key={item.id} className="rounded-[18px] bg-[rgba(247,242,236,0.78)] px-4 py-3 text-sm">
-                  <p className="font-semibold text-[var(--color-ink)]">{item.title_snapshot}</p>
-                  <p className="mt-1 text-[var(--color-copy)]">{formatMoney(item.unit_price)} · cantidad {item.quantity}</p>
-                </div>
-              ))}
+              {items.map((item) => {
+                const preferredSlot = getPromotionOrderItemPreferredSlot(item, order);
+
+                return (
+                  <div key={item.id} className="rounded-[18px] bg-[rgba(247,242,236,0.78)] px-4 py-3 text-sm">
+                    <p className="font-semibold text-[var(--color-ink)]">{item.title_snapshot}</p>
+                    <p className="mt-1 text-[var(--color-copy)]">{formatMoney(item.unit_price)} · cantidad {item.quantity}</p>
+                    {preferredSlot ? (
+                      <p className="mt-2 text-xs leading-5 text-[var(--color-copy)]">
+                        {formatDate(preferredSlot.date)} · {preferredSlot.start_time?.slice(0, 5)} - {preferredSlot.end_time?.slice(0, 5)}
+                        <br />
+                        {preferredSlot.city ?? order.city ?? "Sin ciudad"} · {preferredSlot.appointment_reservation_id ? "Horario confirmado" : "Pendiente de confirmacion"}
+                      </p>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
 
             <div className="mt-4 flex flex-wrap gap-3">

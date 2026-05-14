@@ -7,6 +7,7 @@ import { Link, Navigate, useLocation } from "react-router-dom";
 import { z } from "zod";
 
 import { EmptyState, LoadingState } from "../../components/common/AsyncState";
+import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
 import { getAvailableSlots, type AvailableSlot } from "../../services/availabilityService";
 import { createPatient, getPatientByProfileId } from "../../services/patientService";
@@ -185,7 +186,14 @@ export function ReserveAppointmentPage({ publicView = false }: { publicView?: bo
         <form onSubmit={form.handleSubmit(submit)} className="mt-8 grid gap-8 lg:grid-cols-[0.85fr_1.15fr]">
           <div className="space-y-4">
             <Field label="Ciudad" error={form.formState.errors.city?.message}>
-              <input {...form.register("city")} className="premium-input" />
+              <select {...form.register("city")} className="premium-input">
+                <option value="">Selecciona ciudad</option>
+                {boliviaCities.map((city) => (
+                  <option key={city} value={city}>
+                    {city}
+                  </option>
+                ))}
+              </select>
             </Field>
             <Field label="Tipo de cita" error={form.formState.errors.appointment_type?.message}>
               <select {...form.register("appointment_type")} className="premium-input">

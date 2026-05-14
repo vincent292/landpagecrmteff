@@ -17,6 +17,7 @@ import {
 
 import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteActions";
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
+import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
 import { restoreRecord, softDeleteRecord, type DeletableTable, type DeletionMetadata } from "../../services/adminDeletionService";
 import {
@@ -785,7 +786,7 @@ function renderModalFields(props: {
         <TextField label="SKU" value={f.sku} onChange={(sku) => set({ ...f, sku })} />
         <TextField label="Codigo de barras" value={f.barcode} onChange={(barcode) => set({ ...f, barcode })} />
         <SelectField label="Unidad / medida" value={f.unit_id} onChange={(unit_id) => set({ ...f, unit_id })} options={props.units.map((u) => ({ value: u.id, label: `${u.name} (${u.abbreviation})` }))} />
-        <TextField label="Ciudad" value={f.city} onChange={(city) => set({ ...f, city })} />
+        <CityField label="Ciudad" value={f.city} onChange={(city) => set({ ...f, city })} />
         <SelectField label="Ubicacion" value={f.location_id} onChange={(location_id) => set({ ...f, location_id })} options={props.locations.map((l) => ({ value: l.id, label: l.name }))} />
         <SelectField label="Proveedor principal" value={f.supplier_id} onChange={(supplier_id) => set({ ...f, supplier_id })} options={props.suppliers.map((s) => ({ value: s.id, label: s.name }))} />
         <NumberField label="Stock actual" value={f.current_stock} onChange={(current_stock) => set({ ...f, current_stock })} />
@@ -865,6 +866,21 @@ function TextField({ label, value, onChange }: { label: string; value: string; o
   return <Field label={label}><input value={value} onChange={(event) => onChange(event.target.value)} className="premium-input" /></Field>;
 }
 
+function CityField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <Field label={label}>
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="premium-input">
+        <option value="">Selecciona ciudad</option>
+        {boliviaCities.map((city) => (
+          <option key={city} value={city}>
+            {city}
+          </option>
+        ))}
+      </select>
+    </Field>
+  );
+}
+
 function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
   return <Field label={label}><input type="number" step="0.01" value={String(value)} onChange={(event) => onChange(Number(event.target.value))} className="premium-input" /></Field>;
 }
@@ -897,7 +913,7 @@ function LocationFields({ form, setForm }: { form: typeof emptyLocationForm; set
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <TextField label="Nombre" value={form.name} onChange={(name) => setForm({ ...form, name })} />
-      <TextField label="Ciudad" value={form.city} onChange={(city) => setForm({ ...form, city })} />
+      <CityField label="Ciudad" value={form.city} onChange={(city) => setForm({ ...form, city })} />
       <TextareaField label="Descripcion" value={form.description} onChange={(description) => setForm({ ...form, description })} />
     </div>
   );

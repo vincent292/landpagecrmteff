@@ -79,9 +79,10 @@ export function PromotionsPage() {
         {!loading && !error && filteredPromotions.length > 0 ? (
           <div className="grid min-w-0 gap-5 sm:gap-6 md:grid-cols-2 xl:grid-cols-3">
             {filteredPromotions.map((promo, index) => {
-              const firstVariant = promo.promotion_variants?.[0] ?? null;
-              const hasVariants = Boolean(firstVariant);
-              const remaining = firstVariant ? getPromotionVariantRemainingSlots(firstVariant) : promo.available_slots ?? 0;
+              const variants = promo.promotion_variants ?? [];
+              const lowestVariant = getLowestPriceVariant(variants);
+              const hasVariants = variants.length > 0;
+              const remaining = lowestVariant ? getPromotionVariantRemainingSlots(lowestVariant) : promo.available_slots ?? 0;
 
               return (
                 <AnimatedCard key={promo.id} index={index}>
@@ -97,7 +98,7 @@ export function PromotionsPage() {
                       <div className="mt-5 flex min-w-0 flex-wrap items-end gap-3">
                         {!hasVariants && promo.old_price != null ? <span className="text-sm text-[var(--color-copy)] line-through">{formatMoney(promo.old_price)}</span> : null}
                         {!hasVariants && promo.promo_price != null ? <span className="break-words text-2xl font-semibold text-[var(--color-mocha)] sm:text-3xl">{formatMoney(promo.promo_price)}</span> : null}
-                        {firstVariant ? <span className="break-words text-2xl font-semibold text-[var(--color-mocha)] sm:text-3xl">Opciones desde {formatMoney(firstVariant.price_total)}</span> : null}
+                        {lowestVariant ? <span className="break-words text-2xl font-semibold text-[var(--color-mocha)] sm:text-3xl">Opciones desde {formatMoney(lowestVariant.price_total)}</span> : null}
                       </div>
                       <p className="mt-4 break-words text-sm leading-6 text-[var(--color-copy)]">
                         Vigente hasta {formatPublicDate(promo.end_date)} · {remaining} cupos
@@ -128,4 +129,8 @@ export function PromotionsPage() {
       <InfoRequestModal open={Boolean(interest)} interest={interest?.title ?? ""} interestId={interest?.id} interestType="Promoción" onClose={() => setInterest(null)} />
     </section>
   );
+}
+
+function getLowestPriceVariant(variants: PromotionRow["promotion_variants"]) {
+  return [...(variants ?? [])].sort((a, b) => Number(a.price_total ?? 0) - Number(b.price_total ?? 0))[0] ?? null;
 }

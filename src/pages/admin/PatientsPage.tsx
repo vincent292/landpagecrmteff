@@ -8,6 +8,7 @@ import { z } from "zod";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteActions";
+import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
 import { hardDeleteRecord, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
 import { createPatient, getPatients, type PatientRow } from "../../services/patientService";
@@ -254,7 +255,14 @@ export function PatientsPage() {
                 <input {...register("email")} className="premium-input mt-2" />
               </Field>
               <Field label="Ciudad" error={errors.city?.message}>
-                <input {...register("city")} className="premium-input mt-2" />
+                <select {...register("city")} className="premium-input mt-2">
+                  <option value="">Selecciona ciudad</option>
+                  {boliviaCities.map((city) => (
+                    <option key={city} value={city}>
+                      {city}
+                    </option>
+                  ))}
+                </select>
               </Field>
             </div>
             <div className="mt-6 flex flex-wrap gap-3">

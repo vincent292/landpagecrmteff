@@ -5,6 +5,7 @@ import { Pencil, Plus, Save, X } from "lucide-react";
 import { EmptyState, LoadingState } from "../../components/common/AsyncState";
 import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteActions";
 import { PublicImageUpload } from "../../components/admin/PublicImageUpload";
+import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
 import { hardDeleteRecord, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
 import {
@@ -205,7 +206,14 @@ function DoctorForm({ row, onClose, onSaved }: { row: DoctorProfileRow | null; o
             <input value={String(values.specialty)} onChange={(event) => setValue("specialty", event.target.value)} className="premium-input" />
           </Field>
           <Field label="Ciudad">
-            <input value={String(values.city)} onChange={(event) => setValue("city", event.target.value)} className="premium-input" />
+            <select value={String(values.city)} onChange={(event) => setValue("city", event.target.value)} className="premium-input">
+              <option value="">Selecciona ciudad</option>
+              {boliviaCities.map((city) => (
+                <option key={city} value={city}>
+                  {city}
+                </option>
+              ))}
+            </select>
           </Field>
           {row ? (
             <Field label="Profile ID del usuario doctora">

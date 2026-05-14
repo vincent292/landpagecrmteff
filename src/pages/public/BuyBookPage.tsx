@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import { LoadingState } from "../../components/common/AsyncState";
 import { ContentCover } from "../../components/ui/ContentCover";
+import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
 import { attachPaymentReceipt, createBookOrder, uploadPaymentReceipt } from "../../services/bookOrderService";
 import { getBookBySlug } from "../../services/bookService";
@@ -15,7 +16,7 @@ import { formatMoney } from "../../utils/text";
 const schema = z.object({
   full_name: z.string().min(3, "Escribe tu nombre completo"),
   phone: z.string().min(6, "Escribe un celular valido"),
-  city: z.string().min(2, "Escribe tu ciudad"),
+  city: z.string().min(2, "Selecciona tu ciudad"),
   email: z.string().email("Correo invalido"),
   receipt: z.instanceof(File, { message: "Sube tu comprobante" }),
 });
@@ -96,7 +97,14 @@ export function BuyBookPage() {
               <input {...register("phone")} className="premium-input mt-2" />
             </Field>
             <Field label="Ciudad" error={errors.city?.message}>
-              <input {...register("city")} className="premium-input mt-2" />
+              <select {...register("city")} className="premium-input mt-2">
+                <option value="">Selecciona ciudad</option>
+                {boliviaCities.map((city) => (
+                  <option key={city} value={city}>
+                    {city}
+                  </option>
+                ))}
+              </select>
             </Field>
             <Field label="Correo" error={errors.email?.message}>
               <input {...register("email")} className="premium-input mt-2" />

@@ -76,6 +76,14 @@ type EnrollmentApprovalDraft = {
   notes: string;
 };
 
+type AdminListFilters = {
+  query: string;
+  status: string;
+  city: string;
+  courseId: string;
+  interestType: string;
+};
+
 type AdminRow =
   | TreatmentRow
   | PromotionRow
@@ -89,6 +97,7 @@ type AdminRow =
 const requestStatuses = ["Nuevo", "Contactado", "Agendado", "Finalizado", "Descartado"];
 const enrollmentStatuses = ["Pendiente", "En revision", "Confirmado", "Rechazado", "Cancelado", "Asistió"];
 const eventTypes = ["Curso", "Procedimiento", "Cirugía", "Presentación", "Jornada", "Valoración"];
+const appointmentTypeOptions = ["Valoracion estetica", "Control", "Procedimiento", "Promocion directa", "Revision postratamiento", "Consulta general"];
 const userRoles = ["superadmin", "doctor", "admin", "assistant", "patient", "student", "user"] as const;
 
 export function AdminCollectionPage({ module }: Props) {
@@ -98,7 +107,7 @@ export function AdminCollectionPage({ module }: Props) {
   const [error, setError] = useState(false);
   const [editing, setEditing] = useState<AdminRow | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [filters, setFilters] = useState({ query: "", status: "Todos", city: "Todas", courseId: "Todos" });
+  const [filters, setFilters] = useState<AdminListFilters>({ query: "", status: "Todos", city: "Todas", courseId: "Todos", interestType: "Todos" });
   const [pendingRealtime, setPendingRealtime] = useState(false);
   const [paymentMethods, setPaymentMethods] = useState<CashPaymentMethodRow[]>([]);
   const [enrollmentApproval, setEnrollmentApproval] = useState<EnrollmentApprovalDraft | null>(null);
@@ -344,16 +353,22 @@ function AdminFilters({
 }: {
   module: Module;
   rows: AdminRow[];
-  filters: { query: string; status: string; city: string; courseId: string };
-  setFilters: (filters: { query: string; status: string; city: string; courseId: string }) => void;
+  filters: AdminListFilters;
+  setFilters: (filters: AdminListFilters) => void;
 }) {
   const cities = [...new Set(rows.map((row) => ("city" in row ? row.city : null)).filter(Boolean))];
   const courses = rows
     .filter((row): row is EnrollmentRow => "course_id" in row)
     .map((row) => ({ id: row.course_id, title: row.courses?.title ?? row.course_id }));
+  const interestTypes = [...new Set(
+    rows
+      .filter((row): row is InformationRequestRow => "interest_type" in row)
+      .map((row) => row.interest_type)
+      .filter(Boolean)
+  )];
 
   return (
-    <div className="mt-8 grid gap-3 md:grid-cols-4">
+    <div className={`mt-8 grid gap-3 ${module === "solicitudes" ? "md:grid-cols-5" : "md:grid-cols-4"}`}>
       <input
         value={filters.query}
         onChange={(event) => setFilters({ ...filters, query: event.target.value })}
@@ -368,6 +383,12 @@ function AdminFilters({
         <option>Todas</option>
         {cities.map((city) => <option key={city}>{city}</option>)}
       </select>
+      {module === "solicitudes" && (
+        <select value={filters.interestType} onChange={(event) => setFilters({ ...filters, interestType: event.target.value })} className="premium-input">
+          <option>Todos</option>
+          {interestTypes.map((interestType) => <option key={interestType}>{interestType}</option>)}
+        </select>
+      )}
       {module === "inscripciones" && (
         <select value={filters.courseId} onChange={(event) => setFilters({ ...filters, courseId: event.target.value })} className="premium-input">
           <option>Todos</option>
@@ -714,6 +735,16 @@ function AdminEntityForm({
                 <select value={String(values[field.name] ?? "")} onChange={(event) => setValue(field.name, event.target.value)} className="premium-input mt-2">
                   {eventTypes.map((type) => <option key={type}>{type}</option>)}
                 </select>
+              ) : field.type === "select-agenda-mode" ? (
+                <select value={String(values[field.name] ?? "")} onChange={(event) => setValue(field.name, event.target.value)} className="premium-input mt-2">
+                  <option value="none">No agenda cita</option>
+                  <option value="coordinate">Coordinar por WhatsApp</option>
+                  <option value="choose_slot">Elegir horario disponible</option>
+                </select>
+              ) : field.type === "select-appointment-type" ? (
+                <select value={String(values[field.name] ?? "")} onChange={(event) => setValue(field.name, event.target.value)} className="premium-input mt-2">
+                  {appointmentTypeOptions.map((type) => <option key={type}>{type}</option>)}
+                </select>
               ) : field.name === "city" ? (
                 <select value={String(values[field.name] ?? "")} onChange={(event) => setValue(field.name, event.target.value)} className="premium-input mt-2">
                   <option value="">Selecciona ciudad</option>
@@ -886,14 +917,18 @@ function PromotionVariantsEditor({
   );
 }
 
-function filterRows(module: Module, rows: AdminRow[], filters: { query: string; status: string; city: string; courseId: string }) {
+function filterRows(module: Module, rows: AdminRow[], filters: AdminListFilters) {
   const query = filters.query.toLowerCase();
   return rows.filter((row) => {
     const text = JSON.stringify(row).toLowerCase();
     const statusOk = filters.status === "Todos" || ("status" in row && row.status === filters.status);
     const cityOk = filters.city === "Todas" || ("city" in row && row.city === filters.city);
     const courseOk = module !== "inscripciones" || filters.courseId === "Todos" || ("course_id" in row && row.course_id === filters.courseId);
-    return text.includes(query) && statusOk && cityOk && courseOk;
+    const interestTypeOk =
+      module !== "solicitudes" ||
+      filters.interestType === "Todos" ||
+      ("interest_type" in row && (row.interest_type ?? "General") === filters.interestType);
+    return text.includes(query) && statusOk && cityOk && courseOk && interestTypeOk;
   });
 }
 
@@ -950,6 +985,9 @@ function getFields(module: Exclude<Module, "inscripciones" | "solicitudes" | "us
     { name: "expected_results", label: "Resultados esperados", type: "textarea" },
     { name: "cover_image", label: "Imagen principal", type: "image" },
     { name: "city", label: "Ciudad", type: "text" },
+    { name: "agenda_mode", label: "Agenda", type: "select-agenda-mode" },
+    { name: "appointment_type", label: "Tipo de cita agenda", type: "select-appointment-type" },
+    { name: "agenda_tag", label: "Tag de agenda opcional", type: "text" },
     { name: "is_featured", label: "Destacado", type: "checkbox" },
     { name: "is_active", label: "Activo", type: "checkbox" },
   ];
@@ -965,6 +1003,9 @@ function getFields(module: Exclude<Module, "inscripciones" | "solicitudes" | "us
     { name: "end_date", label: "Fecha fin", type: "date" },
     { name: "available_slots", label: "Cupos", type: "number" },
     { name: "allows_direct_booking", label: "Permite pedir y pagar directo", type: "checkbox" },
+    { name: "agenda_mode", label: "Agenda", type: "select-agenda-mode" },
+    { name: "appointment_type", label: "Tipo de cita agenda", type: "select-appointment-type" },
+    { name: "agenda_tag", label: "Tag de agenda opcional", type: "text" },
     { name: "allows_partial_payment", label: "Permite anticipo", type: "checkbox" },
     { name: "partial_payment_percent", label: "Porcentaje de anticipo", type: "number" },
     { name: "is_active", label: "Activa", type: "checkbox" },
@@ -1028,6 +1069,16 @@ function getInitialValues(module: Exclude<Module, "inscripciones" | "solicitudes
 
     if (field.name === "event_type") {
       defaults[field.name] = "Jornada";
+      return;
+    }
+
+    if (field.name === "agenda_mode") {
+      defaults[field.name] = module === "promociones" ? "choose_slot" : "coordinate";
+      return;
+    }
+
+    if (field.name === "appointment_type") {
+      defaults[field.name] = module === "promociones" ? "Promocion directa" : "Valoracion estetica";
       return;
     }
 

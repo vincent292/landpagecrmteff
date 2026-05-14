@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
+import { boliviaCities } from "../../data/cities";
 import { getAvailableSlots, type AvailableSlot } from "../../services/availabilityService";
 import { getCashPaymentMethods, type CashPaymentMethodRow } from "../../services/cashService";
 import { getAdminDoctors, type DoctorProfileRow } from "../../services/doctorService";
@@ -24,7 +25,7 @@ import {
 import { formatDate, formatMoney } from "../../utils/text";
 
 const statuses: ReservationStatus[] = ["Pendiente", "Confirmada", "Realizada", "Cancelada", "Rechazada"];
-const appointmentTypes = ["Valoracion estetica", "Control", "Procedimiento", "Revision postratamiento", "Consulta general"];
+const appointmentTypes = ["Valoracion estetica", "Control", "Procedimiento", "Promocion directa", "Revision postratamiento", "Consulta general"];
 
 const manualSchema = z.object({
   patient_id: z.string().min(1, "Selecciona paciente."),
@@ -251,7 +252,14 @@ export function ReservationsAdminPage() {
             </Field>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Ciudad" error={form.formState.errors.city?.message}>
-                <input {...form.register("city")} className="premium-input" />
+                <select {...form.register("city")} className="premium-input">
+                  <option value="">Selecciona ciudad</option>
+                  {boliviaCities.map((city) => (
+                    <option key={city} value={city}>
+                      {city}
+                    </option>
+                  ))}
+                </select>
               </Field>
               <Field label="Tipo de cita" error={form.formState.errors.appointment_type?.message}>
                 <select {...form.register("appointment_type")} className="premium-input">

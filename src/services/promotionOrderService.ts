@@ -13,6 +13,15 @@ export type PromotionOrderItemRow = {
   title_snapshot: string;
   unit_price: number;
   quantity: number;
+  preferred_rule_id: string | null;
+  preferred_appointment_date: string | null;
+  preferred_start_time: string | null;
+  preferred_end_time: string | null;
+  preferred_city: string | null;
+  preferred_location: string | null;
+  preferred_appointment_type: string | null;
+  preferred_agenda_tag: string | null;
+  appointment_reservation_id: string | null;
   created_at: string;
   promotion_variants?: {
     id: string;
@@ -23,11 +32,23 @@ export type PromotionOrderItemRow = {
   } | null;
 };
 
+export type PromotionOrderPreferredSlotInput = {
+  rule_id: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  city: string;
+  location?: string | null;
+  appointment_type: string;
+  agenda_tag?: string | null;
+};
+
 export type PromotionOrderCartItemInput = {
   variant_id: string;
   title: string;
   unit_price: number;
   quantity?: number;
+  preferred_slot?: PromotionOrderPreferredSlotInput | null;
 };
 
 export type PromotionOrderRow = DeletionMetadata & {
@@ -53,6 +74,15 @@ export type PromotionOrderRow = DeletionMetadata & {
   payment_verified_at: string | null;
   cash_movement_id: string | null;
   cash_recorded_at: string | null;
+  preferred_rule_id: string | null;
+  preferred_appointment_date: string | null;
+  preferred_start_time: string | null;
+  preferred_end_time: string | null;
+  preferred_city: string | null;
+  preferred_location: string | null;
+  preferred_appointment_type: string | null;
+  preferred_agenda_tag: string | null;
+  appointment_reservation_id: string | null;
   status: PromotionOrderStatus;
   admin_notes: string | null;
   created_at: string;
@@ -62,6 +92,10 @@ export type PromotionOrderRow = DeletionMetadata & {
     slug: string;
     cover_image: string | null;
     city: string | null;
+    doctor_id?: string | null;
+    agenda_mode?: string | null;
+    appointment_type?: string | null;
+    agenda_tag?: string | null;
   } | null;
   promotion_variants?: {
     id: string;
@@ -75,7 +109,7 @@ export type PromotionOrderRow = DeletionMetadata & {
 
 const orderSelect = [
   "*",
-  "promotions(title, slug, cover_image, city)",
+  "promotions(title, slug, cover_image, city, doctor_id, agenda_mode, appointment_type, agenda_tag)",
   "promotion_variants(id, title, price_total, available_slots, approved_slots)",
   "promotion_order_items(*, promotion_variants(id, title, price_total, available_slots, approved_slots))",
 ].join(", ");
@@ -92,10 +126,50 @@ export function getPromotionOrderItems(row: PromotionOrderRow) {
       title_snapshot: row.promotion_variants.title,
       unit_price: row.promotion_variants.price_total,
       quantity: 1,
+      preferred_rule_id: row.preferred_rule_id,
+      preferred_appointment_date: row.preferred_appointment_date,
+      preferred_start_time: row.preferred_start_time,
+      preferred_end_time: row.preferred_end_time,
+      preferred_city: row.preferred_city,
+      preferred_location: row.preferred_location,
+      preferred_appointment_type: row.preferred_appointment_type,
+      preferred_agenda_tag: row.preferred_agenda_tag,
+      appointment_reservation_id: row.appointment_reservation_id,
       created_at: row.created_at,
       promotion_variants: row.promotion_variants,
     },
   ];
+}
+
+export function getPromotionOrderItemPreferredSlot(item: PromotionOrderItemRow, row?: PromotionOrderRow) {
+  const fallback = row
+    ? {
+        preferred_rule_id: row.preferred_rule_id,
+        preferred_appointment_date: row.preferred_appointment_date,
+        preferred_start_time: row.preferred_start_time,
+        preferred_end_time: row.preferred_end_time,
+        preferred_city: row.preferred_city,
+        preferred_location: row.preferred_location,
+        preferred_appointment_type: row.preferred_appointment_type,
+        preferred_agenda_tag: row.preferred_agenda_tag,
+        appointment_reservation_id: row.appointment_reservation_id,
+      }
+    : null;
+
+  const source = item.preferred_rule_id || item.preferred_appointment_date ? item : fallback;
+  if (!source?.preferred_appointment_date || !source.preferred_start_time || !source.preferred_end_time) return null;
+
+  return {
+    rule_id: source.preferred_rule_id,
+    date: source.preferred_appointment_date,
+    start_time: source.preferred_start_time,
+    end_time: source.preferred_end_time,
+    city: source.preferred_city,
+    location: source.preferred_location,
+    appointment_type: source.preferred_appointment_type,
+    agenda_tag: source.preferred_agenda_tag,
+    appointment_reservation_id: source.appointment_reservation_id,
+  };
 }
 
 async function replacePromotionOrderItems(orderId: string, items: PromotionOrderCartItemInput[]) {
@@ -111,12 +185,20 @@ async function replacePromotionOrderItems(orderId: string, items: PromotionOrder
       title_snapshot: item.title,
       unit_price: item.unit_price,
       quantity: item.quantity ?? 1,
+      preferred_rule_id: item.preferred_slot?.rule_id ?? null,
+      preferred_appointment_date: item.preferred_slot?.date ?? null,
+      preferred_start_time: item.preferred_slot?.start_time ?? null,
+      preferred_end_time: item.preferred_slot?.end_time ?? null,
+      preferred_city: item.preferred_slot?.city ?? null,
+      preferred_location: item.preferred_slot?.location ?? null,
+      preferred_appointment_type: item.preferred_slot?.appointment_type ?? null,
+      preferred_agenda_tag: item.preferred_slot?.agenda_tag ?? null,
     }))
   );
   if (error) throw error;
 }
 
-async function getPromotionOrderById(orderId: string) {
+export async function getPromotionOrderById(orderId: string) {
   const { data, error } = await supabase.from("promotion_orders").select(orderSelect).eq("id", orderId).single();
   if (error) throw error;
   return data as unknown as PromotionOrderRow;
@@ -139,16 +221,7 @@ export async function savePromotionOrder(data: {
 }) {
   if (data.items.length === 0) throw new Error("Selecciona al menos una opcion de la promocion.");
   const primaryVariantId = data.items[0].variant_id;
-
-  const { data: existing, error: existingError } = await supabase
-    .from("promotion_orders")
-    .select("*")
-    .eq("promotion_id", data.promotion_id)
-    .eq("user_id", data.user_id)
-    .eq("is_deleted", false)
-    .in("status", ["Pendiente", "Rechazado"])
-    .maybeSingle();
-  if (existingError) throw existingError;
+  const primaryPreferredSlot = data.items.find((item) => item.preferred_slot)?.preferred_slot ?? null;
 
   const basePayload = {
     promotion_id: data.promotion_id,
@@ -166,22 +239,15 @@ export async function savePromotionOrder(data: {
     total_amount: data.total_amount,
     amount_paid: null,
     amount_pending: data.total_amount,
+    preferred_rule_id: primaryPreferredSlot?.rule_id ?? null,
+    preferred_appointment_date: primaryPreferredSlot?.date ?? null,
+    preferred_start_time: primaryPreferredSlot?.start_time ?? null,
+    preferred_end_time: primaryPreferredSlot?.end_time ?? null,
+    preferred_city: primaryPreferredSlot?.city ?? null,
+    preferred_location: primaryPreferredSlot?.location ?? null,
+    preferred_appointment_type: primaryPreferredSlot?.appointment_type ?? null,
+    preferred_agenda_tag: primaryPreferredSlot?.agenda_tag ?? null,
   };
-
-  if (existing) {
-    const { data: row, error } = await supabase
-      .from("promotion_orders")
-      .update({
-        ...basePayload,
-        status: existing.status === "Rechazado" ? "Pendiente" : existing.status,
-      })
-      .eq("id", existing.id)
-      .select("*")
-      .single();
-    if (error) throw error;
-    await replacePromotionOrderItems(row.id, data.items);
-    return getPromotionOrderById(row.id);
-  }
 
   const { data: row, error } = await supabase
     .from("promotion_orders")

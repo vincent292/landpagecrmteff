@@ -4,6 +4,7 @@ import { LockKeyhole, Save } from "lucide-react";
 
 import { PublicImageUpload } from "../../components/admin/PublicImageUpload";
 import { LoadingState } from "../../components/common/AsyncState";
+import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
 import { canManageSite } from "../../lib/roles";
 import {
@@ -189,7 +190,14 @@ export function SiteSettingsAdminPage() {
             <input value={values.email ?? ""} onChange={(event) => setValue("email", event.target.value)} className="premium-input" />
           </Field>
           <Field label="Ciudad">
-            <input value={values.city ?? ""} onChange={(event) => setValue("city", event.target.value)} className="premium-input" />
+            <select value={values.city ?? ""} onChange={(event) => setValue("city", event.target.value)} className="premium-input">
+              <option value="">Selecciona ciudad</option>
+              {boliviaCities.map((city) => (
+                <option key={city} value={city}>
+                  {city}
+                </option>
+              ))}
+            </select>
           </Field>
           <Field label="Instagram URL">
             <input value={values.instagram_url ?? ""} onChange={(event) => setValue("instagram_url", event.target.value)} className="premium-input" />
