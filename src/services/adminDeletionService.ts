@@ -49,6 +49,7 @@ export type DeletableTable =
   | "inventory_lots"
   | "inventory_movements"
   | "inventory_counts"
+  | "inventory_supplier_orders"
   | "promotion_orders";
 
 type DeleteMode = "active" | "deleted";
@@ -91,6 +92,7 @@ const tableModes: Record<DeletableTable, DeleteMode> = {
   inventory_lots: "deleted",
   inventory_movements: "deleted",
   inventory_counts: "deleted",
+  inventory_supplier_orders: "deleted",
   promotion_orders: "deleted",
 };
 

@@ -10,11 +10,13 @@ import {
   Package,
   Pencil,
   Plus,
+  ShoppingCart,
   Tags,
   Truck,
   Warehouse,
 } from "lucide-react";
 
+import { InventorySupplierOrdersPanel } from "../../components/admin/InventorySupplierOrdersPanel";
 import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteActions";
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { boliviaCities } from "../../data/cities";
@@ -55,7 +57,7 @@ import {
 import { downloadCsv } from "../../utils/csv";
 import { formatDate, formatMoney } from "../../utils/text";
 
-type TabKey = "resumen" | "items" | "categorias" | "lotes" | "movimientos" | "conteos" | "alertas" | "reportes" | "proveedores";
+type TabKey = "resumen" | "items" | "categorias" | "lotes" | "movimientos" | "conteos" | "alertas" | "reportes" | "proveedores" | "pedidos";
 type ModalKey = "item" | "category" | "unit" | "supplier" | "location" | "lot" | "movement" | "count" | null;
 
 const tabs: { key: TabKey; label: string; icon: ReactNode }[] = [
@@ -68,6 +70,7 @@ const tabs: { key: TabKey; label: string; icon: ReactNode }[] = [
   { key: "alertas", label: "Alertas", icon: <Bell className="h-4 w-4" /> },
   { key: "reportes", label: "Reportes", icon: <Download className="h-4 w-4" /> },
   { key: "proveedores", label: "Proveedores", icon: <Truck className="h-4 w-4" /> },
+  { key: "pedidos", label: "Pedidos", icon: <ShoppingCart className="h-4 w-4" /> },
 ];
 
 const emptyItemForm = {
@@ -93,7 +96,19 @@ const emptyItemForm = {
 
 const emptyCategoryForm = { name: "", description: "", is_active: true };
 const emptyLocationForm = { name: "", city: "", description: "", is_active: true };
-const emptySupplierForm = { name: "", contact_name: "", phone: "", email: "", address: "", notes: "", is_active: true };
+const emptySupplierForm = {
+  name: "",
+  contact_name: "",
+  phone: "",
+  whatsapp_phone: "",
+  email: "",
+  address: "",
+  tax_id: "",
+  payment_terms_days: 0,
+  allows_consignment: false,
+  notes: "",
+  is_active: true,
+};
 const emptyUnitForm = {
   name: "",
   abbreviation: "",
@@ -438,6 +453,7 @@ export function InventoryAdminPage() {
                 <button onClick={() => { openModal("movement"); setMovementForm((current) => ({ ...current, movement_type: "merma" })); }} className="rounded-full bg-[rgba(154,107,67,0.14)] px-5 py-3 text-sm font-bold text-[var(--color-ink)]">Registrar merma</button>
                 <button onClick={() => { openModal("movement"); setMovementForm((current) => ({ ...current, movement_type: "transferencia" })); }} className="rounded-full bg-[var(--color-mocha)] px-5 py-3 text-sm font-bold text-white">Transferir ubicacion</button>
                 <button onClick={() => openModal("count")} className="rounded-full bg-[var(--color-mocha)] px-5 py-3 text-sm font-bold text-white">Crear conteo</button>
+                <button onClick={() => setActiveTab("pedidos")} className="rounded-full bg-[rgba(110,74,47,0.92)] px-5 py-3 text-sm font-bold text-white">Pedidos a proveedor</button>
               </div>
             </Panel>
             <Panel eyebrow="Alertas" title="Atencion requerida" action={<button onClick={() => setActiveTab("alertas")} className="rounded-full bg-[var(--color-mocha)] px-4 py-2 text-sm font-bold text-white">Ver todas</button>}>
@@ -533,7 +549,7 @@ export function InventoryAdminPage() {
         <div className="grid gap-5 xl:grid-cols-3">
           <Panel eyebrow="Proveedores" title="Contactos de compra" action={<CommandButton icon={<Plus className="h-4 w-4" />} label="Proveedor" onClick={() => openModal("supplier")} primary />}>
             <RowsEmpty rows={suppliers} empty="Sin proveedores." render={(supplier) => (
-              <RowCard key={supplier.id} title={supplier.name} tags={[supplier.contact_name ?? "Sin contacto", supplier.phone ?? "Sin telefono"]} detail={`${supplier.email ?? "Sin email"} · ${supplier.notes ?? "Sin notas"}`} deletedRow={supplier} actions={<CrudActions role={role} row={supplier} table="inventory_suppliers" onEdit={() => openModal("supplier", supplier)} onArchive={() => void archive("inventory_suppliers", supplier.id)} onRestore={() => void restoreRecord("inventory_suppliers", supplier.id).then(load)} />} />
+              <RowCard key={supplier.id} title={supplier.name} tags={[supplier.contact_name ?? "Sin contacto", supplier.phone ?? "Sin telefono", supplier.whatsapp_phone ?? "Sin WhatsApp"]} detail={`${supplier.email ?? "Sin email"} · plazo ${supplier.payment_terms_days ?? 0} dias · ${supplier.allows_consignment ? "Con consignacion" : "Compra directa"} · ${supplier.notes ?? "Sin notas"}`} deletedRow={supplier} actions={<CrudActions role={role} row={supplier} table="inventory_suppliers" onEdit={() => openModal("supplier", supplier)} onArchive={() => void archive("inventory_suppliers", supplier.id)} onRestore={() => void restoreRecord("inventory_suppliers", supplier.id).then(load)} />} />
             )} />
           </Panel>
           <Panel eyebrow="Ubicaciones" title="Almacenes y zonas" action={<CommandButton icon={<Plus className="h-4 w-4" />} label="Ubicacion" onClick={() => openModal("location")} primary />}>
@@ -547,6 +563,20 @@ export function InventoryAdminPage() {
             )} />
           </Panel>
         </div>
+      ) : null}
+
+      {activeTab === "pedidos" ? (
+        <InventorySupplierOrdersPanel
+          role={role}
+          actorId={actorId}
+          actorName={actorName}
+          actorEmail={actorEmail}
+          includeDeleted={includeDeleted}
+          suppliers={suppliers}
+          items={items}
+          locations={locations}
+          onInventoryRefresh={load}
+        />
       ) : null}
 
       {modal ? (
@@ -925,8 +955,15 @@ function SupplierFields({ form, setForm }: { form: typeof emptySupplierForm; set
       <TextField label="Proveedor" value={form.name} onChange={(name) => setForm({ ...form, name })} />
       <TextField label="Contacto" value={form.contact_name} onChange={(contact_name) => setForm({ ...form, contact_name })} />
       <TextField label="Telefono" value={form.phone} onChange={(phone) => setForm({ ...form, phone })} />
+      <TextField label="WhatsApp" value={form.whatsapp_phone} onChange={(whatsapp_phone) => setForm({ ...form, whatsapp_phone })} />
       <TextField label="Email" value={form.email} onChange={(email) => setForm({ ...form, email })} />
       <TextField label="Direccion" value={form.address} onChange={(address) => setForm({ ...form, address })} />
+      <TextField label="NIT o referencia fiscal" value={form.tax_id} onChange={(tax_id) => setForm({ ...form, tax_id })} />
+      <NumberField label="Plazo de pago en dias" value={form.payment_terms_days} onChange={(payment_terms_days) => setForm({ ...form, payment_terms_days })} />
+      <label className="flex items-center gap-3 rounded-2xl border border-[var(--color-border)] bg-white/60 px-4 py-3 text-sm font-semibold">
+        <input type="checkbox" checked={form.allows_consignment} onChange={(event) => setForm({ ...form, allows_consignment: event.target.checked })} />
+        Maneja consignacion
+      </label>
       <TextareaField label="Notas" value={form.notes} onChange={(notes) => setForm({ ...form, notes })} />
     </div>
   );
@@ -1000,8 +1037,12 @@ function pickSupplier(row: InventorySupplierRow) {
     name: row.name,
     contact_name: row.contact_name ?? "",
     phone: row.phone ?? "",
+    whatsapp_phone: row.whatsapp_phone ?? "",
     email: row.email ?? "",
     address: row.address ?? "",
+    tax_id: row.tax_id ?? "",
+    payment_terms_days: Number(row.payment_terms_days ?? 0),
+    allows_consignment: row.allows_consignment,
     notes: row.notes ?? "",
     is_active: row.is_active,
   };
@@ -1070,7 +1111,11 @@ function lotReport(
 }
 
 function supplierPayload(form: typeof emptySupplierForm) {
-  return Object.fromEntries(Object.entries(form).map(([key, value]) => [key, typeof value === "string" ? normalizeText(value) : value]));
+  return {
+    ...Object.fromEntries(Object.entries(form).map(([key, value]) => [key, typeof value === "string" ? normalizeText(value) : value])),
+    payment_terms_days: Number(form.payment_terms_days),
+    allows_consignment: Boolean(form.allows_consignment),
+  };
 }
 
 function isExpiringSoon(value?: string | null, days = 30) {

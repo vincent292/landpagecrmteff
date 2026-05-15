@@ -8,6 +8,7 @@ import { getPatientById } from "../../services/patientService";
 import { getPatientPhotos } from "../../services/patientPhotoService";
 import { getPostCaresByPatient } from "../../services/postCareService";
 import { getPrescriptionsByPatient } from "../../services/prescriptionService";
+import { formatPublicTime } from "../../utils/publicContent";
 import { formatDate } from "../../utils/text";
 
 export function PatientDetailPage() {
@@ -66,8 +67,8 @@ export function PatientDetailPage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <PatientAction href={`/panel/pacientes/${id}/historia-clinica`} label="Editar historia" />
-            <PatientAction href={`/panel/pacientes/${id}/fotos`} label="Subir fotos" />
+            <PatientAction href={`/panel/pacientes/${id}/historia-clinica`} label="Ficha clinica" />
+            <PatientAction href={`/panel/pacientes/${id}/fotos`} label="Galeria clinica" />
             <PatientAction href={`/panel/pacientes/${id}/citas`} label="Crear cita" />
             <PatientAction href={`/panel/pacientes/${id}/recetas`} label="Crear receta" />
             <PatientAction href={`/panel/pacientes/${id}/cuidados`} label="Crear cuidado" />
@@ -105,9 +106,17 @@ export function PatientDetailPage() {
       </section>
 
       <section className="rounded-[28px] border border-[var(--color-border)] bg-white/75 p-6">
-        <h2 className="text-xl font-semibold">Resumen de historia clinica</h2>
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold">Resumen de ficha clinica</h2>
+            <p className="mt-2 text-sm text-[var(--color-copy)]">
+              Desde aqui el equipo puede entrar a registrar nuevas notas medicas, seguimientos y fotos clinicas.
+            </p>
+          </div>
+          <PatientAction href={`/panel/pacientes/${id}/historia-clinica`} label="Abrir ficha clinica" />
+        </div>
         <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
-          {data.history?.diagnosis ?? data.history?.reason_for_consultation ?? "Todavia no hay historia clinica cargada."}
+          {data.history?.diagnosis ?? data.history?.reason_for_consultation ?? "Todavia no hay notas clinicas cargadas."}
         </p>
         {data.histories.length > 0 ? (
           <div className="mt-5 grid gap-3">
@@ -115,10 +124,11 @@ export function PatientDetailPage() {
               <article key={item.id} className="rounded-[20px] bg-[rgba(247,242,236,0.78)] p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-accent-strong)]">
                   {formatDate(item.session_date ?? item.created_at)}
+                  {item.session_time ? ` · ${formatPublicTime(item.session_time)}` : ""}
                 </p>
-                <h3 className="mt-2 text-base font-semibold">{item.session_title ?? item.reason_for_consultation ?? "Atencion clinica"}</h3>
+                <h3 className="mt-2 text-base font-semibold">{item.session_title ?? item.reason_for_consultation ?? "Nota clinica"}</h3>
                 <p className="mt-1 text-xs font-semibold text-[var(--color-copy)]">
-                  Elaborado por {item.profiles?.full_name ?? item.profiles?.email ?? "equipo medico"}
+                  Doctora responsable {item.doctor_profiles?.full_name ?? item.profiles?.full_name ?? item.profiles?.email ?? "equipo medico"}
                 </p>
                 <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">
                   {item.diagnosis ?? item.reason_for_consultation ?? "Sin resumen disponible."}

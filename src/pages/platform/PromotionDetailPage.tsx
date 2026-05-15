@@ -262,9 +262,9 @@ export function PromotionDetailPage() {
   }, [selectedVariants]);
 
   if (!slug) return <Navigate to="/promociones" replace />;
-  if (loading) return <section className="mx-auto max-w-7xl px-6 py-16"><LoadingState label="Cargando promocion..." /></section>;
-  if (error) return <section className="mx-auto max-w-7xl px-6 py-16"><ErrorState label="No pudimos cargar esta promocion." /></section>;
-  if (!promotion) return <section className="mx-auto max-w-7xl px-6 py-16"><EmptyState label="No encontramos esta promocion." /></section>;
+  if (loading) return <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6"><LoadingState label="Cargando promocion..." /></section>;
+  if (error) return <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6"><ErrorState label="No pudimos cargar esta promocion." /></section>;
+  if (!promotion) return <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6"><EmptyState label="No encontramos esta promocion." /></section>;
 
   function clearReserveIntent() {
     if (!searchParams.get("accion")) return;
@@ -439,12 +439,12 @@ export function PromotionDetailPage() {
   }
 
   return (
-    <section className="mx-auto max-w-7xl px-6 py-12 pb-32 md:px-8 md:py-20 md:pb-20">
+    <section className="mx-auto max-w-7xl px-4 py-12 pb-32 sm:px-6 md:px-8 md:py-20 md:pb-20">
       <div className="max-w-4xl">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">
           Promocion · {getDisplayCity(promotion.city)}
         </p>
-        <h1 className="font-display mt-3 text-5xl font-semibold leading-[0.95] md:text-6xl">{promotion.title}</h1>
+        <h1 className="font-display mt-3 text-4xl font-semibold leading-[0.95] sm:text-5xl md:text-6xl">{promotion.title}</h1>
         <DoctorByline doctor={promotion.doctor_profiles} />
         <p className="mt-6 text-base leading-8 text-[var(--color-copy)]">{promotion.description}</p>
         <div className="mt-6 grid gap-3 text-sm leading-7 text-[var(--color-copy)] sm:grid-cols-2">
@@ -457,7 +457,7 @@ export function PromotionDetailPage() {
 
       <div className="mt-10 grid gap-8 lg:grid-cols-[1fr_380px]">
         <div className="space-y-6">
-          <div className="overflow-hidden rounded-[28px] border border-[var(--color-border)] bg-[linear-gradient(135deg,rgba(96,65,47,0.92),rgba(151,106,73,0.86))] p-6 text-white shadow-[0_24px_70px_rgba(62,42,31,0.14)]">
+          <div className="overflow-hidden rounded-[28px] border border-[var(--color-border)] bg-[linear-gradient(135deg,rgba(96,65,47,0.92),rgba(151,106,73,0.86))] p-4 text-white shadow-[0_24px_70px_rgba(62,42,31,0.14)] sm:p-6">
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/70">Elige una o mas opciones</p>
             <h2 className="mt-2 text-2xl font-semibold">{promotion.title}</h2>
             {variants.length > 0 ? (
@@ -484,7 +484,7 @@ export function PromotionDetailPage() {
                           {allowsPartial ? `Anticipo ${percent}% disponible` : "Pago completo"} · {remaining} cupos
                         </p>
                       </div>
-                      <p className="text-2xl font-bold text-white sm:text-3xl">{formatMoney(variant.price_total).replace("Bs. ", "")}Bs.</p>
+                      <p className="text-xl font-bold text-white sm:text-3xl">{formatMoney(variant.price_total).replace("Bs. ", "")}Bs.</p>
                     </button>
                   );
                 })}
@@ -505,7 +505,7 @@ export function PromotionDetailPage() {
           </div>
         </div>
 
-        <aside className="h-fit rounded-[28px] border border-[var(--color-border)] bg-white/72 p-6 shadow-[0_18px_48px_rgba(110,74,47,0.08)]">
+        <aside className="h-fit rounded-[28px] border border-[var(--color-border)] bg-white/72 p-4 shadow-[0_18px_48px_rgba(110,74,47,0.08)] sm:p-6">
           <p className="text-sm text-[var(--color-copy)]">{getDisplayCity(promotion.city)}</p>
           <h2 className="mt-3 text-3xl font-semibold">
             {selectedVariants.length ? formatMoney(cartTotal) : "Arma tu pedido"}
@@ -594,14 +594,14 @@ export function PromotionDetailPage() {
       ) : null}
 
       {showOrderModal ? createPortal(
-        <ModalShell onClose={() => setShowOrderModal(false)} maxWidthClassName="max-w-5xl">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <ModalShell onClose={() => setShowOrderModal(false)} maxWidthClassName="max-w-6xl">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">Pedido de promocion</p>
-              <h2 className="font-display mt-3 text-3xl font-semibold sm:text-4xl">Confirma tus datos, paga y sube tu comprobante</h2>
+              <h2 className="font-display mt-3 max-w-4xl text-[clamp(1.75rem,4vw,3rem)] font-semibold leading-[1.05]">Confirma tus datos, paga y sube tu comprobante</h2>
             </div>
             {latestOrder?.status ? (
-              <span className="rounded-full bg-[rgba(216,194,174,0.26)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-mocha)]">
+              <span className="max-w-full self-start rounded-full bg-[rgba(216,194,174,0.26)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-mocha)]">
                 Ultimo pedido: {latestOrder.status}
               </span>
             ) : null}
@@ -615,20 +615,29 @@ export function PromotionDetailPage() {
 
           <OrderSteps current={orderStep} shouldChooseSlot={shouldChooseSlot} />
 
-          <div className={`mt-8 grid gap-8 ${orderStep === "pago" ? "xl:grid-cols-[0.78fr_1.22fr]" : "xl:grid-cols-1"}`}>
-            <div className={orderStep === "pago" ? "hidden" : "grid gap-4 md:grid-cols-2"}>
+          <div className={`mt-8 grid min-w-0 gap-6 ${orderStep === "pago" ? "xl:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]" : "xl:grid-cols-1"}`}>
+            <div className={orderStep === "pago" ? "hidden" : orderStep === "horario" ? "grid min-w-0 gap-4" : "grid min-w-0 gap-4 md:grid-cols-2"}>
+              {orderStep === "datos" ? (
               <div className="md:col-span-2 rounded-[24px] bg-[rgba(247,242,236,0.82)] p-4 text-sm leading-7 text-[var(--color-copy)]">
                 Paso 1: confirma tus datos. El numero de carnet tambien se guarda en tu perfil para no volver a pedirlo luego.
               </div>
+              ) : null}
+              {orderStep === "datos" ? (
               <Field label="Nombre completo">
                 <input value={form.full_name} onChange={(event) => setForm((current) => ({ ...current, full_name: event.target.value }))} className="premium-input" />
               </Field>
+              ) : null}
+              {orderStep === "datos" ? (
               <Field label="Correo">
                 <input value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} className="premium-input" />
               </Field>
+              ) : null}
+              {orderStep === "datos" ? (
               <Field label="Celular">
                 <input value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} className="premium-input" />
               </Field>
+              ) : null}
+              {orderStep === "datos" ? (
               <Field label="Ciudad">
                 <select value={form.city} onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))} className="premium-input">
                   <option value="">Selecciona ciudad</option>
@@ -639,16 +648,35 @@ export function PromotionDetailPage() {
                   ))}
                 </select>
               </Field>
+              ) : null}
+              {orderStep === "datos" ? (
               <Field label="Numero de carnet">
                 <input value={form.document_number} onChange={(event) => setForm((current) => ({ ...current, document_number: event.target.value }))} className="premium-input" />
               </Field>
+              ) : null}
+              {orderStep === "datos" ? (
               <label className="grid gap-2">
                 <span className="text-sm font-semibold">Quiero que luego coordinen mi cita</span>
                 <input type="checkbox" checked={form.wants_appointment} onChange={(event) => setForm((current) => ({ ...current, wants_appointment: event.target.checked }))} className="mt-2 h-5 w-5" />
               </label>
+              ) : null}
               {orderStep === "horario" && form.wants_appointment ? (
-                <div className="md:col-span-2 rounded-[24px] border border-[var(--color-border)] bg-white/70 p-4">
-                  <p className="text-sm font-semibold text-[var(--color-ink)]">Paso 2: elige fecha y hora para cada opcion</p>
+                <div className="min-w-0 rounded-[24px] border border-[var(--color-border)] bg-white/70 p-3 sm:p-4">
+                  <div className="grid min-w-0 gap-3 rounded-[20px] bg-[rgba(247,242,236,0.76)] p-4 text-sm text-[var(--color-copy)] sm:grid-cols-2 xl:grid-cols-3">
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-accent-strong)]">Paciente</p>
+                      <p className="mt-1 font-semibold text-[var(--color-ink)]">{form.full_name || "Sin nombre"}</p>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-accent-strong)]">Ciudad</p>
+                      <p className="mt-1 font-semibold text-[var(--color-ink)]">{form.city || promotion.city || "Sin ciudad"}</p>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-accent-strong)]">Opciones</p>
+                      <p className="mt-1 font-semibold text-[var(--color-ink)]">{selectedVariants.length} seleccionada(s)</p>
+                    </div>
+                  </div>
+                  <p className="mt-4 text-sm font-semibold text-[var(--color-ink)]">Paso 2: elige fecha y hora para cada opcion</p>
                   <p className="mt-2 text-xs leading-5 text-[var(--color-copy)]">
                     {promotion.agenda_mode === "choose_slot"
                       ? `Mostramos horarios disponibles de tipo ${promotion.appointment_type || defaultPromotionAppointmentType}. Cada opcion debe quedar con su propio horario; recien se bloquea cuando administracion aprueba el pago.`
@@ -656,7 +684,7 @@ export function PromotionDetailPage() {
                   </p>
                   {promotion.agenda_mode === "choose_slot" ? (
                     <>
-                      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                      <div className="mt-4 grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-2">
                         {selectedVariants.map((variant) => {
                           const slot = selectedSlotsByVariantId[variant.id] ?? null;
                           const selected = activeScheduleVariant?.id === variant.id;
@@ -666,14 +694,14 @@ export function PromotionDetailPage() {
                               key={variant.id}
                               type="button"
                               onClick={() => setActiveScheduleVariantId(variant.id)}
-                              className={`rounded-[20px] border px-4 py-4 text-left transition ${
+                                className={`min-w-0 w-full rounded-[20px] border px-4 py-4 text-left transition ${
                                 selected
                                   ? "border-[var(--color-mocha)] bg-[rgba(111,92,75,0.08)]"
                                   : "border-[var(--color-border)] bg-white/80"
                               }`}
                             >
-                              <p className="font-semibold text-[var(--color-ink)]">{variant.title}</p>
-                              <p className="mt-2 text-sm text-[var(--color-copy)]">
+                              <p className="break-words text-sm font-semibold leading-6 text-[var(--color-ink)] sm:text-base">{variant.title}</p>
+                              <p className="mt-2 text-xs leading-5 text-[var(--color-copy)] sm:text-sm">
                                 {slot
                                   ? `${formatDate(slot.date)} · ${slot.start_time.slice(0, 5)} - ${slot.end_time.slice(0, 5)}`
                                   : "Aun no elegiste horario para esta opcion."}
@@ -683,27 +711,27 @@ export function PromotionDetailPage() {
                         })}
                       </div>
                       {activeScheduleVariant ? (
-                        <div className="mt-5 rounded-[20px] border border-[var(--color-border)] bg-[rgba(247,242,236,0.72)] p-4">
-                          <p className="text-sm font-semibold text-[var(--color-ink)]">
+                        <div className="mt-5 min-w-0 rounded-[20px] border border-[var(--color-border)] bg-[rgba(247,242,236,0.72)] p-4 sm:p-5">
+                          <p className="break-words text-sm font-semibold text-[var(--color-ink)]">
                             Horario para: {activeScheduleVariant.title}
                           </p>
-                          <div className="mt-4 flex gap-2 overflow-x-auto pb-2">
+                          <div className="mt-4 grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                             {groupedAppointmentSlots.map((group) => (
                               <button
                                 key={group.date}
                                 type="button"
                                 onClick={() => setSelectedSlotDate(group.date)}
-                                className={`shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                                className={`min-w-0 rounded-[16px] border px-3 py-2 text-center text-xs font-semibold leading-5 transition sm:px-4 sm:text-sm ${
                                   selectedSlotDate === group.date
                                     ? "border-[var(--color-mocha)] bg-[var(--color-mocha)] text-white"
                                     : "border-[var(--color-border)] bg-white/80 text-[var(--color-ink)]"
                                 }`}
                               >
-                                {formatDate(group.date)}
+                                <span className="block break-words">{formatDate(group.date)}</span>
                               </button>
                             ))}
                           </div>
-                          <div className="mt-4 grid max-h-72 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                          <div className="mt-4 grid min-w-0 max-h-80 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
                             {loadingAppointmentSlots ? <p className="text-sm text-[var(--color-copy)]">Buscando horarios...</p> : null}
                             {!loadingAppointmentSlots && appointmentSlots.length === 0 ? (
                               <p className="text-sm leading-6 text-[var(--color-copy)]">
@@ -726,7 +754,7 @@ export function PromotionDetailPage() {
                                     }))
                                   }
                                   disabled={usedByAnotherOption}
-                                  className={`rounded-[18px] border px-4 py-3 text-left text-sm transition ${
+                                  className={`min-h-[104px] min-w-0 w-full rounded-[18px] border px-4 py-4 text-left text-sm transition ${
                                     selectedSlot
                                       ? "border-[var(--color-mocha)] bg-[var(--color-mocha)] text-white"
                                       : usedByAnotherOption
@@ -734,8 +762,8 @@ export function PromotionDetailPage() {
                                         : "border-[var(--color-border)] bg-white/80 text-[var(--color-ink)]"
                                   }`}
                                 >
-                                  <span className="font-semibold">{formatDate(slot.date)}</span>
-                                  <span className="mt-1 block text-xs opacity-80">
+                                  <span className="block text-sm font-semibold leading-5">{formatDate(slot.date)}</span>
+                                  <span className="mt-1 block text-xs leading-5 opacity-80">
                                     {slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)} · {slot.available_capacity} cupo(s)
                                   </span>
                                   {usedByAnotherOption ? (
@@ -753,21 +781,23 @@ export function PromotionDetailPage() {
                   ) : null}
                 </div>
               ) : null}
+              {orderStep === "datos" ? (
               <Field label="Notas">
                 <textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} className="premium-input min-h-28" />
               </Field>
-              <div className="md:col-span-2 flex flex-wrap gap-3">
+              ) : null}
+              <div className="md:col-span-2 sticky bottom-0 z-10 mt-2 flex flex-col gap-3 rounded-[20px] border border-[var(--color-border)] bg-[rgba(255,249,244,0.96)] p-3 backdrop-blur sm:static sm:flex-row sm:flex-wrap sm:justify-end sm:backdrop-blur-0">
                 {orderStep === "datos" ? (
-                  <button type="button" onClick={shouldChooseSlot ? goToScheduleStep : goToPaymentStep} className="rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white">
+                  <button type="button" onClick={shouldChooseSlot ? goToScheduleStep : goToPaymentStep} className="w-full whitespace-normal rounded-full bg-[var(--color-mocha)] px-6 py-3 text-center text-sm font-semibold leading-5 text-white sm:w-auto">
                     {shouldChooseSlot ? "Continuar a horario" : "Continuar al pago"}
                   </button>
                 ) : null}
                 {orderStep === "horario" ? (
                   <>
-                    <button type="button" onClick={() => setOrderStep("datos")} className="rounded-full border border-[var(--color-border)] px-6 py-3 text-sm font-semibold">
+                    <button type="button" onClick={() => setOrderStep("datos")} className="w-full whitespace-normal rounded-full border border-[var(--color-border)] px-6 py-3 text-center text-sm font-semibold leading-5 sm:w-auto">
                       Volver a datos
                     </button>
-                    <button type="button" onClick={goToPaymentStep} className="rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white">
+                    <button type="button" onClick={goToPaymentStep} className="w-full whitespace-normal rounded-full bg-[var(--color-mocha)] px-6 py-3 text-center text-sm font-semibold leading-5 text-white sm:w-auto">
                       Continuar al pago
                     </button>
                   </>
@@ -775,9 +805,9 @@ export function PromotionDetailPage() {
               </div>
             </div>
 
-            <div className={orderStep === "pago" ? "rounded-[24px] bg-[rgba(247,242,236,0.82)] p-5" : "hidden"}>
+            <div className={orderStep === "pago" ? "min-w-0 w-full rounded-[24px] bg-[rgba(247,242,236,0.82)] p-5 sm:p-6 xl:col-span-2" : "hidden"}>
               <p className="text-sm font-semibold text-[var(--color-ink)]">Paso 3: revisa tu pedido y pago</p>
-              <div className="mt-4 grid gap-3">
+              <div className="mt-4 grid min-w-0 gap-3 lg:grid-cols-2">
                 {selectedVariants.map((variant) => ({
                   id: variant.id,
                   title_snapshot: variant.title,
@@ -787,11 +817,11 @@ export function PromotionDetailPage() {
                   const slot = selectedSlotsByVariantId[item.id] ?? null;
 
                   return (
-                  <div key={item.id} className="rounded-[18px] border border-[var(--color-border)] bg-white/80 p-3 text-sm">
-                    <p className="font-semibold text-[var(--color-ink)]">{item.title_snapshot}</p>
+                  <div key={item.id} className="min-w-0 rounded-[18px] border border-[var(--color-border)] bg-white/80 p-3 text-sm">
+                    <p className="break-words font-semibold text-[var(--color-ink)]">{item.title_snapshot}</p>
                     <p className="mt-1 text-[var(--color-copy)]">{formatMoney(item.unit_price)} · cantidad {item.quantity}</p>
                     {slot ? (
-                      <p className="mt-2 text-xs leading-5 text-[var(--color-copy)]">
+                      <p className="mt-2 break-words text-xs leading-5 text-[var(--color-copy)]">
                         {formatDate(slot.date)} · {slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)} · {slot.city}
                       </p>
                     ) : null}
@@ -820,25 +850,30 @@ export function PromotionDetailPage() {
               </div>
 
               {paymentQrImage ? (
-                <>
-                  <img src={paymentQrImage} alt="QR general de pagos" className="mt-4 h-56 w-56 rounded-[20px] object-contain" />
-                  <a href={paymentQrImage} target="_blank" rel="noreferrer" className="mt-4 inline-flex rounded-full border border-[var(--color-border)] bg-white/80 px-4 py-2 text-sm font-semibold">
-                    Ver o descargar QR
-                  </a>
-                </>
+                <div className="mt-5 flex flex-col items-start gap-4 rounded-[20px] bg-white/65 p-4 sm:flex-row sm:items-center">
+                  <img src={paymentQrImage} alt="QR general de pagos" className="h-40 w-40 rounded-[20px] object-contain sm:h-52 sm:w-52" />
+                  <div className="grid gap-3">
+                    <p className="text-sm leading-7 text-[var(--color-copy)]">
+                      Escanea el QR, realiza tu pago y luego sube el comprobante para enviar tu pedido.
+                    </p>
+                    <a href={paymentQrImage} target="_blank" rel="noreferrer" className="inline-flex w-full justify-center rounded-full border border-[var(--color-border)] bg-white/80 px-4 py-2 text-sm font-semibold sm:w-auto">
+                      Ver o descargar QR
+                    </a>
+                  </div>
+                </div>
               ) : (
                 <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
                   Aun no configuramos el QR general de pagos. El admin puede subirlo desde Panel / Configuracion.
                 </p>
               )}
 
-              <div className="mt-5 flex flex-wrap gap-3">
-                <label className="rounded-full border border-[var(--color-border)] bg-white/80 px-4 py-2 text-sm font-semibold">
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                <label className="w-full rounded-full border border-[var(--color-border)] bg-white/80 px-4 py-2 text-center text-sm font-semibold sm:w-auto">
                   {receiptFile ? "Cambiar comprobante" : "Subir comprobante"}
                   <input type="file" accept="image/*,.pdf" className="hidden" onChange={(event) => setReceiptFile(event.target.files?.[0] ?? null)} disabled={savingOrder} />
                 </label>
                 {latestOrder?.payment_receipt_path ? (
-                  <button onClick={() => void openReceipt()} className="rounded-full border border-[var(--color-border)] bg-white/80 px-4 py-2 text-sm font-semibold">
+                  <button onClick={() => void openReceipt()} className="w-full rounded-full border border-[var(--color-border)] bg-white/80 px-4 py-2 text-sm font-semibold sm:w-auto">
                     Ver ultimo comprobante
                   </button>
                 ) : null}
@@ -854,11 +889,11 @@ export function PromotionDetailPage() {
                 <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">Administracion en tu ultimo pedido: {latestOrder.admin_notes}</p>
               ) : null}
 
-              <div className="mt-6 flex flex-wrap gap-3">
-                <button type="button" onClick={() => setOrderStep(shouldChooseSlot ? "horario" : "datos")} className="rounded-full border border-[var(--color-border)] px-6 py-3 text-sm font-semibold">
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                <button type="button" onClick={() => setOrderStep(shouldChooseSlot ? "horario" : "datos")} className="w-full rounded-full border border-[var(--color-border)] px-6 py-3 text-sm font-semibold sm:w-auto">
                   Volver
                 </button>
-                <button onClick={() => void submitOrder()} disabled={!canSubmitOrder || savingOrder} className="rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-60">
+                <button onClick={() => void submitOrder()} disabled={!canSubmitOrder || savingOrder} className="w-full rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-60 sm:w-auto">
                   {savingOrder ? "Enviando..." : "Enviar pedido y pago"}
                 </button>
               </div>
@@ -885,7 +920,7 @@ function OrderSteps({ current, shouldChooseSlot }: { current: OrderStep; shouldC
   const currentIndex = steps.findIndex((step) => step.id === current);
 
   return (
-    <div className="mt-6 grid gap-2 sm:grid-cols-3">
+    <div className="mt-6 grid gap-2 md:grid-cols-3">
       {steps.map((step, index) => {
         const active = step.id === current;
         const completed = index < currentIndex;
@@ -932,8 +967,8 @@ function ModalShell({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[rgba(43,33,27,0.44)] p-4 backdrop-blur-sm">
-      <div className={`max-h-[92vh] w-full overflow-y-auto rounded-[32px] bg-[var(--color-surface)] p-6 shadow-[0_30px_90px_rgba(43,33,27,0.25)] md:p-8 ${maxWidthClassName}`}>
+    <div className="fixed inset-0 z-[120] flex items-end justify-center overflow-x-hidden bg-[rgba(43,33,27,0.44)] p-2 backdrop-blur-sm sm:items-center sm:p-4">
+      <div className={`max-h-[94vh] w-full overflow-x-hidden overflow-y-auto rounded-[28px] bg-[var(--color-surface)] p-4 shadow-[0_30px_90px_rgba(43,33,27,0.25)] sm:max-h-[92vh] sm:rounded-[32px] sm:p-6 md:p-8 ${maxWidthClassName}`}>
         <div className="mb-6 flex justify-end">
           <button onClick={onClose} className="rounded-full border border-[var(--color-border)] bg-white/80 px-4 py-2 text-sm font-semibold text-[var(--color-ink)]">
             Cerrar

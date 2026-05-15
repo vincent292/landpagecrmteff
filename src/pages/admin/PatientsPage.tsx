@@ -150,7 +150,7 @@ export function PatientsPage() {
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <PatientAction href={`/panel/pacientes/${patient.id}`} label="Ver ficha" />
-                  <PatientAction href={`/panel/pacientes/${patient.id}/historia-clinica`} label="Historia" />
+                  <PatientAction href={`/panel/pacientes/${patient.id}/historia-clinica`} label="Ficha clinica" />
                   <PatientAction href={`/panel/pacientes/${patient.id}/fotos`} label="Fotos" />
                   <PatientAction href={`/panel/pacientes/${patient.id}/citas`} label="Citas" />
                   <PatientAction href={`/panel/pacientes/${patient.id}/recetas`} label="Recetas" />
@@ -204,7 +204,7 @@ export function PatientsPage() {
                   <td>
                     <div className="flex flex-wrap gap-2">
                       <PatientAction href={`/panel/pacientes/${patient.id}`} label="Ver ficha" />
-                      <PatientAction href={`/panel/pacientes/${patient.id}/historia-clinica`} label="Historia" />
+                      <PatientAction href={`/panel/pacientes/${patient.id}/historia-clinica`} label="Ficha clinica" />
                       <PatientAction href={`/panel/pacientes/${patient.id}/fotos`} label="Fotos" />
                       <PatientAction href={`/panel/pacientes/${patient.id}/citas`} label="Citas" />
                       <PatientAction href={`/panel/pacientes/${patient.id}/recetas`} label="Recetas" />

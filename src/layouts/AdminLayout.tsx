@@ -326,7 +326,7 @@ function NotificationBell({
           <div className="flex items-center justify-between gap-3 px-2 py-1">
             <div>
               <p className="text-sm font-semibold text-[var(--color-ink)]">Notificaciones</p>
-              <p className="text-xs text-[var(--color-copy)]">Solicitudes, inscripciones y citas en tiempo real.</p>
+              <p className="text-xs text-[var(--color-copy)]">Solicitudes, promociones, inscripciones y citas en tiempo real.</p>
             </div>
             <button type="button" onClick={onClose} className="rounded-full border border-[var(--color-border)] px-3 py-1 text-xs font-semibold">
               Cerrar

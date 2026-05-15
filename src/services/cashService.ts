@@ -1,5 +1,8 @@
 import { supabase } from "../lib/supabaseClient";
 import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
+import { getSignedUrl, uploadPrivateFile } from "./storageService";
+
+const receiptsBucket = "payment-receipts-private";
 
 export type CashDrawerRow = DeletionMetadata & {
   id: string;
@@ -63,6 +66,7 @@ export type CashMovementRow = DeletionMetadata & {
   auto_created: boolean;
   approved_at: string | null;
   approved_by: string | null;
+  attachment_path: string | null;
   metadata: Record<string, unknown>;
   created_by: string | null;
   updated_by: string | null;
@@ -178,6 +182,17 @@ export async function updateCashMovement(id: string, data: Record<string, unknow
   const { data: row, error } = await supabase.from("cash_movements").update(data).eq("id", id).select("*").single();
   if (error) throw error;
   return row as CashMovementRow;
+}
+
+export async function uploadCashMovementAttachment(file: File, movementId: string) {
+  const ext = file.name.split(".").pop() ?? "jpg";
+  const path = `cash-movements/${movementId}/${crypto.randomUUID()}.${ext}`;
+  return uploadPrivateFile(receiptsBucket, path, file);
+}
+
+export async function getCashMovementAttachmentUrl(path?: string | null) {
+  if (!path) return null;
+  return getSignedUrl(receiptsBucket, path);
 }
 
 export async function getCashDrawers(includeDeleted = false) {

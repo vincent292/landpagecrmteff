@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
-import { Archive, Building2, Calculator, Landmark, Pencil, Wallet } from "lucide-react";
+import { Archive, Building2, Calculator, Landmark, Pencil, Receipt, Wallet } from "lucide-react";
 
 import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteActions";
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
@@ -11,6 +11,7 @@ import {
   createCashDrawer,
   createCashMovement,
   createCashRegisterSession,
+  getCashMovementAttachmentUrl,
   getCashDenominations,
   getCashDrawers,
   getCashMovements,
@@ -19,6 +20,7 @@ import {
   getCashSessionCountLines,
   getCashSessionCounts,
   recordCashSessionCount,
+  uploadCashMovementAttachment,
   updateCashDrawer,
   updateCashMovement,
   updateCashRegisterSession,
@@ -149,6 +151,7 @@ export function CashAdminPage() {
   const [editingDrawer, setEditingDrawer] = useState<CashDrawerRow | null>(null);
   const [sessionForm, setSessionForm] = useState<SessionFormState>(emptySessionForm);
   const [movementForm, setMovementForm] = useState<MovementFormState>(emptyMovementForm);
+  const [movementAttachmentFile, setMovementAttachmentFile] = useState<File | null>(null);
   const [drawerForm, setDrawerForm] = useState<DrawerFormState>(emptyDrawerForm);
   const [countForm, setCountForm] = useState<CountFormState>({ sessionId: "", countType: "arqueo", notes: "", quantities: {} });
 
@@ -246,6 +249,7 @@ export function CashAdminPage() {
         sesion: sessionMap.get(row.register_session_id ?? "")?.session_date ?? "",
         estado: row.status,
         automatico: row.auto_created ? "Si" : "No",
+        comprobante: row.attachment_path ?? "",
         notas: row.notes,
       }))
     );
@@ -312,6 +316,7 @@ export function CashAdminPage() {
 
   const openMovementModal = (movement?: CashMovementRow) => {
     setEditingMovement(movement ?? null);
+    setMovementAttachmentFile(null);
     if (movement) {
       setMovementForm({
         register_session_id: movement.register_session_id ?? "",
@@ -398,6 +403,10 @@ export function CashAdminPage() {
     setSaving(true);
     try {
       const session = sessionMap.get(movementForm.register_session_id);
+      const attachmentPath =
+        movementAttachmentFile != null
+          ? await uploadCashMovementAttachment(movementAttachmentFile, editingMovement?.id ?? crypto.randomUUID())
+          : editingMovement?.attachment_path ?? null;
       const payload = {
         register_session_id: normalizeText(movementForm.register_session_id),
         drawer_id: normalizeText(movementForm.drawer_id || session?.drawer_id || ""),
@@ -412,6 +421,7 @@ export function CashAdminPage() {
         movement_date: movementForm.movement_date,
         status: movementForm.status,
         notes: normalizeText(movementForm.notes),
+        attachment_path: attachmentPath,
         updated_by: actorId,
       };
 
@@ -419,10 +429,16 @@ export function CashAdminPage() {
       else await createCashMovement({ ...payload, created_by: actorId });
 
       setModal(null);
+      setMovementAttachmentFile(null);
       load();
     } finally {
       setSaving(false);
     }
+  };
+
+  const openMovementAttachment = async (path?: string | null) => {
+    const url = await getCashMovementAttachmentUrl(path);
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
   };
 
   const submitDrawer = async () => {
@@ -640,6 +656,7 @@ export function CashAdminPage() {
                       <DeletedStatusNote row={row} />
                     </div>
                     <div className="flex flex-wrap gap-2">
+                      {row.attachment_path ? <button onClick={() => void openMovementAttachment(row.attachment_path)} className="rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-semibold">Comprobante</button> : null}
                       {!row.auto_created ? <button onClick={() => openMovementModal(row)} className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-semibold"><Pencil className="h-4 w-4" />Editar</button> : null}
                       <DeleteActions
                         role={role}
@@ -885,6 +902,18 @@ export function CashAdminPage() {
             <Field label="Notas" className="md:col-span-2">
               <textarea value={movementForm.notes} onChange={(event) => setMovementForm({ ...movementForm, notes: event.target.value })} className="premium-input min-h-28" />
             </Field>
+            <div className="md:col-span-2 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+              <label className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-full border border-[var(--color-border)] bg-white/80 px-4 py-2 text-sm font-semibold sm:w-auto">
+                <Receipt className="h-4 w-4" />
+                {movementAttachmentFile ? "Cambiar comprobante" : editingMovement?.attachment_path ? "Reemplazar comprobante" : "Subir comprobante o factura"}
+                <input type="file" accept="image/*,.pdf" className="hidden" onChange={(event) => setMovementAttachmentFile(event.target.files?.[0] ?? null)} />
+              </label>
+              {editingMovement?.attachment_path ? (
+                <button onClick={() => void openMovementAttachment(editingMovement.attachment_path)} className="rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-semibold">
+                  Ver comprobante actual
+                </button>
+              ) : null}
+            </div>
           </div>
           <ActionRow saving={saving} primaryLabel="Guardar movimiento" onSave={() => void submitMovement()} onCancel={() => setModal(null)} />
         </ModalShell>

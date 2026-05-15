@@ -60,8 +60,12 @@ export type InventorySupplierRow = DeletionMetadata & {
   name: string;
   contact_name: string | null;
   phone: string | null;
+  whatsapp_phone: string | null;
   email: string | null;
   address: string | null;
+  tax_id: string | null;
+  payment_terms_days: number;
+  allows_consignment: boolean;
   notes: string | null;
   is_active: boolean;
   created_by: string | null;

@@ -10,7 +10,15 @@ export type PatientPhotoRow = DeletionMetadata & {
   patient_id: string;
   clinical_history_id: string | null;
   uploaded_by: string | null;
+  doctor_id: string | null;
   profiles?: { full_name: string | null; email: string | null; role: string | null } | null;
+  doctor_profiles?: {
+    id: string;
+    full_name: string | null;
+    specialty: string | null;
+    whatsapp: string | null;
+    email: string | null;
+  } | null;
   photo_type: string;
   treatment_name: string | null;
   image_path: string;
@@ -20,6 +28,9 @@ export type PatientPhotoRow = DeletionMetadata & {
   created_at: string;
   signed_url?: string | null;
 };
+
+const patientPhotoSelect =
+  "*, profiles:uploaded_by(full_name, email, role), doctor_profiles(id, full_name, specialty, whatsapp, email)";
 
 export type PhotoComparisonRow = DeletionMetadata & {
   id: string;
@@ -51,7 +62,7 @@ export async function uploadPatientPhoto(file: File, patientId: string, metadata
     ...metadata,
   };
 
-  const { data, error } = await supabase.from("patient_photos").insert(payload).select("*, profiles:uploaded_by(full_name, email, role)").single();
+  const { data, error } = await supabase.from("patient_photos").insert(payload).select(patientPhotoSelect).single();
   if (error) throw error;
   return data as PatientPhotoRow;
 }
@@ -59,7 +70,7 @@ export async function uploadPatientPhoto(file: File, patientId: string, metadata
 export async function getPatientPhotos(patientId: string) {
   const { data, error } = await supabase
     .from("patient_photos")
-    .select("*, profiles:uploaded_by(full_name, email, role)")
+    .select(patientPhotoSelect)
     .eq("patient_id", patientId)
     .eq("is_deleted", false)
     .order("created_at", { ascending: false });
