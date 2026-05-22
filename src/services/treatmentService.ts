@@ -10,6 +10,8 @@ export type TreatmentRow = DeletionMetadata & {
   slug: string;
   short_description: string | null;
   description: string | null;
+  public_info?: string | null;
+  whatsapp_prefill_message?: string | null;
   benefits: string | null;
   duration: string | null;
   care_instructions: string | null;

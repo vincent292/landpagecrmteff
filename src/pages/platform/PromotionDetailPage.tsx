@@ -27,6 +27,7 @@ import { updateMyProfile } from "../../services/profileService";
 import { getSiteSettings, type SiteSettingsRow } from "../../services/siteSettingsService";
 import { formatDate, formatMoney } from "../../utils/text";
 import { formatPublicDate, getDisplayCity } from "../../utils/publicContent";
+import { buildWhatsAppHref, renderWhatsAppTemplate } from "../../utils/whatsapp";
 
 type FlashMessage = {
   tone: "success" | "error";
@@ -253,6 +254,17 @@ export function PromotionDetailPage() {
     selectedVariants.every((variant) => getPromotionVariantRemainingSlots(variant) > 0) &&
     Boolean(paymentQrImage) &&
     Boolean(receiptFile);
+  const publicWhatsappMessage =
+    renderWhatsAppTemplate(promotion?.whatsapp_prefill_message, {
+      title: promotion?.title ?? "",
+      type: "promocion",
+      city: promotion?.city ?? "",
+      price: promotion?.promo_price ?? "",
+    }) ||
+    (promotion
+      ? `Hola, quiero informacion sobre la promocion "${promotion.title}" en ${getDisplayCity(promotion.city)}.`
+      : "");
+  const publicWhatsappHref = buildWhatsAppHref(settings?.whatsapp ?? settings?.phone ?? null, publicWhatsappMessage);
 
   useEffect(() => {
     if (orderStep === "horario" && !shouldChooseSlot) {
@@ -513,6 +525,25 @@ export function PromotionDetailPage() {
               <li>4. Si corresponde, la doctora o administracion coordinan tu cita con los mismos datos que registraste.</li>
             </ul>
           </div>
+
+          {promotion.public_info || publicWhatsappHref ? (
+            <div className="rounded-[28px] border border-[var(--color-border)] bg-white/72 p-6">
+              <h2 className="text-2xl font-semibold">Informacion para tu solicitud</h2>
+              <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
+                {promotion.public_info?.trim() || "Si quieres resolver dudas antes de reservar, puedes escribirnos por WhatsApp y el mensaje ya saldra preparado."}
+              </p>
+              {publicWhatsappHref ? (
+                <a
+                  href={publicWhatsappHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-5 inline-flex items-center justify-center rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white"
+                >
+                  Solicitar por WhatsApp
+                </a>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         <aside className="h-fit rounded-[28px] border border-[var(--color-border)] bg-white/72 p-4 shadow-[0_18px_48px_rgba(110,74,47,0.08)] sm:p-6">
@@ -569,6 +600,16 @@ export function PromotionDetailPage() {
                 Solicitar promocion
               </button>
             )}
+            {publicWhatsappHref ? (
+              <a
+                href={publicWhatsappHref}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-full border border-[var(--color-border)] px-6 py-3 text-center text-sm font-semibold"
+              >
+                WhatsApp directo
+              </a>
+            ) : null}
             <Link to="/promociones" className="rounded-full border border-[var(--color-border)] px-6 py-3 text-center text-sm font-semibold">
               Volver a promociones
             </Link>

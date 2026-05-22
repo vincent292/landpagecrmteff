@@ -20,7 +20,6 @@ const adminSections: Array<{ title: string; links: AdminLink[] }> = [
     links: [
       { label: "Dashboard", href: "/panel", module: "dashboard" },
       { label: "Solicitudes", href: "/panel/solicitudes", module: "solicitudes" },
-      { label: "Inscripciones", href: "/panel/inscripciones", module: "inscripciones" },
       { label: "Citas", href: "/panel/citas", module: "citas" },
       { label: "Calendario citas", href: "/panel/calendario-citas", module: "calendario-citas" },
       { label: "Agenda", href: "/panel/agenda", module: "agenda" },
@@ -33,9 +32,8 @@ const adminSections: Array<{ title: string; links: AdminLink[] }> = [
     links: [
       { label: "Inventario", href: "/panel/inventario", module: "inventario" },
       { label: "Caja", href: "/panel/caja", module: "caja" },
-      { label: "Pedidos promociones", href: "/panel/pedidos-promociones", module: "pedidos-promociones" },
+      { label: "Pagos y Reservas", href: "/panel/pagos-reservas", module: "pagos-reservas" },
       { label: "Libros", href: "/panel/libros", module: "libros" },
-      { label: "Pedidos libros", href: "/panel/pedidos-libros", module: "pedidos-libros" },
     ],
   },
   {
@@ -65,7 +63,7 @@ export function AdminLayout() {
   const mobileNotificationsRef = useRef<HTMLDivElement | null>(null);
   const desktopNotificationsRef = useRef<HTMLDivElement | null>(null);
   const activeModule = location.pathname.replace(/^\/panel\/?/, "").split("/")[0] || "dashboard";
-  const { items: notifications, unreadCount, markAllAsSeen } = useAdminNotifications(user?.id ?? null);
+  const { items: notifications, unreadCount, unreadByModule, markAllAsSeen } = useAdminNotifications(user?.id ?? null, role);
 
   const visibleSections = adminSections
     .map((section) => ({
@@ -227,7 +225,14 @@ export function AdminLayout() {
                         )
                       }
                     >
-                      {link.label}
+                      <span className="flex items-center justify-between gap-3">
+                        <span>{link.label}</span>
+                        {unreadByModule[link.module] ? (
+                          <span className="inline-flex min-h-5 min-w-5 animate-pulse items-center justify-center rounded-full bg-[var(--color-mocha)] px-1.5 text-[10px] font-bold text-white">
+                            {unreadByModule[link.module] > 9 ? "9+" : unreadByModule[link.module]}
+                          </span>
+                        ) : null}
+                      </span>
                     </NavLink>
                   ))}
                 </div>
@@ -326,7 +331,7 @@ function NotificationBell({
           <div className="flex items-center justify-between gap-3 px-2 py-1">
             <div>
               <p className="text-sm font-semibold text-[var(--color-ink)]">Notificaciones</p>
-              <p className="text-xs text-[var(--color-copy)]">Solicitudes, promociones, inscripciones y citas en tiempo real.</p>
+              <p className="text-xs text-[var(--color-copy)]">Solicitudes, pagos y reservas en tiempo real.</p>
             </div>
             <button type="button" onClick={onClose} className="rounded-full border border-[var(--color-border)] px-3 py-1 text-xs font-semibold">
               Cerrar

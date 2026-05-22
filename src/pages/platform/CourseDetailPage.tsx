@@ -20,6 +20,7 @@ import { updateMyProfile } from "../../services/profileService";
 import { getSiteSettings, type SiteSettingsRow } from "../../services/siteSettingsService";
 import { getCourseBySlug, type CourseRow } from "../../services/courseService";
 import { formatDate, formatMoney, listFromText } from "../../utils/text";
+import { buildWhatsAppHref, renderWhatsAppTemplate } from "../../utils/whatsapp";
 
 type FlashMessage = {
   tone: "success" | "error";
@@ -108,6 +109,14 @@ export function CourseDetailPage() {
     form.city.trim().length > 0 &&
     form.document_number.trim().length > 0;
   const alreadySubmittedEnrollment = Boolean(enrollment?.payment_receipt_path);
+  const publicWhatsappMessage =
+    renderWhatsAppTemplate(course.whatsapp_prefill_message, {
+      title: course.title,
+      type: "curso",
+      city: course.city ?? "",
+      price: course.price ?? "",
+    }) || `Hola, quiero informacion sobre el curso "${course.title}".`;
+  const publicWhatsappHref = buildWhatsAppHref(settings?.whatsapp ?? settings?.phone ?? null, publicWhatsappMessage);
 
   const requiresNewReceipt = !enrollment?.payment_receipt_path || enrollment?.status === "Rechazado";
   const canSubmitPayment =
@@ -255,6 +264,21 @@ export function CourseDetailPage() {
           >
             {alreadySubmittedEnrollment ? "Ya te inscribiste" : "Quiero inscribirme"}
           </button>
+          {publicWhatsappHref ? (
+            <a
+              href={publicWhatsappHref}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 inline-flex w-full items-center justify-center rounded-full border border-[var(--color-border)] px-6 py-3.5 text-sm font-semibold"
+            >
+              WhatsApp directo
+            </a>
+          ) : null}
+          {course.public_info ? (
+            <div className="mt-4 rounded-[20px] bg-[rgba(247,242,236,0.82)] p-4 text-sm leading-7 text-[var(--color-copy)]">
+              {course.public_info}
+            </div>
+          ) : null}
           {!user ? (
             <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
               Para inscribirte te pediremos iniciar sesion o crear tu cuenta.

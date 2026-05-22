@@ -44,12 +44,11 @@ const AdminDashboard = lazyPage(() => import("./pages/admin/AdminDashboard"), "A
 const AppointmentsCalendarPage = lazyPage(() => import("./pages/admin/AppointmentsCalendarPage"), "AppointmentsCalendarPage");
 const AvailabilityAdminPage = lazyPage(() => import("./pages/admin/AvailabilityAdminPage"), "AvailabilityAdminPage");
 const DoctorsAdminPage = lazyPage(() => import("./pages/admin/DoctorsAdminPage"), "DoctorsAdminPage");
-const BookOrdersAdminPage = lazyPage(() => import("./pages/admin/BookOrdersAdminPage"), "BookOrdersAdminPage");
 const BookTokensAdminPage = lazyPage(() => import("./pages/admin/BookTokensAdminPage"), "BookTokensAdminPage");
 const BooksAdminPage = lazyPage(() => import("./pages/admin/BooksAdminPage"), "BooksAdminPage");
 const InventoryAdminPage = lazyPage(() => import("./pages/admin/InventoryAdminPage"), "InventoryAdminPage");
 const CashAdminPage = lazyPage(() => import("./pages/admin/CashAdminPage"), "CashAdminPage");
-const PromotionOrdersAdminPage = lazyPage(() => import("./pages/admin/PromotionOrdersAdminPage"), "PromotionOrdersAdminPage");
+const PaymentsAndReservationsAdminPage = lazyPage(() => import("./pages/admin/PaymentsAndReservationsAdminPage"), "PaymentsAndReservationsAdminPage");
 const PatientAppointmentsAdminPage = lazyPage(() => import("./pages/admin/PatientAppointmentsAdminPage"), "PatientAppointmentsAdminPage");
 const PatientCaresAdminPage = lazyPage(() => import("./pages/admin/PatientCaresAdminPage"), "PatientCaresAdminPage");
 const PatientClinicalHistoryPage = lazyPage(() => import("./pages/admin/PatientClinicalHistoryPage"), "PatientClinicalHistoryPage");
@@ -161,11 +160,12 @@ export default function App() {
           <Route path="citas" element={<ReservationsAdminPage />} />
           <Route path="inventario" element={<InventoryAdminPage />} />
           <Route path="caja" element={<CashAdminPage />} />
-          <Route path="pedidos-promociones" element={<PromotionOrdersAdminPage />} />
+          <Route path="pagos-reservas" element={<PaymentsAndReservationsAdminPage />} />
+          <Route path="pedidos-promociones" element={<Navigate to="/panel/pagos-reservas" replace />} />
           <Route path="libros" element={<BooksAdminPage />} />
           <Route path="libros/nuevo" element={<BooksAdminPage />} />
           <Route path="libros/:id/editar" element={<BooksAdminPage />} />
-          <Route path="pedidos-libros" element={<BookOrdersAdminPage />} />
+          <Route path="pedidos-libros" element={<Navigate to="/panel/pagos-reservas" replace />} />
           <Route path="tokens-libros" element={<BookTokensAdminPage />} />
           <Route path="galeria" element={<AdminCollectionPage module="galeria" />} />
           <Route path="usuarios" element={<AdminCollectionPage module="usuarios" />} />

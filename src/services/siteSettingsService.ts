@@ -19,6 +19,7 @@ export type SiteSettingsRow = {
   assessment_label?: string | null;
   assessment_appointment_type?: string | null;
   assessment_price?: number | null;
+  reservation_reschedule_hours_before?: number | null;
   business_hours?: string | null;
   footer_text: string | null;
   updated_at: string;
@@ -67,6 +68,7 @@ const fallbackSettings: SiteSettingsRow = {
   assessment_label: "Valoracion estetica",
   assessment_appointment_type: "Valoracion estetica",
   assessment_price: 0,
+  reservation_reschedule_hours_before: 48,
   business_hours: null,
   footer_text: "Una experiencia clinica sobria, cercana y pensada para sentirse impecable en cualquier pantalla.",
   updated_at: new Date().toISOString(),

@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { supabase } from "../lib/supabaseClient";
+import type { UserRole } from "../types/platform";
 import { getVisibleDeletionFilter } from "../services/adminDeletionService";
+import { getBookOrdersAdmin } from "../services/bookOrderService";
 import { getEnrollmentById } from "../services/enrollmentService";
+import { isPaymentManagedReservation } from "../services/paymentsAndReservationsService";
 import { getPromotionOrderById } from "../services/promotionOrderService";
 import { getInformationRequestById } from "../services/requestService";
 import { getReservationById } from "../services/reservationService";
@@ -10,10 +13,11 @@ import { getReservationById } from "../services/reservationService";
 export type AdminNotification = {
   id: string;
   entityId: string;
-  type: "request" | "enrollment" | "reservation" | "promotion_order";
+  type: "request" | "enrollment" | "reservation" | "promotion_order" | "book_order";
   title: string;
   detail: string;
   href: string;
+  module: "solicitudes" | "pagos-reservas";
   createdAt: string;
 };
 
@@ -37,25 +41,57 @@ function sortNotifications(items: AdminNotification[]) {
     .slice(0, 20);
 }
 
-function getJoinedTitle(value: { title?: string | null } | { title?: string | null }[] | null | undefined) {
+function getJoinedTitle(value: { title?: string | null; doctor_id?: string | null } | { title?: string | null; doctor_id?: string | null }[] | null | undefined) {
   if (Array.isArray(value)) return value[0]?.title ?? null;
   return value?.title ?? null;
 }
 
-function getJoinedFullName(value: { full_name?: string | null } | { full_name?: string | null }[] | null | undefined) {
+function getJoinedDoctorId(value: { doctor_id?: string | null } | { doctor_id?: string | null }[] | null | undefined) {
+  if (Array.isArray(value)) return value[0]?.doctor_id ?? null;
+  return value?.doctor_id ?? null;
+}
+
+function getJoinedFullName(
+  value: { full_name?: string | null } | { full_name?: string | null }[] | null | undefined
+) {
   if (Array.isArray(value)) return value[0]?.full_name ?? null;
   return value?.full_name ?? null;
 }
 
-export function useAdminNotifications(userId?: string | null) {
+export function useAdminNotifications(userId?: string | null, role?: UserRole) {
   const [items, setItems] = useState<AdminNotification[]>([]);
   const [lastSeenAt, setLastSeenAt] = useState<string>(new Date(0).toISOString());
+  const [doctorProfileId, setDoctorProfileId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userId) return;
-    const nextLastSeen = readLastSeen(userId);
-    setLastSeenAt(nextLastSeen);
+    setLastSeenAt(readLastSeen(userId));
   }, [userId]);
+
+  useEffect(() => {
+    if (!userId || role !== "doctor") {
+      setDoctorProfileId(null);
+      return;
+    }
+
+    let active = true;
+
+    void supabase
+      .from("doctor_profiles")
+      .select("id")
+      .eq("profile_id", userId)
+      .eq("is_active", true)
+      .is("deleted_at", null)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!active) return;
+        setDoctorProfileId(data?.id ?? null);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [role, userId]);
 
   useEffect(() => {
     if (!userId) return;
@@ -66,7 +102,7 @@ export function useAdminNotifications(userId?: string | null) {
       const enrollmentsFilter = getVisibleDeletionFilter("course_enrollments", false);
       const promotionOrdersFilter = getVisibleDeletionFilter("promotion_orders", false);
 
-      const [requestsResult, enrollmentsResult, promotionOrdersResult, reservationsResult] = await Promise.all([
+      const [requestsResult, enrollmentsResult, promotionOrdersResult, reservationsResult, bookOrders] = await Promise.all([
         supabase
           .from("information_requests")
           .select("id, full_name, interest_title, interest_type, created_at")
@@ -85,7 +121,7 @@ export function useAdminNotifications(userId?: string | null) {
         (() => {
           let query = supabase
             .from("promotion_orders")
-            .select("id, full_name, created_at, promotions(title)")
+            .select("id, full_name, created_at, promotions(title, doctor_id)")
             .order("created_at", { ascending: false })
             .limit(6);
           if (promotionOrdersFilter.column) query = query.eq(promotionOrdersFilter.column, promotionOrdersFilter.value);
@@ -93,51 +129,75 @@ export function useAdminNotifications(userId?: string | null) {
         })(),
         supabase
           .from("appointment_reservations")
-          .select("id, appointment_type, created_at, patients(full_name)")
+          .select("id, appointment_type, title, source, payment_receipt_path, payment_amount, payment_expires_at, doctor_id, created_at, patients(full_name)")
           .eq("is_deleted", false)
           .order("created_at", { ascending: false })
           .limit(6),
+        role === "doctor" ? Promise.resolve([]) : getBookOrdersAdmin().catch(() => []),
       ]);
 
       if (!active) return;
 
       const notifications: AdminNotification[] = [
-        ...((requestsResult.data ?? []).map((row) => ({
-          id: `request-${row.id}`,
+        ...(role === "doctor"
+          ? []
+          : (requestsResult.data ?? []).map((row) => ({
+              id: `request-${row.id}`,
+              entityId: row.id,
+              type: "request" as const,
+              title: "Nueva solicitud",
+              detail: `${row.full_name} · ${row.interest_title ?? row.interest_type ?? "General"}`,
+              href: "/panel/solicitudes",
+              module: "solicitudes" as const,
+              createdAt: row.created_at,
+            }))),
+        ...(role === "doctor"
+          ? []
+          : (enrollmentsResult.data ?? []).map((row) => ({
+              id: `enrollment-${row.id}`,
+              entityId: row.id,
+              type: "enrollment" as const,
+              title: "Nueva inscripcion",
+              detail: `${row.full_name ?? "Alumno"} · ${getJoinedTitle(row.courses) ?? "Curso"}`,
+              href: "/panel/pagos-reservas",
+              module: "pagos-reservas" as const,
+              createdAt: row.created_at,
+            }))),
+        ...(promotionOrdersResult.data ?? [])
+          .filter((row) => (role === "doctor" ? getJoinedDoctorId(row.promotions) === doctorProfileId : true))
+          .map((row) => ({
+            id: `promotion-order-${row.id}`,
+            entityId: row.id,
+            type: "promotion_order" as const,
+            title: "Nuevo pago de promocion",
+            detail: `${row.full_name} · ${getJoinedTitle(row.promotions) ?? "Promocion"}`,
+            href: "/panel/pagos-reservas",
+            module: "pagos-reservas" as const,
+            createdAt: row.created_at,
+          })),
+        ...bookOrders.map((row) => ({
+          id: `book-order-${row.id}`,
           entityId: row.id,
-          type: "request" as const,
-          title: "Nueva solicitud",
-          detail: `${row.full_name} · ${row.interest_title ?? row.interest_type ?? "General"}`,
-          href: "/panel/solicitudes",
+          type: "book_order" as const,
+          title: "Nuevo pedido con comprobante",
+          detail: `${row.full_name} · ${row.books?.title ?? "Libro"}`,
+          href: "/panel/pagos-reservas",
+          module: "pagos-reservas" as const,
           createdAt: row.created_at,
-        }))),
-        ...((enrollmentsResult.data ?? []).map((row) => ({
-          id: `enrollment-${row.id}`,
-          entityId: row.id,
-          type: "enrollment" as const,
-          title: "Nueva inscripcion",
-          detail: `${row.full_name ?? "Alumno"} · ${getJoinedTitle(row.courses) ?? "Curso"}`,
-          href: "/panel/inscripciones",
-          createdAt: row.created_at,
-        }))),
-        ...((promotionOrdersResult.data ?? []).map((row) => ({
-          id: `promotion-order-${row.id}`,
-          entityId: row.id,
-          type: "promotion_order" as const,
-          title: "Nueva solicitud de promocion",
-          detail: `${row.full_name} · ${getJoinedTitle(row.promotions) ?? "Promocion"}`,
-          href: "/panel/pedidos-promociones",
-          createdAt: row.created_at,
-        }))),
-        ...((reservationsResult.data ?? []).map((row) => ({
-          id: `reservation-${row.id}`,
-          entityId: row.id,
-          type: "reservation" as const,
-          title: "Nueva cita solicitada",
-          detail: `${getJoinedFullName(row.patients) ?? "Paciente"} · ${row.appointment_type}`,
-          href: "/panel/citas",
-          createdAt: row.created_at,
-        }))),
+        })),
+        ...(reservationsResult.data ?? [])
+          .filter((row) => isPaymentManagedReservation(row))
+          .filter((row) => (role === "doctor" ? row.doctor_id === doctorProfileId : true))
+          .map((row) => ({
+            id: `reservation-${row.id}`,
+            entityId: row.id,
+            type: "reservation" as const,
+            title: "Nueva reserva con pago",
+            detail: `${getJoinedFullName(row.patients) ?? "Paciente"} · ${row.appointment_type}`,
+            href: "/panel/pagos-reservas",
+            module: "pagos-reservas" as const,
+            createdAt: row.created_at,
+          })),
       ];
 
       setItems(sortNotifications(notifications));
@@ -148,7 +208,7 @@ export function useAdminNotifications(userId?: string | null) {
     return () => {
       active = false;
     };
-  }, [userId]);
+  }, [doctorProfileId, role, userId]);
 
   useEffect(() => {
     if (!userId) return;
@@ -168,7 +228,7 @@ export function useAdminNotifications(userId?: string | null) {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "information_requests" },
         async (payload) => {
-          if (!active) return;
+          if (!active || role === "doctor") return;
           const row = await getInformationRequestById(payload.new.id).catch(() => null);
           if (!row) return;
           prepend({
@@ -178,6 +238,7 @@ export function useAdminNotifications(userId?: string | null) {
             title: "Nueva solicitud",
             detail: `${row.full_name} · ${row.interest_title ?? row.interest_type ?? "General"}`,
             href: "/panel/solicitudes",
+            module: "solicitudes",
             createdAt: row.created_at,
           });
         }
@@ -186,16 +247,17 @@ export function useAdminNotifications(userId?: string | null) {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "course_enrollments" },
         async (payload) => {
-          if (!active) return;
+          if (!active || role === "doctor") return;
           const row = await getEnrollmentById(payload.new.id).catch(() => null);
           if (!row) return;
           prepend({
             id: `enrollment-${row.id}`,
             entityId: row.id,
             type: "enrollment",
-            title: "Nueva inscripción",
+            title: "Nueva inscripcion",
             detail: `${row.full_name ?? "Alumno"} · ${row.courses?.title ?? "Curso"}`,
-            href: "/panel/inscripciones",
+            href: "/panel/pagos-reservas",
+            module: "pagos-reservas",
             createdAt: row.created_at,
           });
         }
@@ -207,13 +269,35 @@ export function useAdminNotifications(userId?: string | null) {
           if (!active) return;
           const row = await getPromotionOrderById(payload.new.id).catch(() => null);
           if (!row) return;
+          if (role === "doctor" && row.promotions?.doctor_id !== doctorProfileId) return;
           prepend({
             id: `promotion-order-${row.id}`,
             entityId: row.id,
             type: "promotion_order",
-            title: "Nueva solicitud de promocion",
+            title: "Nuevo pago de promocion",
             detail: `${row.full_name} · ${row.promotions?.title ?? "Promocion"}`,
-            href: "/panel/pedidos-promociones",
+            href: "/panel/pagos-reservas",
+            module: "pagos-reservas",
+            createdAt: row.created_at,
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "book_orders" },
+        async (payload) => {
+          if (!active || role === "doctor") return;
+          const rows = await getBookOrdersAdmin().catch(() => []);
+          const row = rows.find((item) => item.id === payload.new.id);
+          if (!row) return;
+          prepend({
+            id: `book-order-${row.id}`,
+            entityId: row.id,
+            type: "book_order",
+            title: "Nuevo pedido con comprobante",
+            detail: `${row.full_name} · ${row.books?.title ?? "Libro"}`,
+            href: "/panel/pagos-reservas",
+            module: "pagos-reservas",
             createdAt: row.created_at,
           });
         }
@@ -224,14 +308,16 @@ export function useAdminNotifications(userId?: string | null) {
         async (payload) => {
           if (!active) return;
           const row = await getReservationById(payload.new.id).catch(() => null);
-          if (!row) return;
+          if (!row || !isPaymentManagedReservation(row)) return;
+          if (role === "doctor" && row.doctor_id !== doctorProfileId) return;
           prepend({
             id: `reservation-${row.id}`,
             entityId: row.id,
             type: "reservation",
-            title: "Nueva cita solicitada",
+            title: "Nueva reserva con pago",
             detail: `${row.patients?.full_name ?? "Paciente"} · ${row.appointment_type}`,
-            href: "/panel/citas",
+            href: "/panel/pagos-reservas",
+            module: "pagos-reservas",
             createdAt: row.created_at,
           });
         }
@@ -242,10 +328,20 @@ export function useAdminNotifications(userId?: string | null) {
       active = false;
       void supabase.removeChannel(channel);
     };
-  }, [userId]);
+  }, [doctorProfileId, role, userId]);
 
   const unreadCount = useMemo(
     () => items.filter((item) => new Date(item.createdAt).getTime() > new Date(lastSeenAt).getTime()).length,
+    [items, lastSeenAt]
+  );
+
+  const unreadByModule = useMemo(
+    () =>
+      items.reduce<Record<string, number>>((accumulator, item) => {
+        if (new Date(item.createdAt).getTime() <= new Date(lastSeenAt).getTime()) return accumulator;
+        accumulator[item.module] = (accumulator[item.module] ?? 0) + 1;
+        return accumulator;
+      }, {}),
     [items, lastSeenAt]
   );
 
@@ -259,6 +355,7 @@ export function useAdminNotifications(userId?: string | null) {
   return {
     items,
     unreadCount,
+    unreadByModule,
     markAllAsSeen,
   };
 }

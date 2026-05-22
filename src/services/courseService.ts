@@ -8,6 +8,8 @@ export type CourseRow = DeletionMetadata & {
   slug: string;
   short_description: string | null;
   description: string | null;
+  public_info?: string | null;
+  whatsapp_prefill_message?: string | null;
   cover_image: string | null;
   city: string | null;
   start_date: string | null;

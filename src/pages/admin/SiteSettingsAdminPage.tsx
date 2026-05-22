@@ -227,6 +227,21 @@ export function SiteSettingsAdminPage() {
               className="premium-input"
             />
           </Field>
+          <Field label="Horas minimas para reprogramar">
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={String(values.reservation_reschedule_hours_before ?? 48)}
+              onChange={(event) =>
+                setValues((current) => ({
+                  ...current,
+                  reservation_reschedule_hours_before: Number(event.target.value),
+                }))
+              }
+              className="premium-input"
+            />
+          </Field>
           <div className="md:col-span-2">
             <Field label="Direccion">
               <textarea value={values.address ?? ""} onChange={(event) => setValue("address", event.target.value)} className="premium-input min-h-24" />

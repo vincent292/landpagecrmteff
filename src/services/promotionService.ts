@@ -32,6 +32,8 @@ export type PromotionRow = DeletionMetadata & {
   title: string;
   slug: string;
   description: string | null;
+  public_info?: string | null;
+  whatsapp_prefill_message?: string | null;
   cover_image: string | null;
   old_price: number | null;
   promo_price: number | null;

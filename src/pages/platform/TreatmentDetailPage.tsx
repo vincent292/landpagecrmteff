@@ -9,8 +9,10 @@ import { DoctorByline } from "../../components/platform/DoctorByline";
 import { InfoRequestModal } from "../../components/platform/InfoRequestModal";
 import { PublicAssessmentBookingFlow } from "../../components/platform/PublicAssessmentBookingFlow";
 import { ContentCover } from "../../components/ui/ContentCover";
+import { getSiteSettings, type SiteSettingsRow } from "../../services/siteSettingsService";
 import { getTreatmentBySlug, type TreatmentRow } from "../../services/treatmentService";
 import { listFromText } from "../../utils/text";
+import { buildWhatsAppHref, renderWhatsAppTemplate } from "../../utils/whatsapp";
 
 type TreatmentDetail = TreatmentRow & { treatment_images?: { image_url: string; alt_text?: string | null }[] };
 
@@ -22,6 +24,7 @@ export function TreatmentDetailPage() {
   const [error, setError] = useState(false);
   const [open, setOpen] = useState(false);
   const [showAssessmentModal, setShowAssessmentModal] = useState(false);
+  const [settings, setSettings] = useState<SiteSettingsRow | null>(null);
 
   useEffect(() => {
     if (!slug) return;
@@ -35,6 +38,10 @@ export function TreatmentDetailPage() {
     if (searchParams.get("accion") !== "valoracion" || !treatment?.requires_assessment) return;
     setShowAssessmentModal(true);
   }, [searchParams, treatment?.requires_assessment]);
+
+  useEffect(() => {
+    getSiteSettings().then(setSettings).catch(() => undefined);
+  }, []);
 
   if (!slug) return <Navigate to="/tratamientos" replace />;
 
@@ -50,6 +57,13 @@ export function TreatmentDetailPage() {
   };
 
   const gallery = [treatment.cover_image, ...(treatment.treatment_images?.map((image) => image.image_url) ?? [])].filter(Boolean) as string[];
+  const publicWhatsappMessage =
+    renderWhatsAppTemplate(treatment.whatsapp_prefill_message, {
+      title: treatment.title,
+      type: "tratamiento",
+      city: treatment.city ?? "",
+    }) || `Hola, quiero informacion sobre el tratamiento "${treatment.title}".`;
+  const publicWhatsappHref = buildWhatsAppHref(settings?.whatsapp ?? settings?.phone ?? null, publicWhatsappMessage);
 
   return (
     <section className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24">
@@ -86,12 +100,30 @@ export function TreatmentDetailPage() {
                 Necesito mas informacion
               </button>
             )}
+            {publicWhatsappHref ? (
+              <a
+                href={publicWhatsappHref}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-full border border-[var(--color-border)] px-6 py-3.5 text-center text-sm font-semibold"
+              >
+                WhatsApp directo
+              </a>
+            ) : null}
             <Link to="/tratamientos" className="rounded-full border border-[var(--color-border)] px-6 py-3.5 text-center text-sm font-semibold">
               Ver mas tratamientos
             </Link>
           </div>
         </div>
       </div>
+      {treatment.public_info || publicWhatsappHref ? (
+        <div className="mt-10 rounded-[28px] border border-[var(--color-border)] bg-white/72 p-6">
+          <h2 className="text-2xl font-semibold">Informacion para tu solicitud</h2>
+          <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
+            {treatment.public_info?.trim() || "Si quieres resolver dudas antes de reservar, puedes escribirnos por WhatsApp con un mensaje ya preparado."}
+          </p>
+        </div>
+      ) : null}
       <div className="mt-14 grid gap-6 lg:grid-cols-3">
         <DetailBlock title="Beneficios" items={listFromText(treatment.benefits)} />
         <DetailBlock title="Cuidados antes y despues" items={listFromText(treatment.care_instructions)} />

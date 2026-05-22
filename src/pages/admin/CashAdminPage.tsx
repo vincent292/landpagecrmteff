@@ -8,6 +8,7 @@ import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
 import { isSoftDeleted, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
 import {
+  closeCashRegisterSession,
   createCashDrawer,
   createCashMovement,
   createCashRegisterSession,
@@ -225,10 +226,77 @@ export function CashAdminPage() {
     return map;
   }, [movements, sessions]);
 
-  const totalIncome = activeMovements.filter((row) => row.movement_type === "ingreso").reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
-  const totalExpense = activeMovements.filter((row) => row.movement_type === "egreso").reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
+  const sessionMovementSummaryMap = useMemo(() => {
+    const map = new Map<string, { income: number; expense: number; net: number }>();
+    sessions.forEach((session) => {
+      const scoped = movements.filter(
+        (row) =>
+          row.register_session_id === session.id &&
+          !isSoftDeleted(row) &&
+          row.status !== "anulado"
+      );
+      const income = scoped
+        .filter((row) => row.movement_type === "ingreso")
+        .reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
+      const expense = scoped
+        .filter((row) => row.movement_type === "egreso")
+        .reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
+      map.set(session.id, { income, expense, net: income - expense });
+    });
+    return map;
+  }, [movements, sessions]);
+
   const totalDifference = counts.reduce((sum, row) => sum + Number(row.difference_amount ?? 0), 0);
   const sessionWithoutDrawer = sessions.filter((row) => !row.is_deleted && !row.drawer_id).length;
+  const today = new Date().toISOString().slice(0, 10);
+  const todayMovements = useMemo(
+    () => activeMovements.filter((row) => row.movement_date === today),
+    [activeMovements, today]
+  );
+  const todayIncome = useMemo(
+    () =>
+      todayMovements
+        .filter((row) => row.movement_type === "ingreso")
+        .reduce((sum, row) => sum + Number(row.amount ?? 0), 0),
+    [todayMovements]
+  );
+  const todayExpense = useMemo(
+    () =>
+      todayMovements
+        .filter((row) => row.movement_type === "egreso")
+        .reduce((sum, row) => sum + Number(row.amount ?? 0), 0),
+    [todayMovements]
+  );
+  const todayNet = todayIncome - todayExpense;
+  const openSessionSummaries = useMemo(
+    () =>
+      openSessions.map((session) => {
+        const movementSummary = sessionMovementSummaryMap.get(session.id) ?? { income: 0, expense: 0, net: 0 };
+        const expectedAmount = sessionExpectedMap.get(session.id) ?? Number(session.opening_amount ?? 0);
+        return {
+          session,
+          drawer: drawerMap.get(session.drawer_id ?? "") ?? null,
+          income: movementSummary.income,
+          expense: movementSummary.expense,
+          net: movementSummary.net,
+          expectedAmount,
+        };
+      }),
+    [drawerMap, openSessions, sessionExpectedMap, sessionMovementSummaryMap]
+  );
+  const openNowIncome = useMemo(
+    () => openSessionSummaries.reduce((sum, item) => sum + item.income, 0),
+    [openSessionSummaries]
+  );
+  const openNowExpense = useMemo(
+    () => openSessionSummaries.reduce((sum, item) => sum + item.expense, 0),
+    [openSessionSummaries]
+  );
+  const openNowNet = openNowIncome - openNowExpense;
+  const openNowExpected = useMemo(
+    () => openSessionSummaries.reduce((sum, item) => sum + item.expectedAmount, 0),
+    [openSessionSummaries]
+  );
 
   const exportMovements = () => {
     downloadCsv(
@@ -308,7 +376,7 @@ export function CashAdminPage() {
         drawer_id: firstDrawer?.id ?? "",
         city: firstDrawer?.city ?? "",
         location_name: firstDrawer?.location_name ?? "",
-        opening_amount: Number(firstDrawer?.base_amount ?? 0),
+        opening_amount: 0,
       });
     }
     setModal("session");
@@ -484,6 +552,21 @@ export function CashAdminPage() {
     }
   };
 
+  const closeWithoutCount = async (sessionId: string) => {
+    setSaving(true);
+    try {
+      const expectedAmount = sessionExpectedMap.get(sessionId) ?? 0;
+      await closeCashRegisterSession(
+        sessionId,
+        expectedAmount,
+        "Cierre rapido sin arqueo manual."
+      );
+      load();
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) return <LoadingState label="Cargando caja..." />;
   if (error) return <ErrorState label="No pudimos cargar caja, arqueos y reportes." />;
 
@@ -520,10 +603,13 @@ export function CashAdminPage() {
           ))}
         </div>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-7">
           <SummaryCard icon={<Landmark className="h-5 w-5" />} label="Sesiones abiertas" value={String(openSessions.length)} onClick={() => setActiveTab("sesiones")} />
-          <SummaryCard icon={<Wallet className="h-5 w-5" />} label="Ingresos visibles" value={formatMoney(totalIncome)} onClick={() => setActiveTab("movimientos")} />
-          <SummaryCard icon={<Archive className="h-5 w-5" />} label="Egresos visibles" value={formatMoney(totalExpense)} onClick={() => setActiveTab("movimientos")} />
+          <SummaryCard icon={<Wallet className="h-5 w-5" />} label="Ingresos de hoy" value={formatMoney(todayIncome)} onClick={() => setActiveTab("movimientos")} />
+          <SummaryCard icon={<Archive className="h-5 w-5" />} label="Egresos de hoy" value={formatMoney(todayExpense)} onClick={() => setActiveTab("movimientos")} />
+          <SummaryCard icon={<Calculator className="h-5 w-5" />} label="Neto de hoy" value={formatMoney(todayNet)} onClick={() => setActiveTab("movimientos")} />
+          <SummaryCard icon={<Wallet className="h-5 w-5" />} label="Caja abierta ahora" value={formatMoney(openNowNet)} onClick={() => setActiveTab("sesiones")} />
+          <SummaryCard icon={<Calculator className="h-5 w-5" />} label="Esperado abierto" value={formatMoney(openNowExpected)} onClick={() => setActiveTab("sesiones")} />
           <SummaryCard icon={<Calculator className="h-5 w-5" />} label="Diferencias de arqueo" value={formatMoney(totalDifference)} onClick={() => setActiveTab("arqueos")} />
           <SummaryCard icon={<Building2 className="h-5 w-5" />} label="Sesiones sin caja" value={String(sessionWithoutDrawer)} onClick={() => setActiveTab("configuracion")} />
         </div>
@@ -537,6 +623,7 @@ export function CashAdminPage() {
               <QuickAction label="Registrar ingreso o egreso" onClick={() => openMovementModal()} />
               <QuickAction label="Hacer arqueo parcial" onClick={() => openCountModal(openSessions[0]?.id ?? "", "arqueo")} disabled={!openSessions[0]} />
               <QuickAction label="Cerrar caja con conteo" onClick={() => openCountModal(openSessions[0]?.id ?? "", "cierre")} disabled={!openSessions[0]} />
+              <QuickAction label="Cerrar caja sin arqueo" onClick={() => void closeWithoutCount(openSessions[0]?.id ?? "")} disabled={!openSessions[0] || saving} />
             </div>
           </Panel>
 
@@ -553,6 +640,31 @@ export function CashAdminPage() {
               {movements.filter((row) => row.auto_created && !row.is_deleted).length === 0 ? <EmptyState label="Todavia no hay ingresos automáticos." /> : null}
             </div>
           </Panel>
+          <Panel title="Caja abierta ahora" action={<button onClick={() => setActiveTab("sesiones")} className="rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-semibold">Ver sesiones</button>}>
+            <div className="grid gap-3">
+              <div className="rounded-[20px] border border-[var(--color-border)] bg-[rgba(247,242,236,0.74)] p-4">
+                <p className="text-sm font-semibold">Consolidado actual</p>
+                <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">
+                  Ingresos {formatMoney(openNowIncome)} - egresos {formatMoney(openNowExpense)} - neto {formatMoney(openNowNet)}
+                  <br />
+                  Esperado al cerrar {formatMoney(openNowExpected)}
+                </p>
+              </div>
+              {openSessionSummaries.length === 0 ? <EmptyState label="No hay cajas abiertas en este momento." /> : null}
+              {openSessionSummaries.map(({ session, drawer, income, expense, net, expectedAmount }) => (
+                <div key={session.id} className="rounded-[20px] border border-[var(--color-border)] bg-white/70 p-4">
+                  <p className="text-sm font-semibold">{drawer?.name ?? session.location_name ?? "Caja abierta"} · {session.city ?? "Sin ciudad"}</p>
+                  <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">
+                    Apertura {formatMoney(session.opening_amount)}
+                    <br />
+                    Ingresos {formatMoney(income)} - egresos {formatMoney(expense)} - neto {formatMoney(net)}
+                    <br />
+                    Esperado al cerrar {formatMoney(expectedAmount)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </Panel>
         </div>
       ) : null}
 
@@ -563,6 +675,7 @@ export function CashAdminPage() {
             {sessions.map((session) => {
               const drawer = drawerMap.get(session.drawer_id ?? "");
               const expectedAmount = sessionExpectedMap.get(session.id) ?? Number(session.opening_amount ?? 0);
+              const movementSummary = sessionMovementSummaryMap.get(session.id) ?? { income: 0, expense: 0, net: 0 };
               return (
                 <div key={session.id} className="rounded-[24px] border border-[var(--color-border)] bg-[rgba(247,242,236,0.74)] p-4">
                   <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -578,19 +691,28 @@ export function CashAdminPage() {
                         {session.session_date} - {session.city ?? "Sin ciudad"}
                       </h3>
                       <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">
-                        Apertura {formatMoney(session.opening_amount)} - esperado {formatMoney(expectedAmount)}
+                        Apertura {formatMoney(session.opening_amount)}
+                        <br />
+                        Ingresos {formatMoney(movementSummary.income)} - egresos {formatMoney(movementSummary.expense)} - neto {formatMoney(movementSummary.net)}
+                        <br />
+                        Esperado al cerrar {formatMoney(expectedAmount)}
                         <br />
                         {session.status === "cerrada"
                           ? `Contado ${formatMoney(session.closing_counted_amount ?? 0)} - diferencia ${formatMoney(session.closing_difference_amount ?? 0)}`
                           : "Caja todavia abierta"}
-                        <br />
-                        {session.location_name ?? drawer?.location_name ?? "Sin lugar"} - {session.opening_notes ?? "Sin notas"}
                       </p>
+                      {session.location_name || drawer?.location_name ? (
+                        <p className="text-sm text-[var(--color-copy)]">Lugar: {session.location_name ?? drawer?.location_name}</p>
+                      ) : null}
+                      {session.opening_notes ? (
+                        <p className="text-sm text-[var(--color-copy)]">Notas: {session.opening_notes}</p>
+                      ) : null}
                       <DeletedStatusNote row={session} />
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {session.status === "abierta" && !session.is_deleted ? <button onClick={() => openCountModal(session.id, "arqueo")} className="rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-semibold">Arqueo</button> : null}
                       {session.status === "abierta" && !session.is_deleted ? <button onClick={() => openCountModal(session.id, "cierre")} className="rounded-full bg-[var(--color-mocha)] px-4 py-2 text-sm font-semibold text-white">Cerrar caja</button> : null}
+                      {session.status === "abierta" && !session.is_deleted ? <button onClick={() => void closeWithoutCount(session.id)} disabled={saving} className="rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-semibold disabled:opacity-60">Cerrar sin arqueo</button> : null}
                       <button onClick={() => openSessionModal(session)} className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-semibold"><Pencil className="h-4 w-4" />Editar</button>
                       <DeleteActions
                         role={role}
@@ -793,7 +915,7 @@ export function CashAdminPage() {
                     drawer_id: event.target.value,
                     city: drawer?.city ?? sessionForm.city,
                     location_name: drawer?.location_name ?? sessionForm.location_name,
-                    opening_amount: Number(drawer?.base_amount ?? sessionForm.opening_amount),
+                    opening_amount: sessionForm.opening_amount,
                   });
                 }}
                 className="premium-input"
