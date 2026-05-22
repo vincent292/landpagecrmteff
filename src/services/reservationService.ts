@@ -56,6 +56,30 @@ export type ReservationFilters = {
   query?: string;
 };
 
+export type PublicAssessmentReservationInput = {
+  full_name: string;
+  phone: string;
+  email?: string | null;
+  city: string;
+  document_number: string;
+  appointment_type: string;
+  assessment_label?: string | null;
+  payment_receipt_path: string;
+  payment_amount: number;
+  slot: {
+    rule_id: string;
+    date: string;
+    start_time: string;
+    end_time: string;
+    city: string;
+  };
+  source?: string | null;
+  notes?: string | null;
+  context_type?: "promotion" | "treatment" | "general" | null;
+  context_title?: string | null;
+  context_reference_id?: string | null;
+};
+
 async function expireUnpaidReservations() {
   const { error } = await supabase.rpc("expire_unpaid_appointment_reservations");
   if (error) throw error;
@@ -113,8 +137,8 @@ export async function getMyReservations(userId: string) {
   await expireUnpaidReservations();
   const { data, error } = await supabase
     .from("appointment_reservations")
-    .select("*, doctor_profiles(id, full_name, whatsapp, email)")
-    .eq("user_id", userId)
+    .select("*, patients!inner(profile_id), doctor_profiles(id, full_name, whatsapp, email)")
+    .eq("patients.profile_id", userId)
     .eq("is_deleted", false)
     .order("appointment_date", { ascending: true })
     .order("start_time", { ascending: true });
@@ -198,6 +222,12 @@ export async function uploadReservationPaymentReceipt(file: File, reservationId:
   return uploadPrivateFile(receiptsBucket, path, file);
 }
 
+export async function uploadPublicAssessmentReceipt(file: File) {
+  const ext = file.name.split(".").pop() ?? "jpg";
+  const path = `appointments/public-assessment/${crypto.randomUUID()}.${ext}`;
+  return uploadPrivateFile(receiptsBucket, path, file);
+}
+
 export async function attachReservationPaymentReceipt(reservationId: string, payment_receipt_path: string) {
   const { error } = await supabase
     .from("appointment_reservations")
@@ -209,6 +239,31 @@ export async function attachReservationPaymentReceipt(reservationId: string, pay
 export async function getReservationReceiptUrl(path?: string | null) {
   if (!path) return null;
   return getSignedUrl(receiptsBucket, path);
+}
+
+export async function createPublicAssessmentReservation(input: PublicAssessmentReservationInput) {
+  const { data, error } = await supabase.rpc("create_public_assessment_reservation", {
+    p_content_type: input.context_type ?? "general",
+    p_content_id: input.context_reference_id ?? null,
+    p_content_title: input.context_title ?? null,
+    p_full_name: input.full_name,
+    p_phone: input.phone,
+    p_email: input.email ?? null,
+    p_city: input.city,
+    p_document_number: input.document_number,
+    p_notes: input.notes ?? null,
+    p_rule_id: input.slot.rule_id,
+    p_date: input.slot.date,
+    p_start_time: input.slot.start_time,
+    p_end_time: input.slot.end_time,
+    p_payment_receipt_path: input.payment_receipt_path,
+    p_payment_amount: input.payment_amount,
+    p_assessment_label: input.assessment_label ?? null,
+    p_appointment_type: input.appointment_type,
+  });
+
+  if (error) throw error;
+  return data as AppointmentReservationRow;
 }
 
 export async function approveReservationPayment(

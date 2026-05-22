@@ -1,10 +1,12 @@
 import { supabase } from "../lib/supabaseClient";
 import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
+import { normalizeDocumentNumber } from "../utils/documentNumber";
 
 export type PatientRow = DeletionMetadata & {
   id: string;
   profile_id: string | null;
   full_name: string;
+  document_number?: string | null;
   phone: string | null;
   email: string | null;
   city: string | null;
@@ -38,13 +40,17 @@ export async function getPatientByProfileId(profileId: string) {
 }
 
 export async function createPatient(data: Record<string, unknown>) {
-  const { data: row, error } = await supabase.from("patients").insert(data).select("*").single();
+  const payload = { ...data };
+  if ("document_number" in payload) payload.document_number = normalizeDocumentNumber(payload.document_number as string | null | undefined);
+  const { data: row, error } = await supabase.from("patients").insert(payload).select("*").single();
   if (error) throw error;
   return row as PatientRow;
 }
 
 export async function updatePatient(id: string, data: Record<string, unknown>) {
-  const { data: row, error } = await supabase.from("patients").update(data).eq("id", id).select("*").single();
+  const payload = { ...data };
+  if ("document_number" in payload) payload.document_number = normalizeDocumentNumber(payload.document_number as string | null | undefined);
+  const { data: row, error } = await supabase.from("patients").update(payload).eq("id", id).select("*").single();
   if (error) throw error;
   return row as PatientRow;
 }

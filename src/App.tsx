@@ -59,7 +59,6 @@ const PatientPrescriptionsAdminPage = lazyPage(() => import("./pages/admin/Patie
 const PatientsPage = lazyPage(() => import("./pages/admin/PatientsPage"), "PatientsPage");
 const ReservationsAdminPage = lazyPage(() => import("./pages/admin/ReservationsAdminPage"), "ReservationsAdminPage");
 const SiteSettingsAdminPage = lazyPage(() => import("./pages/admin/SiteSettingsAdminPage"), "SiteSettingsAdminPage");
-const BookingPage = lazyPage(() => import("./pages/BookingPage"), "BookingPage");
 const HomePage = lazyPage(loadHomePage, "HomePage");
 const PatientAppointmentsPage = lazyPage(() => import("./pages/patient/PatientAppointmentsPage"), "PatientAppointmentsPage");
 const PatientBooksPage = lazyPage(() => import("./pages/patient/PatientBooksPage"), "PatientBooksPage");
@@ -75,6 +74,7 @@ const PatientTreatmentsPage = lazyPage(() => import("./pages/patient/PatientTrea
 const BookDetailPage = lazyPage(() => import("./pages/public/BookDetailPage"), "BookDetailPage");
 const BooksPage = lazyPage(loadBooksPage, "BooksPage");
 const BuyBookPage = lazyPage(() => import("./pages/public/BuyBookPage"), "BuyBookPage");
+const PublicAssessmentPage = lazyPage(() => import("./pages/public/PublicAssessmentPage"), "PublicAssessmentPage");
 const AgendaPage = lazyPage(() => import("./pages/platform/AgendaPage"), "AgendaPage");
 const LoginPage = lazyPage(loadAuthPages, "LoginPage");
 const RegisterPage = lazyPage(loadAuthPages, "RegisterPage");
@@ -116,7 +116,7 @@ export default function App() {
       <ScrollToTop />
       <Routes>
         <Route path="/" element={<HomePage />} />
-        <Route path="/agendar" element={<BookingPage />} />
+        <Route path="/agendar" element={<PublicAssessmentPage />} />
 
       <Route element={<PublicLayout />}>
         <Route path="/tratamientos" element={<TreatmentsPage />} />
@@ -128,7 +128,7 @@ export default function App() {
         <Route path="/libros" element={<BooksPage />} />
         <Route path="/libros/:slug" element={<BookDetailPage />} />
         <Route path="/comprar-libro/:slug" element={<BuyBookPage />} />
-        <Route path="/reservar-cita" element={<ReserveAppointmentPage publicView />} />
+        <Route path="/reservar-cita" element={<PublicAssessmentPage />} />
         <Route path="/agenda" element={<AgendaPage />} />
         <Route path="/galeria" element={<GalleryPage />} />
         <Route path="/galeria/:slug" element={<GalleryDetailPage />} />

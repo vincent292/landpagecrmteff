@@ -645,6 +645,9 @@ function AdminEntityForm({
 
   const setValue = (name: string, value: string | boolean | number) => {
     const next = { ...values, [name]: value };
+    if (name === "requires_assessment" && value === false) {
+      next.assessment_price = 0;
+    }
     if (name === "title" && !row) next.slug = slugify(String(value));
     setValues(next);
   };
@@ -700,7 +703,12 @@ function AdminEntityForm({
           <button onClick={onClose} className="rounded-full border border-[var(--color-border)] p-3"><X className="h-5 w-5" /></button>
         </div>
         <div className="mt-8 grid gap-4 md:grid-cols-2">
-          {fields.map((field) => (
+          {fields
+            .filter((field) => {
+              if (field.name !== "assessment_price") return true;
+              return Boolean(values.requires_assessment);
+            })
+            .map((field) => (
             <label key={field.name} className={field.type === "textarea" ? "md:col-span-2" : ""}>
               <span className="text-sm font-semibold">{field.label}</span>
               {field.type === "textarea" ? (
@@ -985,6 +993,8 @@ function getFields(module: Exclude<Module, "inscripciones" | "solicitudes" | "us
     { name: "expected_results", label: "Resultados esperados", type: "textarea" },
     { name: "cover_image", label: "Imagen principal", type: "image" },
     { name: "city", label: "Ciudad", type: "text" },
+    { name: "requires_assessment", label: "Requiere valoracion previa", type: "checkbox" },
+    { name: "assessment_price", label: "Precio de la valoracion previa", type: "number" },
     { name: "agenda_mode", label: "Agenda", type: "select-agenda-mode" },
     { name: "appointment_type", label: "Tipo de cita agenda", type: "select-appointment-type" },
     { name: "agenda_tag", label: "Tag de agenda opcional", type: "text" },
@@ -1002,6 +1012,8 @@ function getFields(module: Exclude<Module, "inscripciones" | "solicitudes" | "us
     { name: "start_date", label: "Fecha inicio", type: "date" },
     { name: "end_date", label: "Fecha fin", type: "date" },
     { name: "available_slots", label: "Cupos", type: "number" },
+    { name: "requires_assessment", label: "Requiere valoracion previa", type: "checkbox" },
+    { name: "assessment_price", label: "Precio de la valoracion previa", type: "number" },
     { name: "allows_direct_booking", label: "Permite pedir y pagar directo", type: "checkbox" },
     { name: "agenda_mode", label: "Agenda", type: "select-agenda-mode" },
     { name: "appointment_type", label: "Tipo de cita agenda", type: "select-appointment-type" },
@@ -1137,6 +1149,10 @@ function normalizePayload(
 
   if (requiresDoctorAssignment(module)) {
     payload.doctor_id = doctorProfileId;
+  }
+
+  if (!values.requires_assessment) {
+    payload.assessment_price = null;
   }
 
   if (module === "agenda") {

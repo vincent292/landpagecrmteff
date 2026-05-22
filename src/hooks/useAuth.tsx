@@ -24,7 +24,7 @@ type AuthContextValue = {
     email: string,
     password: string,
     fullName: string,
-    extra?: { phone?: string; city?: string; role?: UserRole }
+    extra?: { phone?: string; city?: string; documentNumber?: string; role?: UserRole }
   ) => Promise<{ needsEmailConfirmation: boolean; alreadyRegistered: boolean }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -145,6 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               full_name: fullName,
               phone: extra?.phone ?? "",
               city: extra?.city ?? "",
+              document_number: extra?.documentNumber ?? "",
               role: roleToUse,
             },
           },

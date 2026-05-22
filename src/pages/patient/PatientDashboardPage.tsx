@@ -80,6 +80,14 @@ export function PatientDashboardPage() {
         <p className="mt-4 max-w-2xl text-sm leading-7 text-[var(--color-copy)] md:text-base">
           Bienvenida/o, {profile?.full_name ?? "a tu portal"}. Aqui puedes consultar tus citas, recetas, cuidados y libros adquiridos.
         </p>
+        {!profile?.document_number ? (
+          <div className="mt-5 rounded-[22px] border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+            Necesitamos tu numero de carnet para consolidar correctamente tu historial.{" "}
+            <Link to="/mi-panel/perfil" className="font-semibold underline">
+              Completar perfil
+            </Link>
+          </div>
+        ) : null}
       </section>
 
       <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-7">

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { supabase } from "../lib/supabaseClient";
+import { getVisibleDeletionFilter } from "../services/adminDeletionService";
 import { getEnrollmentById } from "../services/enrollmentService";
 import { getPromotionOrderById } from "../services/promotionOrderService";
 import { getInformationRequestById } from "../services/requestService";
@@ -62,6 +63,9 @@ export function useAdminNotifications(userId?: string | null) {
     let active = true;
 
     async function loadInitialNotifications() {
+      const enrollmentsFilter = getVisibleDeletionFilter("course_enrollments", false);
+      const promotionOrdersFilter = getVisibleDeletionFilter("promotion_orders", false);
+
       const [requestsResult, enrollmentsResult, promotionOrdersResult, reservationsResult] = await Promise.all([
         supabase
           .from("information_requests")
@@ -69,18 +73,24 @@ export function useAdminNotifications(userId?: string | null) {
           .eq("is_deleted", false)
           .order("created_at", { ascending: false })
           .limit(6),
-        supabase
-          .from("course_enrollments")
-          .select("id, full_name, created_at, courses(title)")
-          .eq("deleted", false)
-          .order("created_at", { ascending: false })
-          .limit(6),
-        supabase
-          .from("promotion_orders")
-          .select("id, full_name, created_at, promotions(title)")
-          .eq("deleted", false)
-          .order("created_at", { ascending: false })
-          .limit(6),
+        (() => {
+          let query = supabase
+            .from("course_enrollments")
+            .select("id, full_name, created_at, courses(title)")
+            .order("created_at", { ascending: false })
+            .limit(6);
+          if (enrollmentsFilter.column) query = query.eq(enrollmentsFilter.column, enrollmentsFilter.value);
+          return query;
+        })(),
+        (() => {
+          let query = supabase
+            .from("promotion_orders")
+            .select("id, full_name, created_at, promotions(title)")
+            .order("created_at", { ascending: false })
+            .limit(6);
+          if (promotionOrdersFilter.column) query = query.eq(promotionOrdersFilter.column, promotionOrdersFilter.value);
+          return query;
+        })(),
         supabase
           .from("appointment_reservations")
           .select("id, appointment_type, created_at, patients(full_name)")

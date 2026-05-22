@@ -104,7 +104,11 @@ export function PromotionsPage() {
                         Vigente hasta {formatPublicDate(promo.end_date)} · {remaining} cupos
                       </p>
                       <div className="mt-6 flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap">
-                        {promo.allows_direct_booking ? (
+                        {promo.requires_assessment ? (
+                          <Link to={`/promociones/${promo.slug}?accion=valoracion`} className="rounded-full bg-[var(--color-caramel)] px-5 py-3 text-center text-sm font-semibold text-white">
+                            Reservar valoracion
+                          </Link>
+                        ) : promo.allows_direct_booking ? (
                           <Link to={`/promociones/${promo.slug}?accion=reservar`} className="rounded-full bg-[var(--color-caramel)] px-5 py-3 text-center text-sm font-semibold text-white">
                             Reservar y pagar
                           </Link>

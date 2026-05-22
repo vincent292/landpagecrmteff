@@ -10,16 +10,28 @@ import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
 import { supabase } from "../../lib/supabaseClient";
 import { isPortalRole, isStaffRole, normalizeRole } from "../../lib/roles";
+import { normalizeDocumentNumber } from "../../utils/documentNumber";
 
-const authSchema = z.object({
+const loginSchema = z.object({
   email: z.string().email("Escribe un email valido"),
   password: z.string().min(6, "Minimo 6 caracteres"),
-  fullName: z.string().optional(),
-  phone: z.string().optional(),
-  city: z.string().optional(),
 });
 
-type Values = z.infer<typeof authSchema>;
+const registerSchema = loginSchema.extend({
+  fullName: z.string().min(3, "Escribe tu nombre completo"),
+  phone: z.string().min(7, "Escribe tu celular"),
+  city: z.string().min(2, "Selecciona tu ciudad"),
+  documentNumber: z.string().min(5, "Escribe tu numero de carnet"),
+});
+
+type Values = {
+  email: string;
+  password: string;
+  fullName?: string;
+  phone?: string;
+  city?: string;
+  documentNumber?: string;
+};
 
 export function LoginPage() {
   return <AuthForm mode="login" />;
@@ -35,14 +47,14 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
   const location = useLocation();
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const isLogin = mode === "login";
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<Values>({ resolver: zodResolver(authSchema) });
+  } = useForm<Values>({ resolver: zodResolver(isLogin ? loginSchema : registerSchema) });
 
   const from = (location.state as { from?: string } | null)?.from;
-  const isLogin = mode === "login";
 
   const getDashboardPath = (role: ReturnType<typeof normalizeRole>) => (isStaffRole(role) ? "/panel" : "/mi-panel");
 
@@ -73,6 +85,7 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
         const result = await signUp(values.email, values.password, values.fullName ?? "", {
           phone: values.phone,
           city: values.city,
+          documentNumber: normalizeDocumentNumber(values.documentNumber),
           role: "patient",
         });
 
@@ -142,10 +155,12 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
               <label className="block md:col-span-2">
                 <span className="text-sm font-semibold text-[var(--color-ink)]">Nombre completo</span>
                 <input {...register("fullName")} className="premium-input mt-2" />
+                {errors.fullName ? <span className="mt-1 block text-sm text-red-700">{errors.fullName.message}</span> : null}
               </label>
               <label className="block">
                 <span className="text-sm font-semibold text-[var(--color-ink)]">Celular</span>
                 <input {...register("phone")} className="premium-input mt-2" />
+                {errors.phone ? <span className="mt-1 block text-sm text-red-700">{errors.phone.message}</span> : null}
               </label>
               <label className="block">
                 <span className="text-sm font-semibold text-[var(--color-ink)]">Ciudad</span>
@@ -157,6 +172,18 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
                     </option>
                   ))}
                 </select>
+                {errors.city ? <span className="mt-1 block text-sm text-red-700">{errors.city.message}</span> : null}
+              </label>
+              <label className="block">
+                <span className="text-sm font-semibold text-[var(--color-ink)]">Numero de carnet</span>
+                <input
+                  {...register("documentNumber")}
+                  onChange={(event) => {
+                    event.target.value = normalizeDocumentNumber(event.target.value);
+                  }}
+                  className="premium-input mt-2"
+                />
+                {errors.documentNumber ? <span className="mt-1 block text-sm text-red-700">{errors.documentNumber.message}</span> : null}
               </label>
             </div>
           ) : null}

@@ -205,11 +205,27 @@ export function SiteSettingsAdminPage() {
           <Field label="TikTok URL">
             <input value={values.tiktok_url ?? ""} onChange={(event) => setValue("tiktok_url", event.target.value)} className="premium-input" />
           </Field>
+          <Field label="Nombre de la valoracion">
+            <input value={values.assessment_label ?? ""} onChange={(event) => setValue("assessment_label", event.target.value)} className="premium-input" placeholder="Valoracion estetica" />
+          </Field>
+          <Field label="Tipo de cita para valoracion">
+            <input value={values.assessment_appointment_type ?? ""} onChange={(event) => setValue("assessment_appointment_type", event.target.value)} className="premium-input" placeholder="Valoracion estetica" />
+          </Field>
           <Field label="Google Maps URL">
             <input value={values.maps_url ?? ""} onChange={(event) => setValue("maps_url", event.target.value)} className="premium-input" />
           </Field>
           <Field label="Google Maps embed URL">
             <input value={values.maps_embed_url ?? ""} onChange={(event) => setValue("maps_embed_url", event.target.value)} className="premium-input" />
+          </Field>
+          <Field label="Precio de la valoracion">
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={String(values.assessment_price ?? 0)}
+              onChange={(event) => setValues((current) => ({ ...current, assessment_price: Number(event.target.value) }))}
+              className="premium-input"
+            />
           </Field>
           <div className="md:col-span-2">
             <Field label="Direccion">

@@ -80,8 +80,8 @@ export function Services() {
             description: treatment.short_description ?? treatment.description ?? "Informacion disponible en el detalle del tratamiento.",
             image: treatment.cover_image,
             category: treatment.city ? `Tratamiento · ${getDisplayCity(treatment.city)}` : "Tratamiento destacado",
-            primaryLabel: "Pedir informacion",
-            moreHref: `/tratamientos/${treatment.slug}`,
+            primaryLabel: treatment.requires_assessment ? "Reservar valoracion" : "Pedir informacion",
+            moreHref: treatment.requires_assessment ? `/tratamientos/${treatment.slug}?accion=valoracion` : `/tratamientos/${treatment.slug}`,
             interestType: "Tratamiento",
             payload: treatment,
           });
@@ -95,7 +95,7 @@ export function Services() {
             description: promotion.description ?? "Consulta la vigencia y las condiciones de esta promocion desde el detalle.",
             image: promotion.cover_image,
             category: `Promocion · ${getDisplayCity(promotion.city)}`,
-            primaryLabel: "Pedir informacion",
+            primaryLabel: promotion.requires_assessment ? "Reservar valoracion" : "Pedir informacion",
             moreHref: `/promociones/${promotion.slug}`,
             interestType: "Promoción",
             payload: promotion,
@@ -198,6 +198,20 @@ export function Services() {
                     >
                       {card.primaryLabel}
                     </Link>
+                  ) : card.kind === "Tratamiento" && card.payload.requires_assessment ? (
+                    <Link
+                      to={card.moreHref}
+                      className="rounded-full bg-[var(--color-mocha)] px-5 py-3 text-center text-sm font-semibold text-white"
+                    >
+                      {card.primaryLabel}
+                    </Link>
+                  ) : card.kind === "Promocion" && card.payload.requires_assessment ? (
+                    <Link
+                      to={`/promociones/${card.payload.slug}?accion=valoracion`}
+                      className="rounded-full bg-[var(--color-mocha)] px-5 py-3 text-center text-sm font-semibold text-white"
+                    >
+                      {card.primaryLabel}
+                    </Link>
                   ) : (
                     <button
                       type="button"
@@ -208,7 +222,7 @@ export function Services() {
                     </button>
                   )}
                   <Link
-                    to={card.moreHref}
+                    to={card.kind === "Promocion" && card.payload.requires_assessment ? `/promociones/${card.payload.slug}` : card.moreHref}
                     className="inline-flex items-center justify-center gap-2 rounded-full border border-[var(--color-border)] px-5 py-3 text-sm font-semibold text-[var(--color-ink)]"
                   >
                     Ver mas

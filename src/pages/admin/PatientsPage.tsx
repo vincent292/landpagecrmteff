@@ -12,10 +12,12 @@ import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
 import { hardDeleteRecord, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
 import { createPatient, getPatients, type PatientRow } from "../../services/patientService";
+import { normalizeDocumentNumber } from "../../utils/documentNumber";
 import { formatDate } from "../../utils/text";
 
 const patientSchema = z.object({
   full_name: z.string().min(3, "Escribe el nombre completo"),
+  document_number: z.string().min(5, "Escribe el numero de carnet"),
   phone: z.string().optional(),
   email: z.string().email("Correo invalido").or(z.literal("")),
   city: z.string().optional(),
@@ -40,7 +42,7 @@ export function PatientsPage() {
     formState: { errors },
   } = useForm<PatientFormValues>({
     resolver: zodResolver(patientSchema),
-    defaultValues: { full_name: "", phone: "", email: "", city: "" },
+    defaultValues: { full_name: "", document_number: "", phone: "", email: "", city: "" },
   });
 
   const load = () => {
@@ -62,7 +64,7 @@ export function PatientsPage() {
   const filtered = useMemo(
     () =>
       rows.filter((item) => {
-        const queryMatch = JSON.stringify([item.full_name, item.phone, item.email]).toLowerCase().includes(query.toLowerCase());
+        const queryMatch = JSON.stringify([item.full_name, item.document_number, item.phone, item.email]).toLowerCase().includes(query.toLowerCase());
         const cityMatch = city === "Todas" || item.city === city;
         return queryMatch && cityMatch;
       }),
@@ -73,6 +75,7 @@ export function PatientsPage() {
     setSaving(true);
     await createPatient({
       ...values,
+      document_number: normalizeDocumentNumber(values.document_number),
       email: values.email || null,
       phone: values.phone || null,
       city: values.city || null,
@@ -109,7 +112,7 @@ export function PatientsPage() {
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Buscar por nombre, celular o correo"
+            placeholder="Buscar por nombre, carnet, celular o correo"
             className="premium-input"
           />
           <select value={city} onChange={(event) => setCity(event.target.value)} className="premium-input">
@@ -145,6 +148,7 @@ export function PatientsPage() {
                 </div>
                 <div className="mt-4 grid gap-2 text-sm text-[var(--color-copy)]">
                   <p>{patient.phone ?? "Sin celular"}</p>
+                  <p>CI: {patient.document_number ?? "Sin carnet"}</p>
                   <p>{patient.email ?? "Sin correo"}</p>
                   <p>{patient.city ?? "Sin ciudad"}</p>
                 </div>
@@ -182,6 +186,7 @@ export function PatientsPage() {
               <tr>
                 <th className="py-3">Paciente</th>
                 <th>Celular</th>
+                <th>CI</th>
                 <th>Correo</th>
                 <th>Ciudad</th>
                 <th>Registro</th>
@@ -198,6 +203,7 @@ export function PatientsPage() {
                     </div>
                   </td>
                   <td>{patient.phone ?? "Sin celular"}</td>
+                  <td>{patient.document_number ?? "Sin carnet"}</td>
                   <td>{patient.email ?? "Sin correo"}</td>
                   <td>{patient.city ?? "Sin ciudad"}</td>
                   <td>{formatDate(patient.created_at)}</td>
@@ -247,6 +253,16 @@ export function PatientsPage() {
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               <Field label="Nombre completo" error={errors.full_name?.message}>
                 <input {...register("full_name")} className="premium-input mt-2" />
+              </Field>
+              <Field label="Numero de carnet / CI" error={errors.document_number?.message}>
+                <input
+                  {...register("document_number", {
+                    onChange: (event) => {
+                      event.target.value = normalizeDocumentNumber(event.target.value);
+                    },
+                  })}
+                  className="premium-input mt-2"
+                />
               </Field>
               <Field label="Celular" error={errors.phone?.message}>
                 <input {...register("phone")} className="premium-input mt-2" />

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
 import { updateMyProfile } from "../../services/profileService";
+import { normalizeDocumentNumber } from "../../utils/documentNumber";
 
 export function PatientProfilePage() {
   const { profile, refreshProfile } = useAuth();
@@ -21,13 +22,19 @@ export function PatientProfilePage() {
 
   const save = async () => {
     if (!profile) return;
+    const normalizedDocumentNumber = normalizeDocumentNumber(documentNumber);
+    if (!normalizedDocumentNumber) {
+      setSaved("Necesitamos tu numero de carnet para unificar tu historial en el portal.");
+      return;
+    }
     await updateMyProfile(profile.id, {
       full_name: fullName,
       phone,
       city,
-      document_number: documentNumber,
+      document_number: normalizedDocumentNumber,
     });
     await refreshProfile();
+    setDocumentNumber(normalizedDocumentNumber);
     setSaved("Tus datos se actualizaron correctamente.");
   };
 
@@ -60,8 +67,8 @@ export function PatientProfilePage() {
           </select>
         </label>
         <label>
-          <span className="text-sm font-semibold">Numero de carnet</span>
-          <input value={documentNumber} onChange={(event) => setDocumentNumber(event.target.value)} className="premium-input mt-2" />
+          <span className="text-sm font-semibold">Numero de carnet / CI</span>
+          <input value={documentNumber} onChange={(event) => setDocumentNumber(normalizeDocumentNumber(event.target.value))} className="premium-input mt-2" />
         </label>
       </div>
       {saved ? <p className="mt-4 text-sm text-[var(--color-mocha)]">{saved}</p> : null}

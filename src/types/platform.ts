@@ -115,6 +115,7 @@ export type Patient = {
   id: string;
   profile_id: string | null;
   full_name: string;
+  document_number?: string | null;
   phone: string | null;
   email: string | null;
   city: string | null;

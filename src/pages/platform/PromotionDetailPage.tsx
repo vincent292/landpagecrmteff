@@ -5,6 +5,7 @@ import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { DoctorByline } from "../../components/platform/DoctorByline";
 import { InfoRequestModal } from "../../components/platform/InfoRequestModal";
+import { PublicAssessmentBookingFlow } from "../../components/platform/PublicAssessmentBookingFlow";
 import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
 import { getAvailableSlots, type AvailableSlot } from "../../services/availabilityService";
@@ -49,6 +50,7 @@ export function PromotionDetailPage() {
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
+  const [showAssessmentModal, setShowAssessmentModal] = useState(false);
   const [savingOrder, setSavingOrder] = useState(false);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [appointmentSlots, setAppointmentSlots] = useState<AvailableSlot[]>([]);
@@ -99,23 +101,31 @@ export function PromotionDetailPage() {
   }, [profile, user]);
 
   useEffect(() => {
-    const wantsReserve = searchParams.get("accion") === "reservar";
-    if (!wantsReserve || !promotion) return;
-    if (promotion.allows_direct_booking) {
-      handleOpenOrder();
-    } else {
-      setShowInfoModal(true);
+    const action = searchParams.get("accion");
+    if (!action || !promotion) return;
+
+    if (action === "valoracion" && promotion.requires_assessment) {
+      setShowAssessmentModal(true);
+      return;
+    }
+
+    if (action === "reservar") {
+      if (promotion.allows_direct_booking) {
+        handleOpenOrder();
+      } else {
+        setShowInfoModal(true);
+      }
     }
   }, [promotion, searchParams]);
 
   useEffect(() => {
-    if (!showOrderModal && !showAuthPrompt) return;
+    if (!showOrderModal && !showAuthPrompt && !showAssessmentModal) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [showAuthPrompt, showOrderModal]);
+  }, [showAssessmentModal, showAuthPrompt, showOrderModal]);
 
   useEffect(() => {
     const slotCity = form.city.trim() || promotion?.city?.trim() || "";
@@ -536,7 +546,17 @@ export function PromotionDetailPage() {
           ) : null}
 
           <div className="mt-6 flex flex-col gap-3">
-            {promotion.allows_direct_booking ? (
+            {promotion.requires_assessment ? (
+              <button
+                onClick={() => {
+                  clearReserveIntent();
+                  setShowAssessmentModal(true);
+                }}
+                className="w-full rounded-full bg-[var(--color-caramel)] px-6 py-3.5 text-sm font-semibold text-white"
+              >
+                Reservar valoracion
+              </button>
+            ) : promotion.allows_direct_booking ? (
               <button
                 onClick={handleOpenOrder}
                 disabled={selectedVariants.length === 0}
@@ -556,19 +576,30 @@ export function PromotionDetailPage() {
         </aside>
       </div>
 
-      {!showOrderModal && !showAuthPrompt && promotion.allows_direct_booking ? (
+      {!showOrderModal && !showAuthPrompt && !showAssessmentModal && (promotion.allows_direct_booking || promotion.requires_assessment) ? (
         <div className="fixed inset-x-0 bottom-0 z-[90] border-t border-[rgba(184,138,90,0.18)] bg-[rgba(255,249,244,0.94)] px-4 py-3 shadow-[0_-18px_48px_rgba(62,42,31,0.10)] backdrop-blur md:hidden">
           <div className="mx-auto flex max-w-7xl items-center gap-3">
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-[var(--color-ink)]">{selectedVariants.length} opcion(es)</p>
-              <p className="text-xs text-[var(--color-copy)]">{selectedVariants.length ? formatMoney(cartTotal) : "Selecciona una o mas opciones"}</p>
+              <p className="truncate text-sm font-semibold text-[var(--color-ink)]">
+                {promotion.requires_assessment ? "Valoracion previa" : `${selectedVariants.length} opcion(es)`}
+              </p>
+              <p className="text-xs text-[var(--color-copy)]">
+                {promotion.requires_assessment ? "Elige horario y paga la valoracion desde aqui" : selectedVariants.length ? formatMoney(cartTotal) : "Selecciona una o mas opciones"}
+              </p>
             </div>
             <button
-              onClick={handleOpenOrder}
-              disabled={selectedVariants.length === 0}
+              onClick={() => {
+                if (promotion.requires_assessment) {
+                  clearReserveIntent();
+                  setShowAssessmentModal(true);
+                  return;
+                }
+                handleOpenOrder();
+              }}
+              disabled={!promotion.requires_assessment && selectedVariants.length === 0}
               className="shrink-0 rounded-full bg-[var(--color-caramel)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
             >
-              Reservar
+              {promotion.requires_assessment ? "Valorar" : "Reservar"}
             </button>
           </div>
         </div>
@@ -907,6 +938,23 @@ export function PromotionDetailPage() {
         clearReserveIntent();
         setShowInfoModal(false);
       }} />
+      <PublicAssessmentBookingFlow
+        mode="modal"
+        open={showAssessmentModal}
+        onClose={() => {
+          clearReserveIntent();
+          setShowAssessmentModal(false);
+        }}
+        context={{
+          type: "promotion",
+          id: promotion.id,
+          title: `Valoracion previa para ${promotion.title}`,
+          city: promotion.city,
+          doctor_id: promotion.doctor_id ?? null,
+          agenda_tag: promotion.agenda_tag ?? null,
+          assessment_price: promotion.assessment_price ?? null,
+        }}
+      />
     </section>
   );
 }

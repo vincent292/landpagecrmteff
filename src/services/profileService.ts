@@ -1,5 +1,6 @@
 import { supabase } from "../lib/supabaseClient";
 import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
+import { normalizeDocumentNumber } from "../utils/documentNumber";
 
 export type ProfileRow = DeletionMetadata & {
   id: string;
@@ -36,6 +37,10 @@ export async function updateProfileRole(id: string, role: string) {
 }
 
 export async function updateMyProfile(id: string, data: Partial<ProfileRow>) {
-  const { error } = await supabase.from("profiles").update(data).eq("id", id);
+  const payload = { ...data };
+  if ("document_number" in payload) {
+    payload.document_number = normalizeDocumentNumber(payload.document_number);
+  }
+  const { error } = await supabase.from("profiles").update(payload).eq("id", id);
   if (error) throw error;
 }

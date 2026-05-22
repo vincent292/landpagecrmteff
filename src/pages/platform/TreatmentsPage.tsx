@@ -55,9 +55,15 @@ export function TreatmentsPage() {
                       <Link to={`/tratamientos/${treatment.slug}`} className="rounded-full bg-[var(--color-mocha)] px-5 py-3 text-center text-sm font-semibold text-white transition hover:bg-[var(--color-chocolate)]">
                         Ver detalles
                       </Link>
-                      <button type="button" onClick={() => setInterest(treatment)} className="rounded-full border border-[var(--color-border)] px-5 py-3 text-sm font-semibold transition hover:bg-white/80">
-                        Necesito más información
-                      </button>
+                      {treatment.requires_assessment ? (
+                        <Link to={`/tratamientos/${treatment.slug}?accion=valoracion`} className="rounded-full border border-[var(--color-border)] px-5 py-3 text-center text-sm font-semibold transition hover:bg-white/80">
+                          Reservar valoracion
+                        </Link>
+                      ) : (
+                        <button type="button" onClick={() => setInterest(treatment)} className="rounded-full border border-[var(--color-border)] px-5 py-3 text-sm font-semibold transition hover:bg-white/80">
+                          Necesito más información
+                        </button>
+                      )}
                     </div>
                   </div>
                 </article>

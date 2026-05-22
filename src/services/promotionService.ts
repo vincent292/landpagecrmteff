@@ -39,8 +39,10 @@ export type PromotionRow = DeletionMetadata & {
   start_date: string | null;
   end_date: string | null;
   available_slots: number | null;
+  assessment_price?: number | null;
   is_active: boolean | null;
   doctor_id: string | null;
+  requires_assessment?: boolean | null;
   allows_direct_booking?: boolean | null;
   allows_partial_payment?: boolean | null;
   partial_payment_percent?: number | null;

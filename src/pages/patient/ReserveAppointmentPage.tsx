@@ -11,12 +11,17 @@ import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
 import { getAvailableSlots, type AvailableSlot } from "../../services/availabilityService";
 import { createPatient, getPatientByProfileId } from "../../services/patientService";
+import { updateMyProfile } from "../../services/profileService";
 import { bookAppointmentSlot } from "../../services/reservationService";
+import { normalizeDocumentNumber } from "../../utils/documentNumber";
 import { formatDate } from "../../utils/text";
 
 const appointmentTypes = ["Valoracion estetica", "Control", "Procedimiento", "Revision postratamiento", "Consulta general"];
 
 const reservationSchema = z.object({
+  full_name: z.string().min(3, "Escribe tu nombre completo."),
+  phone: z.string().min(7, "Escribe tu celular."),
+  document_number: z.string().min(5, "Escribe tu numero de carnet."),
   city: z.string().min(2, "Selecciona una ciudad."),
   appointment_type: z.string().min(2, "Selecciona el tipo de cita."),
   date: z.string().min(1, "Selecciona una fecha."),
@@ -26,7 +31,7 @@ const reservationSchema = z.object({
 type ReservationForm = z.infer<typeof reservationSchema>;
 
 export function ReserveAppointmentPage({ publicView = false }: { publicView?: boolean }) {
-  const { user, profile, loading: authLoading } = useAuth();
+  const { user, profile, refreshProfile, loading: authLoading } = useAuth();
   const location = useLocation();
   const [slots, setSlots] = useState<AvailableSlot[]>([]);
   const [nextSlots, setNextSlots] = useState<AvailableSlot[]>([]);
@@ -41,6 +46,9 @@ export function ReserveAppointmentPage({ publicView = false }: { publicView?: bo
   const form = useForm<ReservationForm>({
     resolver: zodResolver(reservationSchema),
     defaultValues: {
+      full_name: profile?.full_name ?? user?.user_metadata.full_name ?? "",
+      phone: profile?.phone ?? user?.user_metadata.phone ?? "",
+      document_number: profile?.document_number ?? user?.user_metadata.document_number ?? "",
       city: profile?.city ?? "Cochabamba",
       appointment_type: "Valoracion estetica",
       date: "",
@@ -50,6 +58,16 @@ export function ReserveAppointmentPage({ publicView = false }: { publicView?: bo
 
   const watched = form.watch();
   const canSearch = Boolean(watched.city && watched.appointment_type && watched.date);
+
+  useEffect(() => {
+    form.reset((current) => ({
+      ...current,
+      full_name: profile?.full_name ?? user?.user_metadata.full_name ?? current.full_name,
+      phone: profile?.phone ?? user?.user_metadata.phone ?? current.phone,
+      document_number: profile?.document_number ?? user?.user_metadata.document_number ?? current.document_number,
+      city: profile?.city ?? current.city ?? "Cochabamba",
+    }));
+  }, [form, profile, user]);
 
   useEffect(() => {
     if (!watched.city || !watched.appointment_type) return;
@@ -119,14 +137,24 @@ export function ReserveAppointmentPage({ publicView = false }: { publicView?: bo
     setError("");
     setSuccess("");
     try {
+      const normalizedDocumentNumber = normalizeDocumentNumber(values.document_number);
+      await updateMyProfile(user.id, {
+        full_name: values.full_name,
+        phone: values.phone,
+        city: values.city,
+        document_number: normalizedDocumentNumber,
+      });
+      await refreshProfile();
+
       let patient = await getPatientByProfileId(user.id);
       if (!patient) {
         patient = await createPatient({
           profile_id: user.id,
-          full_name: profile?.full_name ?? user.user_metadata.full_name ?? user.email ?? "Paciente",
+          full_name: values.full_name,
           email: profile?.email ?? user.email,
-          phone: profile?.phone ?? null,
+          phone: values.phone,
           city: values.city,
+          document_number: normalizedDocumentNumber,
         });
       }
 
@@ -194,6 +222,22 @@ export function ReserveAppointmentPage({ publicView = false }: { publicView?: bo
                   </option>
                 ))}
               </select>
+            </Field>
+            <Field label="Nombre completo" error={form.formState.errors.full_name?.message}>
+              <input {...form.register("full_name")} className="premium-input" />
+            </Field>
+            <Field label="Celular" error={form.formState.errors.phone?.message}>
+              <input {...form.register("phone")} className="premium-input" />
+            </Field>
+            <Field label="Numero de carnet / CI" error={form.formState.errors.document_number?.message}>
+              <input
+                {...form.register("document_number", {
+                  onChange: (event) => {
+                    event.target.value = normalizeDocumentNumber(event.target.value);
+                  },
+                })}
+                className="premium-input"
+              />
             </Field>
             <Field label="Tipo de cita" error={form.formState.errors.appointment_type?.message}>
               <select {...form.register("appointment_type")} className="premium-input">

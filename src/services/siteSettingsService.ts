@@ -16,6 +16,9 @@ export type SiteSettingsRow = {
   payment_qr_updated_by_email?: string | null;
   appointment_qr_payment_image?: string | null;
   course_qr_payment_image?: string | null;
+  assessment_label?: string | null;
+  assessment_appointment_type?: string | null;
+  assessment_price?: number | null;
   business_hours?: string | null;
   footer_text: string | null;
   updated_at: string;
@@ -61,6 +64,9 @@ const fallbackSettings: SiteSettingsRow = {
   payment_qr_updated_by_email: null,
   appointment_qr_payment_image: null,
   course_qr_payment_image: null,
+  assessment_label: "Valoracion estetica",
+  assessment_appointment_type: "Valoracion estetica",
+  assessment_price: 0,
   business_hours: null,
   footer_text: "Una experiencia clinica sobria, cercana y pensada para sentirse impecable en cualquier pantalla.",
   updated_at: new Date().toISOString(),
