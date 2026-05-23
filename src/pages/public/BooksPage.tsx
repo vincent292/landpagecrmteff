@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
+import { InfoRequestModal } from "../../components/platform/InfoRequestModal";
 import { ContentCover } from "../../components/ui/ContentCover";
 import { getActiveBooks, type BookRow } from "../../services/bookService";
 import { downloadBookWithToken } from "../../services/bookTokenService";
@@ -9,6 +10,7 @@ import { formatMoney } from "../../utils/text";
 
 export function BooksPage() {
   const [items, setItems] = useState<BookRow[]>([]);
+  const [interest, setInterest] = useState<BookRow | null>(null);
   const [token, setToken] = useState("");
   const [tokenMessage, setTokenMessage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -71,6 +73,13 @@ export function BooksPage() {
                     <Link to={`/libros/${book.slug}`} className="rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-semibold">
                       Ver libro
                     </Link>
+                    <button
+                      type="button"
+                      onClick={() => setInterest(book)}
+                      className="rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-semibold"
+                    >
+                      Pedir info
+                    </button>
                     <Link to={`/comprar-libro/${book.slug}`} className="rounded-full bg-[var(--color-mocha)] px-4 py-2 text-sm font-semibold text-white">
                       Comprar
                     </Link>
@@ -81,6 +90,15 @@ export function BooksPage() {
           </div>
         ) : null}
       </div>
+      <InfoRequestModal
+        open={Boolean(interest)}
+        interest={interest?.title ?? ""}
+        interestId={interest?.id}
+        interestType="Libro"
+        whatsappTemplate={interest?.whatsapp_prefill_message ?? null}
+        contentPrice={interest?.price ?? null}
+        onClose={() => setInterest(null)}
+      />
     </section>
   );
 }

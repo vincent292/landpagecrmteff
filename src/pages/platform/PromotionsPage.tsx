@@ -117,6 +117,13 @@ export function PromotionsPage() {
                             Solicitar promocion
                           </button>
                         )}
+                        <button
+                          type="button"
+                          onClick={() => setInterest(promo)}
+                          className="rounded-full border border-[var(--color-border)] px-5 py-3 text-sm font-semibold"
+                        >
+                          Pedir información
+                        </button>
                         <Link to={`/promociones/${promo.slug}`} className="rounded-full border border-[var(--color-border)] px-5 py-3 text-center text-sm font-semibold">
                           Ver promocion
                         </Link>
@@ -130,7 +137,16 @@ export function PromotionsPage() {
         ) : null}
       </div>
 
-      <InfoRequestModal open={Boolean(interest)} interest={interest?.title ?? ""} interestId={interest?.id} interestType="Promoción" onClose={() => setInterest(null)} />
+      <InfoRequestModal
+        open={Boolean(interest)}
+        interest={interest?.title ?? ""}
+        interestId={interest?.id}
+        interestType="Promoción"
+        whatsappTemplate={interest?.whatsapp_prefill_message ?? null}
+        contentPrice={interest?.promo_price ?? null}
+        contentCity={interest?.city ?? null}
+        onClose={() => setInterest(null)}
+      />
     </section>
   );
 }

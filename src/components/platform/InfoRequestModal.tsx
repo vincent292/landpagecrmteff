@@ -9,12 +9,13 @@ import { z } from "zod";
 import { boliviaCities } from "../../data/cities";
 import { cn } from "../../lib/cn";
 import { createInformationRequest } from "../../services/requestService";
+import { renderWhatsAppTemplate } from "../../utils/whatsapp";
 
 const schema = z.object({
   full_name: z.string().min(3, "Escribe tu nombre completo"),
   phone: z.string().min(7, "Escribe un WhatsApp valido"),
   city: z.string().min(2, "Indica tu ciudad"),
-  interest_type: z.enum(["Tratamiento", "Promoción", "Curso", "Evento", "General"]),
+  interest_type: z.enum(["Tratamiento", "Promoción", "Curso", "Libro", "Evento", "General"]),
   interest_title: z.string().min(2, "Indica el interes"),
   contact_preference: z.enum(["WhatsApp", "Llamada", "Correo"]),
   message: z.string().optional(),
@@ -28,6 +29,9 @@ type Props = {
   interest: string;
   interestId?: string | null;
   interestType?: FormValues["interest_type"];
+  whatsappTemplate?: string | null;
+  contentPrice?: number | null;
+  contentCity?: string | null;
   onClose: () => void;
 };
 
@@ -36,6 +40,9 @@ export function InfoRequestModal({
   interest,
   interestId = null,
   interestType = "General",
+  whatsappTemplate = null,
+  contentPrice = null,
+  contentCity = null,
   onClose,
 }: Props) {
   const [sent, setSent] = useState(false);
@@ -97,6 +104,15 @@ export function InfoRequestModal({
         interest_title: values.interest_title,
         contact_preference: values.contact_preference,
         message: values.message ?? null,
+        whatsapp_prefill_message:
+          renderWhatsAppTemplate(whatsappTemplate, {
+            nombre: values.full_name,
+            telefono: values.phone,
+            ciudad: values.city || contentCity || "",
+            titulo: values.interest_title,
+            tipo: values.interest_type,
+            precio: contentPrice ?? "",
+          }) || null,
         privacy_accepted: values.privacy_accepted,
       });
       setSent(true);

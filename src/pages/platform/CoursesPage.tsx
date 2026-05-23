@@ -77,7 +77,16 @@ export function CoursesPage() {
           ))}
         </div>
       </div>
-      <InfoRequestModal open={Boolean(interest)} interest={interest?.title ?? ""} interestId={interest?.id} interestType="Curso" onClose={() => setInterest(null)} />
+      <InfoRequestModal
+        open={Boolean(interest)}
+        interest={interest?.title ?? ""}
+        interestId={interest?.id}
+        interestType="Curso"
+        whatsappTemplate={interest?.whatsapp_prefill_message ?? null}
+        contentPrice={interest?.price ?? null}
+        contentCity={interest?.city ?? null}
+        onClose={() => setInterest(null)}
+      />
     </section>
   );
 }

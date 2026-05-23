@@ -31,6 +31,8 @@ export function BooksAdminPage() {
     slug: "",
     author: "",
     description: "",
+    public_info: "",
+    whatsapp_prefill_message: "",
     cover_image: "",
     file_path: "",
     price: 0,
@@ -53,6 +55,8 @@ export function BooksAdminPage() {
             slug: selected.slug ?? "",
             author: selected.author ?? "",
             description: selected.description ?? "",
+            public_info: selected.public_info ?? "",
+            whatsapp_prefill_message: selected.whatsapp_prefill_message ?? "",
             cover_image: selected.cover_image ?? "",
             file_path: selected.file_path ?? "",
             price: selected.price ?? 0,
@@ -197,6 +201,16 @@ export function BooksAdminPage() {
         </label>
         <Field label="Descripción" className="md:col-span-2">
           <textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className="premium-input mt-2 min-h-28" />
+        </Field>
+        <Field label="Información visible para solicitud" className="md:col-span-2">
+          <textarea value={form.public_info} onChange={(event) => setForm({ ...form, public_info: event.target.value })} className="premium-input mt-2 min-h-24" />
+        </Field>
+        <Field label="Mensaje predeterminado WhatsApp" className="md:col-span-2">
+          <textarea
+            value={form.whatsapp_prefill_message}
+            onChange={(event) => setForm({ ...form, whatsapp_prefill_message: event.target.value })}
+            className="premium-input mt-2 min-h-24"
+          />
         </Field>
       </div>
       <div className="mt-6 flex flex-wrap gap-3">

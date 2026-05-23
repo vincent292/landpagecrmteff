@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Link } from "react-router-dom";
 
@@ -25,12 +25,20 @@ export function TreatmentsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const filteredTreatments = useMemo(() => treatments.filter((treatment) => city === "Todas" || treatment.city === city || !treatment.city), [city, treatments]);
+  const filteredTreatments = useMemo(
+    () => treatments.filter((treatment) => city === "Todas" || treatment.city === city || !treatment.city),
+    [city, treatments]
+  );
 
   return (
     <section className="mx-auto w-full max-w-7xl overflow-x-clip px-4 py-14 sm:px-6 md:px-8 md:py-24">
       <PageIntro eyebrow="Tratamientos" title="Protocolos médicos diseñados para una belleza natural, elegante y segura." />
-      <div className="mt-8 w-full max-w-xs min-w-0"><select value={city} onChange={(event) => setCity(event.target.value)} className="premium-input"><option>Todas</option>{boliviaCities.map((item) => <option key={item}>{item}</option>)}</select></div>
+      <div className="mt-8 w-full max-w-xs min-w-0">
+        <select value={city} onChange={(event) => setCity(event.target.value)} className="premium-input">
+          <option>Todas</option>
+          {boliviaCities.map((item) => <option key={item}>{item}</option>)}
+        </select>
+      </div>
       <div className="mt-10 min-w-0 max-w-full sm:mt-12">
         {loading && (
           <div className="grid min-w-0 gap-5 sm:gap-6 md:grid-cols-2 xl:grid-cols-3">
@@ -59,11 +67,14 @@ export function TreatmentsPage() {
                         <Link to={`/tratamientos/${treatment.slug}?accion=valoracion`} className="rounded-full border border-[var(--color-border)] px-5 py-3 text-center text-sm font-semibold transition hover:bg-white/80">
                           Reservar valoracion
                         </Link>
-                      ) : (
-                        <button type="button" onClick={() => setInterest(treatment)} className="rounded-full border border-[var(--color-border)] px-5 py-3 text-sm font-semibold transition hover:bg-white/80">
-                          Necesito más información
-                        </button>
-                      )}
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => setInterest(treatment)}
+                        className="rounded-full border border-[var(--color-border)] px-5 py-3 text-sm font-semibold transition hover:bg-white/80"
+                      >
+                        Pedir información
+                      </button>
                     </div>
                   </div>
                 </article>
@@ -77,6 +88,8 @@ export function TreatmentsPage() {
         interest={interest?.title ?? ""}
         interestId={interest?.id}
         interestType="Tratamiento"
+        whatsappTemplate={interest?.whatsapp_prefill_message ?? null}
+        contentCity={interest?.city ?? null}
         onClose={() => setInterest(null)}
       />
     </section>
@@ -92,6 +105,3 @@ export function PageIntro({ eyebrow, title, text }: { eyebrow: string; title: st
     </div>
   );
 }
-
-
-

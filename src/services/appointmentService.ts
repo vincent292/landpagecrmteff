@@ -1,5 +1,5 @@
 import { supabase } from "../lib/supabaseClient";
-import { type DeletionMetadata } from "./adminDeletionService";
+import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
 
 export type AppointmentRow = DeletionMetadata & {
   id: string;
@@ -27,6 +27,16 @@ export type AppointmentRow = DeletionMetadata & {
   cash_recorded_at?: string | null;
   notes: string | null;
   created_at: string;
+};
+
+export type AppointmentAdminRow = AppointmentRow & {
+  patients?: {
+    full_name: string | null;
+    phone: string | null;
+    email: string | null;
+    city: string | null;
+    document_number?: string | null;
+  } | null;
 };
 
 type AppointmentBaseRow = DeletionMetadata & {
@@ -93,6 +103,21 @@ export async function getAppointmentsByPatient(patientId: string) {
     .order("appointment_date", { ascending: true });
   if (error) throw error;
   return enrichAppointments((data ?? []) as AppointmentBaseRow[]);
+}
+
+export async function getAppointmentsAdmin(includeDeleted = false) {
+  let query = supabase
+    .from("appointments")
+    .select("*, patients(full_name, phone, email, city, document_number), doctor_profiles(id, full_name, whatsapp, email), profiles!appointments_created_by_fkey(full_name, email, role)")
+    .order("appointment_date", { ascending: true })
+    .order("start_time", { ascending: true });
+
+  const deletedFilter = getVisibleDeletionFilter("appointments", includeDeleted);
+  if (deletedFilter.column) query = query.eq(deletedFilter.column, deletedFilter.value);
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data ?? []) as AppointmentAdminRow[];
 }
 
 export async function getMyAppointments(userId: string) {

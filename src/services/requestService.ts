@@ -16,6 +16,7 @@ export type InformationRequestRow = DeletionMetadata & {
   } | null;
   contact_preference: string | null;
   message: string | null;
+  whatsapp_prefill_message?: string | null;
   status: string;
   internal_notes: string | null;
   created_at: string;

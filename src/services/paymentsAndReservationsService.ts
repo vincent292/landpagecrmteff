@@ -86,6 +86,7 @@ export type PaymentsAndReservationsItem =
   | {
       id: string;
       kind: "reservation";
+      reservationCategory: "assessment" | "manual" | "reservation";
       createdAt: string;
       title: string;
       customerName: string;
@@ -137,6 +138,7 @@ export function isPaymentManagedReservation(
     row.payment_receipt_path ||
       row.payment_amount ||
       row.payment_expires_at ||
+      source.includes("admin_manual") ||
       source.includes("assessment") ||
       source.includes("valoracion") ||
       source.includes("promocion")
@@ -224,13 +226,22 @@ export async function getPaymentsAndReservationsFeed(options?: {
     .filter(isPaymentManagedReservation)
     .map((row) => {
       const source = (row.source ?? "").toLowerCase();
-      const sourceLabel = source.includes("assessment") || source.includes("valoracion")
-        ? "Valoracion pagada"
-        : "Reserva con pago";
+      const reservationCategory = source.includes("admin_manual")
+        ? "manual"
+        : source.includes("assessment") || source.includes("valoracion")
+          ? "assessment"
+          : "reservation";
+      const sourceLabel =
+        reservationCategory === "manual"
+          ? "Cita manual"
+          : reservationCategory === "assessment"
+            ? "Valoracion pagada"
+            : "Reserva con pago";
 
       return {
         id: row.id,
         kind: "reservation",
+        reservationCategory,
         createdAt: row.created_at,
         title: row.title ?? row.appointment_type,
         customerName: row.patients?.full_name ?? "Paciente",
@@ -245,7 +256,7 @@ export async function getPaymentsAndReservationsFeed(options?: {
         receiptPath: row.payment_receipt_path ?? null,
         notes: row.admin_notes ?? null,
         doctorId: row.doctor_id ?? null,
-        fixedAmount: sourceLabel === "Valoracion pagada" && Number(row.payment_amount ?? 0) > 0,
+        fixedAmount: (reservationCategory === "assessment" || reservationCategory === "manual") && Number(row.payment_amount ?? 0) > 0,
         sourceLabel,
         row,
       };

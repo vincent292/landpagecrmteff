@@ -5,6 +5,7 @@ import { Link, Navigate, useParams } from "react-router-dom";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { DoctorByline } from "../../components/platform/DoctorByline";
+import { InfoRequestModal } from "../../components/platform/InfoRequestModal";
 import { ContentCover } from "../../components/ui/ContentCover";
 import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
@@ -20,7 +21,6 @@ import { updateMyProfile } from "../../services/profileService";
 import { getSiteSettings, type SiteSettingsRow } from "../../services/siteSettingsService";
 import { getCourseBySlug, type CourseRow } from "../../services/courseService";
 import { formatDate, formatMoney, listFromText } from "../../utils/text";
-import { buildWhatsAppHref, renderWhatsAppTemplate } from "../../utils/whatsapp";
 
 type FlashMessage = {
   tone: "success" | "error";
@@ -35,6 +35,7 @@ export function CourseDetailPage() {
   const [settings, setSettings] = useState<SiteSettingsRow | null>(null);
   const [enrollment, setEnrollment] = useState<EnrollmentRow | null>(null);
   const [showEnrollmentModal, setShowEnrollmentModal] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [savingEnrollment, setSavingEnrollment] = useState(false);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
@@ -109,14 +110,6 @@ export function CourseDetailPage() {
     form.city.trim().length > 0 &&
     form.document_number.trim().length > 0;
   const alreadySubmittedEnrollment = Boolean(enrollment?.payment_receipt_path);
-  const publicWhatsappMessage =
-    renderWhatsAppTemplate(course.whatsapp_prefill_message, {
-      title: course.title,
-      type: "curso",
-      city: course.city ?? "",
-      price: course.price ?? "",
-    }) || `Hola, quiero informacion sobre el curso "${course.title}".`;
-  const publicWhatsappHref = buildWhatsAppHref(settings?.whatsapp ?? settings?.phone ?? null, publicWhatsappMessage);
 
   const requiresNewReceipt = !enrollment?.payment_receipt_path || enrollment?.status === "Rechazado";
   const canSubmitPayment =
@@ -264,16 +257,13 @@ export function CourseDetailPage() {
           >
             {alreadySubmittedEnrollment ? "Ya te inscribiste" : "Quiero inscribirme"}
           </button>
-          {publicWhatsappHref ? (
-            <a
-              href={publicWhatsappHref}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-3 inline-flex w-full items-center justify-center rounded-full border border-[var(--color-border)] px-6 py-3.5 text-sm font-semibold"
-            >
-              WhatsApp directo
-            </a>
-          ) : null}
+          <button
+            type="button"
+            onClick={() => setShowInfoModal(true)}
+            className="mt-3 inline-flex w-full items-center justify-center rounded-full border border-[var(--color-border)] px-6 py-3.5 text-sm font-semibold"
+          >
+            Pedir información
+          </button>
           {course.public_info ? (
             <div className="mt-4 rounded-[20px] bg-[rgba(247,242,236,0.82)] p-4 text-sm leading-7 text-[var(--color-copy)]">
               {course.public_info}
@@ -460,6 +450,16 @@ export function CourseDetailPage() {
         </ModalShell>,
         document.body
       ) : null}
+      <InfoRequestModal
+        open={showInfoModal}
+        interest={course.title}
+        interestId={course.id}
+        interestType="Curso"
+        whatsappTemplate={course.whatsapp_prefill_message ?? null}
+        contentPrice={course.price ?? null}
+        contentCity={course.city ?? null}
+        onClose={() => setShowInfoModal(false)}
+      />
     </section>
   );
 }

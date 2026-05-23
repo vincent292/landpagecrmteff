@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
+import { InfoRequestModal } from "../../components/platform/InfoRequestModal";
 import { ContentCover } from "../../components/ui/ContentCover";
 import { useAuth } from "../../hooks/useAuth";
 import { getBookBySlug, type BookRow } from "../../services/bookService";
@@ -17,6 +18,7 @@ export function BookDetailPage() {
   const [tokenMessage, setTokenMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
 
   useEffect(() => {
     getBookBySlug(slug)
@@ -48,19 +50,28 @@ export function BookDetailPage() {
           </div>
           <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <span className="text-2xl font-semibold">{formatMoney(book.price)}</span>
-            <button
-              type="button"
-              onClick={() => {
-                if (!user) {
-                  navigate("/login", { state: { from: `/comprar-libro/${book.slug}` } });
-                  return;
-                }
-                navigate(`/comprar-libro/${book.slug}`);
-              }}
-              className="rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white"
-            >
-              Comprar libro
-            </button>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => setShowInfoModal(true)}
+                className="rounded-full border border-[var(--color-border)] px-6 py-3 text-sm font-semibold"
+              >
+                Pedir información
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!user) {
+                    navigate("/login", { state: { from: `/comprar-libro/${book.slug}` } });
+                    return;
+                  }
+                  navigate(`/comprar-libro/${book.slug}`);
+                }}
+                className="rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white"
+              >
+                Comprar libro
+              </button>
+            </div>
           </div>
           {!user ? (
             <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
@@ -76,6 +87,11 @@ export function BookDetailPage() {
           <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
             Acceso al material digital, validación mediante compra verificada y disponibilidad posterior en tu panel cuando el pedido haya sido aprobado.
           </p>
+          {book.public_info ? (
+            <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
+              {book.public_info}
+            </p>
+          ) : null}
         </div>
 
         <div className="rounded-[28px] border border-[var(--color-border)] bg-white/70 p-6">
@@ -106,6 +122,15 @@ export function BookDetailPage() {
           </div>
         </div>
       </div>
+      <InfoRequestModal
+        open={showInfoModal}
+        interest={book.title}
+        interestId={book.id}
+        interestType="Libro"
+        whatsappTemplate={book.whatsapp_prefill_message ?? null}
+        contentPrice={book.price ?? null}
+        onClose={() => setShowInfoModal(false)}
+      />
     </section>
   );
 }

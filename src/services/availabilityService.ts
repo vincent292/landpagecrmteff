@@ -33,6 +33,13 @@ export type AvailabilityRuleRow = DeletionMetadata & {
 export type AvailabilityBlockRow = DeletionMetadata & {
   id: string;
   created_by: string | null;
+  doctor_id?: string | null;
+  doctor_profiles?: {
+    id: string;
+    full_name: string;
+    whatsapp: string | null;
+    email: string | null;
+  } | null;
   city: string | null;
   block_date: string;
   start_time: string | null;
@@ -126,7 +133,10 @@ export async function deleteAvailabilityRule(id: string) {
 }
 
 export async function getAvailabilityBlocks(includeDeleted = false) {
-  let query = supabase.from("availability_blocks").select("*").order("block_date", { ascending: true });
+  let query = supabase
+    .from("availability_blocks")
+    .select("*, doctor_profiles(id, full_name, whatsapp, email)")
+    .order("block_date", { ascending: true });
   const filter = getVisibleDeletionFilter("availability_blocks", includeDeleted);
   if (filter.column) query = query.is(filter.column, filter.value);
   const { data, error } = await query;

@@ -74,6 +74,7 @@ const BookDetailPage = lazyPage(() => import("./pages/public/BookDetailPage"), "
 const BooksPage = lazyPage(loadBooksPage, "BooksPage");
 const BuyBookPage = lazyPage(() => import("./pages/public/BuyBookPage"), "BuyBookPage");
 const PublicAssessmentPage = lazyPage(() => import("./pages/public/PublicAssessmentPage"), "PublicAssessmentPage");
+const PublicManualReservationPaymentPage = lazyPage(() => import("./pages/public/PublicManualReservationPaymentPage"), "PublicManualReservationPaymentPage");
 const AgendaPage = lazyPage(() => import("./pages/platform/AgendaPage"), "AgendaPage");
 const LoginPage = lazyPage(loadAuthPages, "LoginPage");
 const RegisterPage = lazyPage(loadAuthPages, "RegisterPage");
@@ -128,6 +129,7 @@ export default function App() {
         <Route path="/libros/:slug" element={<BookDetailPage />} />
         <Route path="/comprar-libro/:slug" element={<BuyBookPage />} />
         <Route path="/reservar-cita" element={<PublicAssessmentPage />} />
+        <Route path="/pago-cita/:token" element={<PublicManualReservationPaymentPage />} />
         <Route path="/agenda" element={<AgendaPage />} />
         <Route path="/galeria" element={<GalleryPage />} />
         <Route path="/galeria/:slug" element={<GalleryDetailPage />} />

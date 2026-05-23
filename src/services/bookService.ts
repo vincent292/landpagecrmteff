@@ -12,6 +12,8 @@ export type BookRow = DeletionMetadata & {
   slug: string;
   author: string;
   description: string | null;
+  public_info?: string | null;
+  whatsapp_prefill_message?: string | null;
   cover_image: string | null;
   file_path: string | null;
   price: number;

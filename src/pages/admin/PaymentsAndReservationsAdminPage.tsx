@@ -72,7 +72,7 @@ export function PaymentsAndReservationsAdminPage() {
   const [query, setQuery] = useState("");
   const [dateFilter, setDateFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<(typeof statusOptions)[number]["value"]>("pending");
-  const [kindFilter, setKindFilter] = useState<"all" | PaymentsAndReservationsItem["kind"]>("all");
+  const [kindFilter, setKindFilter] = useState<"all" | PaymentsAndReservationsItem["kind"] | "manual_reservation">("all");
   const [notesDrafts, setNotesDrafts] = useState<Record<string, string>>({});
   const [approvalDraft, setApprovalDraft] = useState<ApprovalDraft | null>(null);
   const [savingApproval, setSavingApproval] = useState(false);
@@ -125,12 +125,14 @@ export function PaymentsAndReservationsAdminPage() {
       return [
         { value: "promotion", label: "Promociones" },
         { value: "reservation", label: "Valoraciones y reservas" },
+        { value: "manual_reservation", label: "Citas manuales" },
       ] as const;
     }
 
     return [
       { value: "promotion", label: "Promociones" },
       { value: "reservation", label: "Valoraciones y reservas" },
+      { value: "manual_reservation", label: "Citas manuales" },
       { value: "course", label: "Cursos" },
       { value: "book", label: "Libros" },
     ] as const;
@@ -150,7 +152,12 @@ export function PaymentsAndReservationsAdminPage() {
     return dateScopedItems.filter((item) => {
       const statusMatches =
         statusFilter === "all" ? true : item.statusGroup === statusFilter;
-      const kindMatches = kindFilter === "all" ? true : item.kind === kindFilter;
+      const kindMatches =
+        kindFilter === "all"
+          ? true
+          : kindFilter === "manual_reservation"
+            ? item.kind === "reservation" && item.reservationCategory === "manual"
+            : item.kind === kindFilter && !(item.kind === "reservation" && item.reservationCategory === "manual" && kindFilter === "reservation");
       const text = JSON.stringify([
         item.title,
         item.customerName,
@@ -178,7 +185,8 @@ export function PaymentsAndReservationsAdminPage() {
     return {
       all: statusScopedItems.length,
       promotion: statusScopedItems.filter((item) => item.kind === "promotion").length,
-      reservation: statusScopedItems.filter((item) => item.kind === "reservation").length,
+      reservation: statusScopedItems.filter((item) => item.kind === "reservation" && item.reservationCategory !== "manual").length,
+      manual_reservation: statusScopedItems.filter((item) => item.kind === "reservation" && item.reservationCategory === "manual").length,
       course: statusScopedItems.filter((item) => item.kind === "course").length,
       book: statusScopedItems.filter((item) => item.kind === "book").length,
     };
@@ -220,6 +228,10 @@ export function PaymentsAndReservationsAdminPage() {
     if (!approvalDraft) return;
     if (!cashOpen) {
       setError("Primero abre la caja para aprobar y registrar este pago.");
+      return;
+    }
+    if (!approvalDraft.item.receiptPath) {
+      setError("No se puede aprobar nada sin comprobante subido.");
       return;
     }
     if (approvalDraft.amount <= 0) {
@@ -445,34 +457,36 @@ export function PaymentsAndReservationsAdminPage() {
           ))}
         </div>
 
-        <div className="mt-6 grid gap-3 xl:grid-cols-[minmax(0,1fr)_220px_220px_auto]">
+        <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_220px_220px_auto]">
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Buscar paciente, contenido, correo o ciudad"
-            className="premium-input"
+            className="premium-input md:col-span-2 xl:col-span-1"
           />
-          <input
-            type="date"
-            value={dateFilter}
-            onChange={(event) => setDateFilter(event.target.value)}
-            className="premium-input"
-          />
-          <select
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value as (typeof statusOptions)[number]["value"])}
-            className="premium-input"
-          >
-            {statusOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          <div className="grid gap-3 sm:grid-cols-2 md:col-span-2 xl:col-span-2">
+            <input
+              type="date"
+              value={dateFilter}
+              onChange={(event) => setDateFilter(event.target.value)}
+              className="premium-input"
+            />
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value as (typeof statusOptions)[number]["value"])}
+              className="premium-input"
+            >
+              {statusOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
           <button
             type="button"
             onClick={() => setDateFilter("")}
-            className="rounded-full border border-[var(--color-border)] px-4 py-3 text-sm font-semibold"
+            className="rounded-full border border-[var(--color-border)] px-4 py-3 text-sm font-semibold md:col-span-2 xl:col-span-1"
           >
             {dateFilter ? "Ver todas las fechas" : "Sin filtro de fecha"}
           </button>

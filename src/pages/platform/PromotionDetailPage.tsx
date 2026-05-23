@@ -27,7 +27,6 @@ import { updateMyProfile } from "../../services/profileService";
 import { getSiteSettings, type SiteSettingsRow } from "../../services/siteSettingsService";
 import { formatDate, formatMoney } from "../../utils/text";
 import { formatPublicDate, getDisplayCity } from "../../utils/publicContent";
-import { buildWhatsAppHref, renderWhatsAppTemplate } from "../../utils/whatsapp";
 
 type FlashMessage = {
   tone: "success" | "error";
@@ -254,17 +253,6 @@ export function PromotionDetailPage() {
     selectedVariants.every((variant) => getPromotionVariantRemainingSlots(variant) > 0) &&
     Boolean(paymentQrImage) &&
     Boolean(receiptFile);
-  const publicWhatsappMessage =
-    renderWhatsAppTemplate(promotion?.whatsapp_prefill_message, {
-      title: promotion?.title ?? "",
-      type: "promocion",
-      city: promotion?.city ?? "",
-      price: promotion?.promo_price ?? "",
-    }) ||
-    (promotion
-      ? `Hola, quiero informacion sobre la promocion "${promotion.title}" en ${getDisplayCity(promotion.city)}.`
-      : "");
-  const publicWhatsappHref = buildWhatsAppHref(settings?.whatsapp ?? settings?.phone ?? null, publicWhatsappMessage);
 
   useEffect(() => {
     if (orderStep === "horario" && !shouldChooseSlot) {
@@ -526,22 +514,12 @@ export function PromotionDetailPage() {
             </ul>
           </div>
 
-          {promotion.public_info || publicWhatsappHref ? (
+          {promotion.public_info ? (
             <div className="rounded-[28px] border border-[var(--color-border)] bg-white/72 p-6">
               <h2 className="text-2xl font-semibold">Informacion para tu solicitud</h2>
               <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
-                {promotion.public_info?.trim() || "Si quieres resolver dudas antes de reservar, puedes escribirnos por WhatsApp y el mensaje ya saldra preparado."}
+                {promotion.public_info}
               </p>
-              {publicWhatsappHref ? (
-                <a
-                  href={publicWhatsappHref}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-5 inline-flex items-center justify-center rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white"
-                >
-                  Solicitar por WhatsApp
-                </a>
-              ) : null}
             </div>
           ) : null}
         </div>
@@ -600,16 +578,13 @@ export function PromotionDetailPage() {
                 Solicitar promocion
               </button>
             )}
-            {publicWhatsappHref ? (
-              <a
-                href={publicWhatsappHref}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-full border border-[var(--color-border)] px-6 py-3 text-center text-sm font-semibold"
-              >
-                WhatsApp directo
-              </a>
-            ) : null}
+            <button
+              type="button"
+              onClick={() => setShowInfoModal(true)}
+              className="rounded-full border border-[var(--color-border)] px-6 py-3 text-center text-sm font-semibold"
+            >
+              Pedir información
+            </button>
             <Link to="/promociones" className="rounded-full border border-[var(--color-border)] px-6 py-3 text-center text-sm font-semibold">
               Volver a promociones
             </Link>
@@ -975,7 +950,7 @@ export function PromotionDetailPage() {
         document.body
       ) : null}
 
-      <InfoRequestModal open={showInfoModal} interest={promotion.title} interestId={promotion.id} interestType="Promoción" onClose={() => {
+      <InfoRequestModal open={showInfoModal} interest={promotion.title} interestId={promotion.id} interestType="Promoción" whatsappTemplate={promotion.whatsapp_prefill_message ?? null} contentPrice={promotion.promo_price ?? null} contentCity={promotion.city ?? null} onClose={() => {
         clearReserveIntent();
         setShowInfoModal(false);
       }} />

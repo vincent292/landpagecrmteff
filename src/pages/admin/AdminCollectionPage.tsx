@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 
 import { MessageCircleMore, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 
@@ -80,6 +80,7 @@ type AdminListFilters = {
   query: string;
   status: string;
   city: string;
+  date: string;
   courseId: string;
   interestType: string;
 };
@@ -94,7 +95,7 @@ type AdminRow =
   | GalleryAlbumRow
   | ProfileRow;
 
-const requestStatuses = ["Nuevo", "Contactado", "Agendado", "Finalizado", "Descartado"];
+const requestStatuses = ["Nuevo", "Enviado", "Cerrado"];
 const enrollmentStatuses = ["Pendiente", "En revision", "Confirmado", "Rechazado", "Cancelado", "Asistió"];
 const eventTypes = ["Curso", "Procedimiento", "Cirugía", "Presentación", "Jornada", "Valoración"];
 const appointmentTypeOptions = ["Valoracion estetica", "Control", "Procedimiento", "Promocion directa", "Revision postratamiento", "Consulta general"];
@@ -107,7 +108,14 @@ export function AdminCollectionPage({ module }: Props) {
   const [error, setError] = useState(false);
   const [editing, setEditing] = useState<AdminRow | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [filters, setFilters] = useState<AdminListFilters>({ query: "", status: "Todos", city: "Todas", courseId: "Todos", interestType: "Todos" });
+  const [filters, setFilters] = useState<AdminListFilters>({
+    query: "",
+    status: "Nuevo",
+    city: "Todas",
+    date: "",
+    courseId: "Todos",
+    interestType: "Todos",
+  });
   const [pendingRealtime, setPendingRealtime] = useState(false);
   const [paymentMethods, setPaymentMethods] = useState<CashPaymentMethodRow[]>([]);
   const [enrollmentApproval, setEnrollmentApproval] = useState<EnrollmentApprovalDraft | null>(null);
@@ -262,20 +270,32 @@ export function AdminCollectionPage({ module }: Props) {
         {!loading && !error && filteredRows.length === 0 && <EmptyState />}
         {!loading && !error && filteredRows.length > 0 && (
           <div className="grid gap-3">
-            {filteredRows.map((row) => (
-              <AdminListRow
-                key={row.id}
-                module={module}
-                row={row}
-                onEdit={() => { setEditing(row); setShowForm(true); }}
-                role={role}
-                actorId={profile?.id ?? user?.id ?? null}
-                actorName={profile?.full_name ?? user?.user_metadata.full_name ?? null}
-                actorEmail={profile?.email ?? user?.email ?? null}
-                onRefresh={load}
-                onOpenEnrollmentApproval={module === "inscripciones" ? (selectedRow) => openEnrollmentApproval(selectedRow as EnrollmentRow) : undefined}
-              />
-            ))}
+            {filteredRows.map((row) =>
+              module === "solicitudes" ? (
+                <RequestListRow
+                  key={row.id}
+                  row={row as InformationRequestRow}
+                  role={role}
+                  actorId={profile?.id ?? user?.id ?? null}
+                  actorName={profile?.full_name ?? user?.user_metadata.full_name ?? null}
+                  actorEmail={profile?.email ?? user?.email ?? null}
+                  onRefresh={load}
+                />
+              ) : (
+                <AdminListRow
+                  key={row.id}
+                  module={module}
+                  row={row}
+                  onEdit={() => { setEditing(row); setShowForm(true); }}
+                  role={role}
+                  actorId={profile?.id ?? user?.id ?? null}
+                  actorName={profile?.full_name ?? user?.user_metadata.full_name ?? null}
+                  actorEmail={profile?.email ?? user?.email ?? null}
+                  onRefresh={load}
+                  onOpenEnrollmentApproval={module === "inscripciones" ? (selectedRow) => openEnrollmentApproval(selectedRow as EnrollmentRow) : undefined}
+                />
+              )
+            )}
           </div>
         )}
       </div>
@@ -356,19 +376,17 @@ function AdminFilters({
   filters: AdminListFilters;
   setFilters: (filters: AdminListFilters) => void;
 }) {
+  if (module === "solicitudes") {
+    return <RequestFilters rows={rows as InformationRequestRow[]} filters={filters} setFilters={setFilters} />;
+  }
+
   const cities = [...new Set(rows.map((row) => ("city" in row ? row.city : null)).filter(Boolean))];
   const courses = rows
     .filter((row): row is EnrollmentRow => "course_id" in row)
     .map((row) => ({ id: row.course_id, title: row.courses?.title ?? row.course_id }));
-  const interestTypes = [...new Set(
-    rows
-      .filter((row): row is InformationRequestRow => "interest_type" in row)
-      .map((row) => row.interest_type)
-      .filter(Boolean)
-  )];
 
   return (
-    <div className={`mt-8 grid gap-3 ${module === "solicitudes" ? "md:grid-cols-5" : "md:grid-cols-4"}`}>
+    <div className="mt-8 grid gap-3 md:grid-cols-4">
       <input
         value={filters.query}
         onChange={(event) => setFilters({ ...filters, query: event.target.value })}
@@ -377,18 +395,12 @@ function AdminFilters({
       />
       <select value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })} className="premium-input">
         <option>Todos</option>
-        {(module === "solicitudes" ? requestStatuses : enrollmentStatuses).map((status) => <option key={status}>{status}</option>)}
+        {enrollmentStatuses.map((status) => <option key={status}>{status}</option>)}
       </select>
       <select value={filters.city} onChange={(event) => setFilters({ ...filters, city: event.target.value })} className="premium-input">
         <option>Todas</option>
         {cities.map((city) => <option key={city}>{city}</option>)}
       </select>
-      {module === "solicitudes" && (
-        <select value={filters.interestType} onChange={(event) => setFilters({ ...filters, interestType: event.target.value })} className="premium-input">
-          <option>Todos</option>
-          {interestTypes.map((interestType) => <option key={interestType}>{interestType}</option>)}
-        </select>
-      )}
       {module === "inscripciones" && (
         <select value={filters.courseId} onChange={(event) => setFilters({ ...filters, courseId: event.target.value })} className="premium-input">
           <option>Todos</option>
@@ -396,6 +408,106 @@ function AdminFilters({
         </select>
       )}
     </div>
+  );
+}
+
+function RequestFilters({
+  rows,
+  filters,
+  setFilters,
+}: {
+  rows: InformationRequestRow[];
+  filters: AdminListFilters;
+  setFilters: (filters: AdminListFilters) => void;
+}) {
+  const typeOptions = ["Todos", ...new Set(rows.map((row) => row.interest_type ?? "General"))];
+  const cities = [...new Set(rows.map((row) => row.city).filter(Boolean))];
+  const counts = {
+    all: rows.length,
+    Nuevo: rows.filter((row) => normalizeRequestStatus(row.status) === "Nuevo").length,
+    Enviado: rows.filter((row) => normalizeRequestStatus(row.status) === "Enviado").length,
+    Cerrado: rows.filter((row) => normalizeRequestStatus(row.status) === "Cerrado").length,
+  };
+
+  return (
+    <section className="mt-8 rounded-[28px] border border-[var(--color-border)] bg-white/70 p-4 sm:p-5">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <RequestStatCard label="Nuevas" value={counts.Nuevo} active={filters.status === "Nuevo"} onClick={() => setFilters({ ...filters, status: "Nuevo" })} />
+        <RequestStatCard label="Enviadas" value={counts.Enviado} active={filters.status === "Enviado"} onClick={() => setFilters({ ...filters, status: "Enviado" })} />
+        <RequestStatCard label="Cerradas" value={counts.Cerrado} active={filters.status === "Cerrado"} onClick={() => setFilters({ ...filters, status: "Cerrado" })} />
+        <RequestStatCard label="Todas" value={counts.all} active={filters.status === "Todos"} onClick={() => setFilters({ ...filters, status: "Todos" })} />
+      </div>
+
+      <div className="mt-5 flex flex-wrap gap-2">
+        {typeOptions.map((interestType) => (
+          <button
+            key={interestType}
+            type="button"
+            onClick={() => setFilters({ ...filters, interestType })}
+            className={`rounded-full border px-4 py-2.5 text-sm font-semibold transition ${
+              filters.interestType === interestType
+                ? "border-[var(--color-mocha)] bg-[var(--color-mocha)] text-white"
+                : "border-[var(--color-border)] bg-white/80 text-[var(--color-ink)]"
+            }`}
+          >
+            {interestType}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_190px_210px_auto]">
+        <input
+          value={filters.query}
+          onChange={(event) => setFilters({ ...filters, query: event.target.value })}
+          placeholder="Buscar nombre, título, celular o ciudad"
+          className="premium-input"
+        />
+        <input
+          type="date"
+          value={filters.date}
+          onChange={(event) => setFilters({ ...filters, date: event.target.value })}
+          className="premium-input"
+        />
+        <select value={filters.city} onChange={(event) => setFilters({ ...filters, city: event.target.value })} className="premium-input">
+          <option value="Todas">Todas las ciudades</option>
+          {cities.map((city) => <option key={city} value={city ?? ""}>{city}</option>)}
+        </select>
+        <button
+          type="button"
+          onClick={() => setFilters({ ...filters, date: "" })}
+          className="rounded-full border border-[var(--color-border)] px-4 py-3 text-sm font-semibold"
+        >
+          {filters.date ? "Ver todas las fechas" : "Sin filtro de fecha"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function RequestStatCard({
+  label,
+  value,
+  active,
+  onClick,
+}: {
+  label: string;
+  value: number;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-[22px] border p-4 text-left transition ${
+        active
+          ? "border-[var(--color-mocha)] bg-[var(--color-mocha)] text-white"
+          : "border-[var(--color-border)] bg-[rgba(247,242,236,0.78)] text-[var(--color-ink)]"
+      }`}
+    >
+      <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${active ? "text-white/80" : "text-[var(--color-copy)]"}`}>{label}</p>
+      <p className="mt-2 text-3xl font-semibold">{value}</p>
+    </button>
   );
 }
 
@@ -575,6 +687,146 @@ function AdminListRow({
           </select>
         )}
       </div>
+    </div>
+  );
+}
+
+function RequestListRow({
+  row,
+  role,
+  actorId,
+  actorName,
+  actorEmail,
+  onRefresh,
+}: {
+  row: InformationRequestRow;
+  role: ReturnType<typeof useAuth>["role"];
+  actorId?: string | null;
+  actorName?: string | null;
+  actorEmail?: string | null;
+  onRefresh: () => void;
+}) {
+  const deletionRow = row as InformationRequestRow & DeletionMetadata;
+  const normalizedStatus = normalizeRequestStatus(row.status);
+  const phone = row.phone.replace(/\D/g, "");
+  const price = extractPriceFromRequest(row);
+  const whatsappMessage = row.whatsapp_prefill_message?.trim() || `Hola ${row.full_name}, te escribimos sobre tu solicitud para ${row.interest_title ?? row.interest_type ?? "General"}.`;
+
+  const saveNotes = async (value: string) => {
+    await updateInformationRequestNotes(row.id, value);
+    onRefresh();
+  };
+
+  const updateStatus = async (status: string) => {
+    await updateInformationRequestStatus(row.id, status);
+    onRefresh();
+  };
+
+  const handleSoftDelete = async () => {
+    await softDeleteRecord({
+      table: "information_requests",
+      id: row.id,
+      actorId,
+      actorRole: role,
+      actorName,
+      actorEmail,
+    });
+    onRefresh();
+  };
+
+  const handleRestore = async () => {
+    await restoreRecord("information_requests", row.id);
+    onRefresh();
+  };
+
+  const handleHardDelete = async () => {
+    await hardDeleteRecord("information_requests", row.id);
+    onRefresh();
+  };
+
+  return (
+    <article className="rounded-[24px] border border-[var(--color-border)] bg-[rgba(247,242,236,0.72)] p-4 shadow-[0_14px_36px_rgba(62,42,31,0.06)]">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-[rgba(216,194,174,0.28)] px-3 py-1 text-xs font-semibold text-[var(--color-mocha)]">
+              {row.interest_type ?? "General"}
+            </span>
+            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${normalizedStatus === "Nuevo" ? "bg-[rgba(124,90,57,0.12)] text-[var(--color-mocha)]" : normalizedStatus === "Enviado" ? "bg-[rgba(42,128,93,0.14)] text-[rgb(36,120,86)]" : "bg-[rgba(76,85,99,0.14)] text-slate-700"}`}>
+              {normalizedStatus}
+            </span>
+          </div>
+
+          <h2 className="mt-3 text-xl font-semibold text-[var(--color-ink)]">{row.full_name}</h2>
+          <p className="mt-1 text-sm font-semibold text-[var(--color-copy)]">{row.interest_title ?? "Solicitud general"}</p>
+          <div className="mt-4 grid gap-3 text-sm text-[var(--color-copy)] sm:grid-cols-2 xl:grid-cols-3">
+            <InfoMini label="Nombre" value={row.full_name} />
+            <InfoMini label="Título" value={row.interest_title ?? "General"} />
+            <InfoMini label="Tipo" value={row.interest_type ?? "General"} />
+            <InfoMini label="Ciudad" value={row.city ?? "Sin ciudad"} />
+            <InfoMini label="Fecha" value={formatRequestDate(row.created_at)} />
+            <InfoMini label="Precio" value={price ?? "No especificado"} />
+          </div>
+
+          {row.message ? (
+            <div className="mt-4 rounded-[18px] bg-white/80 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-accent-strong)]">Mensaje del paciente</p>
+              <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">{row.message}</p>
+            </div>
+          ) : null}
+
+          <textarea
+            defaultValue={row.internal_notes ?? ""}
+            onBlur={(event) => void saveNotes(event.target.value)}
+            placeholder="Notas internas"
+            className="premium-input mt-4 min-h-24"
+          />
+        </div>
+
+        <div className="flex w-full flex-col gap-2 xl:w-[280px]">
+          <a
+            href={`https://wa.me/${phone}?text=${encodeURIComponent(whatsappMessage)}`}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-[rgb(36,120,86)] px-4 py-3 text-sm font-semibold text-white"
+          >
+            <MessageCircleMore className="h-4 w-4" />
+            Abrir WhatsApp
+          </a>
+          {normalizedStatus !== "Enviado" ? (
+            <button type="button" onClick={() => void updateStatus("Enviado")} className="rounded-full border border-[var(--color-border)] px-4 py-3 text-sm font-semibold">
+              Marcar como enviado
+            </button>
+          ) : null}
+          {normalizedStatus !== "Cerrado" ? (
+            <button type="button" onClick={() => void updateStatus("Cerrado")} className="rounded-full border border-[var(--color-border)] px-4 py-3 text-sm font-semibold">
+              Cerrar solicitud
+            </button>
+          ) : null}
+          {normalizedStatus !== "Nuevo" ? (
+            <button type="button" onClick={() => void updateStatus("Nuevo")} className="rounded-full border border-[var(--color-border)] px-4 py-3 text-sm font-semibold">
+              Volver a nueva
+            </button>
+          ) : null}
+          <DeleteActions
+            role={role}
+            row={deletionRow}
+            compact
+            onSoftDelete={() => void handleSoftDelete()}
+            onRestore={() => void handleRestore()}
+            onHardDelete={() => void handleHardDelete()}
+          />
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function InfoMini({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[16px] bg-white/72 px-3 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-accent-strong)]">{label}</p>
+      <p className="mt-1 break-words font-semibold text-[var(--color-ink)]">{value}</p>
     </div>
   );
 }
@@ -929,14 +1181,23 @@ function filterRows(module: Module, rows: AdminRow[], filters: AdminListFilters)
   const query = filters.query.toLowerCase();
   return rows.filter((row) => {
     const text = JSON.stringify(row).toLowerCase();
-    const statusOk = filters.status === "Todos" || ("status" in row && row.status === filters.status);
+    const statusOk =
+      filters.status === "Todos" ||
+      ("status" in row &&
+        (module === "solicitudes"
+          ? normalizeRequestStatus(row.status) === filters.status
+          : row.status === filters.status));
     const cityOk = filters.city === "Todas" || ("city" in row && row.city === filters.city);
     const courseOk = module !== "inscripciones" || filters.courseId === "Todos" || ("course_id" in row && row.course_id === filters.courseId);
     const interestTypeOk =
       module !== "solicitudes" ||
       filters.interestType === "Todos" ||
       ("interest_type" in row && (row.interest_type ?? "General") === filters.interestType);
-    return text.includes(query) && statusOk && cityOk && courseOk && interestTypeOk;
+    const dateOk =
+      module !== "solicitudes" ||
+      !filters.date ||
+      ("created_at" in row && toInputDate(row.created_at) === filters.date);
+    return text.includes(query) && statusOk && cityOk && courseOk && interestTypeOk && dateOk;
   });
 }
 
@@ -973,8 +1234,42 @@ function whatsappHref(row: AdminRow, module: Module) {
     return `https://wa.me/${cleaned}?text=${encodeURIComponent(`Hola ${studentName}, te escribimos de parte de la Dra. sobre tu inscripción al curso "${courseTitle}".`)}`;
   }
 
+  if (module === "solicitudes" && "whatsapp_prefill_message" in row && row.whatsapp_prefill_message?.trim()) {
+    return `https://wa.me/${cleaned}?text=${encodeURIComponent(row.whatsapp_prefill_message)}`;
+  }
+
   const interest = "interest_title" in row ? row.interest_title ?? "tu solicitud" : "tu solicitud";
   return `https://wa.me/${cleaned}?text=${encodeURIComponent(`Hola, te escribimos de parte de la Dra. sobre tu solicitud de información para ${interest}.`)}`;
+}
+
+function normalizeRequestStatus(status?: string | null) {
+  const value = (status ?? "").trim().toLowerCase();
+  if (value === "enviado" || value === "contactado" || value === "agendado") return "Enviado";
+  if (value === "cerrado" || value === "finalizado" || value === "descartado") return "Cerrado";
+  return "Nuevo";
+}
+
+function toInputDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return localDate.toISOString().slice(0, 10);
+}
+
+function formatRequestDate(value: string) {
+  return new Date(value).toLocaleString("es-BO", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function extractPriceFromRequest(row: InformationRequestRow) {
+  const match = row.whatsapp_prefill_message?.match(/(\d+[.,]?\d*)/);
+  if (!match) return null;
+  return `Bs. ${match[1]}`;
 }
 
 function getFields(module: Exclude<Module, "inscripciones" | "solicitudes" | "usuarios">) {
@@ -1230,3 +1525,4 @@ function getDeleteTableName(module: Module): DeletableTable | null {
   if (module === "usuarios") return "profiles";
   return null;
 }
+

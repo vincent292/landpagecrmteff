@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CalendarDays, Clock, Eye, PauseCircle, Plus, Save } from "lucide-react";
+import { CalendarDays, Clock, Eye, PauseCircle, Pencil, Plus, Save, Search } from "lucide-react";
 import { useForm, type Resolver } from "react-hook-form";
 import { z } from "zod";
 
@@ -69,6 +69,7 @@ const ruleSchema = z
 
 const blockSchema = z
   .object({
+    doctor_id: z.string().optional(),
     city: z.string().optional(),
     block_date: z.string().min(1, "La fecha es obligatoria."),
     full_day: z.boolean().default(true),
@@ -88,6 +89,7 @@ const blockSchema = z
 
 type RuleForm = z.infer<typeof ruleSchema>;
 type BlockForm = z.infer<typeof blockSchema>;
+type AvailabilityView = "new-rule" | "rules" | "new-block" | "blocks";
 
 export function AvailabilityAdminPage() {
   const { profile, role, user } = useAuth();
@@ -95,6 +97,13 @@ export function AvailabilityAdminPage() {
   const [blocks, setBlocks] = useState<AvailabilityBlockRow[]>([]);
   const [reservations, setReservations] = useState<AppointmentReservationRow[]>([]);
   const [doctors, setDoctors] = useState<DoctorProfileRow[]>([]);
+  const [view, setView] = useState<AvailabilityView>("new-rule");
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
+  const [doctorQuery, setDoctorQuery] = useState("");
+  const [doctorPickerOpen, setDoctorPickerOpen] = useState(false);
+  const [blockDoctorQuery, setBlockDoctorQuery] = useState("");
+  const [blockDoctorPickerOpen, setBlockDoctorPickerOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -102,48 +111,25 @@ export function AvailabilityAdminPage() {
 
   const ruleForm = useForm<RuleForm>({
     resolver: zodResolver(ruleSchema) as unknown as Resolver<RuleForm>,
-    defaultValues: {
-      doctor_id: "",
-      city: "Cochabamba",
-      location: "",
-      appointment_type: "Valoracion estetica",
-      agenda_tag: "",
-      availability_type: "recurring",
-      start_date: "",
-      end_date: "",
-      specific_date: "",
-      days: [1],
-      start_time: "09:00",
-      end_time: "12:00",
-      slot_duration_minutes: 30,
-      break_minutes: 10,
-      capacity_per_slot: 1,
-      is_active: true,
-    },
+    defaultValues: getDefaultRuleValues(),
   });
 
   const blockForm = useForm<BlockForm>({
     resolver: zodResolver(blockSchema) as unknown as Resolver<BlockForm>,
-    defaultValues: {
-      city: "",
-      block_date: "",
-      full_day: true,
-      start_time: "",
-      end_time: "",
-      reason: "",
-      is_active: true,
-    },
+    defaultValues: getDefaultBlockValues(),
   });
 
   const watchedRule = ruleForm.watch();
-  const previewSlots = useMemo(() => {
-    return generatePreviewSlots(
-      watchedRule.start_time,
-      watchedRule.end_time,
-      Number(watchedRule.slot_duration_minutes),
-      Number(watchedRule.break_minutes)
-    );
-  }, [watchedRule.break_minutes, watchedRule.end_time, watchedRule.slot_duration_minutes, watchedRule.start_time]);
+  const previewSlots = useMemo(
+    () =>
+      generatePreviewSlots(
+        watchedRule.start_time,
+        watchedRule.end_time,
+        Number(watchedRule.slot_duration_minutes),
+        Number(watchedRule.break_minutes)
+      ),
+    [watchedRule.break_minutes, watchedRule.end_time, watchedRule.slot_duration_minutes, watchedRule.start_time]
+  );
 
   const load = () => {
     setLoading(true);
@@ -168,15 +154,52 @@ export function AvailabilityAdminPage() {
 
   useEffect(() => {
     if (doctors.length === 0) return;
+    if (editingRuleId) return;
 
     const currentDoctorId = ruleForm.getValues("doctor_id");
     if (currentDoctorId && doctors.some((doctor) => doctor.id === currentDoctorId)) return;
 
     const ownDoctor = doctors.find((doctor) => doctor.profile_id === profile?.id);
-    ruleForm.setValue("doctor_id", ownDoctor?.id ?? doctors[0].id, { shouldValidate: true });
-  }, [doctors, profile?.id, ruleForm]);
+    const nextDoctor = ownDoctor ?? doctors[0];
+    ruleForm.setValue("doctor_id", nextDoctor.id, { shouldValidate: true });
+    setDoctorQuery(nextDoctor.full_name);
+  }, [doctors, editingRuleId, profile?.id, ruleForm]);
 
-  const createRule = async (values: RuleForm) => {
+  const filteredDoctors = useMemo(() => {
+    const normalizedQuery = normalizeSearchText(doctorQuery);
+    if (!normalizedQuery) return doctors.slice(0, 8);
+    return doctors.filter((doctor) => buildDoctorSearchIndex(doctor).includes(normalizedQuery)).slice(0, 8);
+  }, [doctorQuery, doctors]);
+
+  const filteredBlockDoctors = useMemo(() => {
+    const normalizedQuery = normalizeSearchText(blockDoctorQuery);
+    if (!normalizedQuery) return doctors.slice(0, 8);
+    return doctors.filter((doctor) => buildDoctorSearchIndex(doctor).includes(normalizedQuery)).slice(0, 8);
+  }, [blockDoctorQuery, doctors]);
+
+  const futureRules = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return rules
+      .filter((rule) => {
+        if (rule.availability_type === "specific") {
+          return (rule.specific_date ?? "") >= today;
+        }
+        return !rule.end_date || rule.end_date >= today;
+      })
+      .sort((left, right) => getRuleSortDate(left).localeCompare(getRuleSortDate(right)));
+  }, [rules]);
+
+  const futureBlocks = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return blocks
+      .filter((block) => block.block_date >= today)
+      .sort((left, right) => left.block_date.localeCompare(right.block_date));
+  }, [blocks]);
+
+  const pendingCount = reservations.filter((item) => item.status === "Pendiente").length;
+  const confirmedCount = reservations.filter((item) => item.status === "Confirmada").length;
+
+  const createOrUpdateRule = async (values: RuleForm) => {
     setSaving(true);
     setSuccess("");
     try {
@@ -196,7 +219,16 @@ export function AvailabilityAdminPage() {
         is_active: values.is_active,
       };
 
-      if (values.availability_type === "specific") {
+      if (editingRuleId) {
+        await updateAvailabilityRule(editingRuleId, {
+          ...common,
+          specific_date: values.availability_type === "specific" ? values.specific_date : null,
+          start_date: values.availability_type === "recurring" ? values.start_date || null : null,
+          end_date: values.availability_type === "recurring" ? values.end_date || null : null,
+          day_of_week: values.availability_type === "recurring" ? values.days[0] ?? null : null,
+        });
+        setSuccess("Disponibilidad actualizada correctamente.");
+      } else if (values.availability_type === "specific") {
         await createAvailabilityRule({
           ...common,
           specific_date: values.specific_date,
@@ -204,6 +236,7 @@ export function AvailabilityAdminPage() {
           end_date: null,
           day_of_week: null,
         });
+        setSuccess("Disponibilidad creada correctamente.");
       } else {
         await Promise.all(
           values.days.map((day) =>
@@ -216,12 +249,12 @@ export function AvailabilityAdminPage() {
             })
           )
         );
+        setSuccess("Disponibilidades creadas correctamente.");
       }
 
-      ruleForm.reset({ ...values, days: values.days });
-      setSuccess("Disponibilidad creada correctamente.");
+      cancelRuleEditing();
       load();
-    } catch (err) {
+    } catch {
       setSuccess("");
       setError(true);
     } finally {
@@ -229,21 +262,30 @@ export function AvailabilityAdminPage() {
     }
   };
 
-  const createBlock = async (values: BlockForm) => {
+  const createOrUpdateBlock = async (values: BlockForm) => {
     setSaving(true);
     setSuccess("");
     try {
-      await createAvailabilityBlock({
+      const payload = {
         created_by: profile?.id ?? null,
+        doctor_id: values.doctor_id || null,
         city: values.city || null,
         block_date: values.block_date,
         start_time: values.full_day ? null : values.start_time,
         end_time: values.full_day ? null : values.end_time,
         reason: values.reason || null,
         is_active: values.is_active,
-      });
-      blockForm.reset();
-      setSuccess("Bloqueo guardado.");
+      };
+
+      if (editingBlockId) {
+        await updateAvailabilityBlock(editingBlockId, payload);
+        setSuccess("Bloqueo actualizado correctamente.");
+      } else {
+        await createAvailabilityBlock(payload);
+        setSuccess("Bloqueo guardado.");
+      }
+
+      cancelBlockEditing();
       load();
     } catch {
       setError(true);
@@ -252,8 +294,67 @@ export function AvailabilityAdminPage() {
     }
   };
 
-  const pendingCount = reservations.filter((item) => item.status === "Pendiente").length;
-  const confirmedCount = reservations.filter((item) => item.status === "Confirmada").length;
+  const beginRuleEdit = (rule: AvailabilityRuleRow) => {
+    setEditingRuleId(rule.id);
+    ruleForm.reset({
+      doctor_id: rule.doctor_id ?? "",
+      city: rule.city,
+      location: rule.location ?? "",
+      appointment_type: rule.appointment_type,
+      agenda_tag: rule.agenda_tag ?? "",
+      availability_type: rule.availability_type,
+      start_date: rule.start_date ?? "",
+      end_date: rule.end_date ?? "",
+      specific_date: rule.specific_date ?? "",
+      days: rule.day_of_week != null ? [rule.day_of_week] : [],
+      start_time: normalizeTime(rule.start_time),
+      end_time: normalizeTime(rule.end_time),
+      slot_duration_minutes: rule.slot_duration_minutes,
+      break_minutes: rule.break_minutes,
+      capacity_per_slot: rule.capacity_per_slot,
+      is_active: rule.is_active,
+    });
+    setDoctorQuery(rule.doctor_profiles?.full_name ?? "");
+    setView("new-rule");
+  };
+
+  const beginBlockEdit = (block: AvailabilityBlockRow) => {
+    setEditingBlockId(block.id);
+    blockForm.reset({
+      doctor_id: block.doctor_id ?? "",
+      city: block.city ?? "",
+      block_date: block.block_date,
+      full_day: !block.start_time,
+      start_time: normalizeTime(block.start_time),
+      end_time: normalizeTime(block.end_time),
+      reason: block.reason ?? "",
+      is_active: block.is_active,
+    });
+    setBlockDoctorQuery(block.doctor_profiles?.full_name ?? "");
+    setView("new-block");
+  };
+
+  const cancelRuleEditing = () => {
+    setEditingRuleId(null);
+    ruleForm.reset(getDefaultRuleValues());
+    const ownDoctor = doctors.find((doctor) => doctor.profile_id === profile?.id);
+    const nextDoctor = ownDoctor ?? doctors[0];
+    if (nextDoctor) {
+      ruleForm.setValue("doctor_id", nextDoctor.id, { shouldValidate: true });
+      setDoctorQuery(nextDoctor.full_name);
+    } else {
+      setDoctorQuery("");
+    }
+  };
+
+  const cancelBlockEditing = () => {
+    setEditingBlockId(null);
+    blockForm.reset(getDefaultBlockValues());
+    setBlockDoctorQuery("");
+  };
+
+  const ruleCount = futureRules.length;
+  const blockCount = futureBlocks.length;
 
   return (
     <div className="space-y-8">
@@ -264,149 +365,200 @@ export function AvailabilityAdminPage() {
           </p>
           <h1 className="font-display mt-3 text-5xl font-semibold">Horarios sin choques</h1>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--color-copy)]">
-            Configura ciudades, dias, cupos y bloqueos. Las reservas se validan en Supabase antes de guardarse.
+            Separamos disponibilidad y bloqueos en vistas claras para que administrar la agenda no se sienta saturado cuando el sistema crezca.
           </p>
         </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
-        <SummaryCard icon={<CalendarDays className="h-5 w-5" />} label="Disponibilidades" value={rules.length} />
-        <SummaryCard icon={<PauseCircle className="h-5 w-5" />} label="Bloqueos activos" value={blocks.filter((item) => item.is_active).length} />
+        <SummaryCard icon={<CalendarDays className="h-5 w-5" />} label="Disponibilidades activas" value={ruleCount} />
+        <SummaryCard icon={<PauseCircle className="h-5 w-5" />} label="Bloqueos desde hoy" value={blockCount} />
         <SummaryCard icon={<Clock className="h-5 w-5" />} label="Pendientes" value={pendingCount} />
         <SummaryCard icon={<Eye className="h-5 w-5" />} label="Confirmadas" value={confirmedCount} />
       </div>
 
-      {success && (
+      <section className="rounded-[30px] border border-[var(--color-border)] bg-white/75 p-3 shadow-[0_20px_70px_rgba(62,42,31,0.07)] sm:p-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <ViewCard
+            label="Nueva disponibilidad"
+            description="Crear o editar los horarios de atencion."
+            value={editingRuleId ? "Editando" : "Formulario"}
+            active={view === "new-rule"}
+            onClick={() => setView("new-rule")}
+          />
+          <ViewCard
+            label="Disponibilidades"
+            description="Solo mostramos las reglas vigentes desde hoy."
+            value={String(ruleCount)}
+            active={view === "rules"}
+            onClick={() => setView("rules")}
+          />
+          <ViewCard
+            label="Nuevo bloqueo"
+            description="Bloquea dias completos u horarios puntuales."
+            value={editingBlockId ? "Editando" : "Formulario"}
+            active={view === "new-block"}
+            onClick={() => setView("new-block")}
+          />
+          <ViewCard
+            label="Bloqueos"
+            description="Revisa los bloqueos futuros sin arrastrar historico viejo."
+            value={String(blockCount)}
+            active={view === "blocks"}
+            onClick={() => setView("blocks")}
+          />
+        </div>
+      </section>
+
+      {success ? (
         <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold text-emerald-800">
           {success}
         </div>
-      )}
+      ) : null}
 
-      <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-        <form onSubmit={ruleForm.handleSubmit(createRule)} className="rounded-[30px] border border-[var(--color-border)] bg-white/75 p-6 shadow-[0_20px_70px_rgba(62,42,31,0.07)]">
-          <div className="flex items-center gap-3">
-            <div className="rounded-full bg-[rgba(198,162,123,0.16)] p-3 text-[var(--color-mocha)]">
-              <Plus className="h-5 w-5" />
+      {view === "new-rule" ? (
+        <section className="grid gap-6 xl:grid-cols-[1.12fr_0.88fr]">
+          <form onSubmit={ruleForm.handleSubmit(createOrUpdateRule)} className="rounded-[30px] border border-[var(--color-border)] bg-white/75 p-6 shadow-[0_20px_70px_rgba(62,42,31,0.07)]">
+            <div className="flex items-center gap-3">
+              <div className="rounded-full bg-[rgba(198,162,123,0.16)] p-3 text-[var(--color-mocha)]">
+                {editingRuleId ? <Pencil className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
+              </div>
+              <div>
+                <h2 className="text-2xl font-semibold">{editingRuleId ? "Editar disponibilidad" : "Crear disponibilidad"}</h2>
+                <p className="text-sm text-[var(--color-copy)]">Busca la doctora como en citas y ajusta ese dia o ese bloque sin perder tiempo.</p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-2xl font-semibold">Crear disponibilidad</h2>
-              <p className="text-sm text-[var(--color-copy)]">Define cuando atendera la doctora.</p>
-            </div>
-          </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            <Field label="Doctora" error={ruleForm.formState.errors.doctor_id?.message}>
-              <select {...ruleForm.register("doctor_id")} className="premium-input">
-                <option value="">Seleccionar doctora</option>
-                {doctors.map((doctor) => (
-                  <option key={doctor.id} value={doctor.id}>
-                    {doctor.full_name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="¿En que ciudad atenderas?" error={ruleForm.formState.errors.city?.message}>
-              <select {...ruleForm.register("city")} className="premium-input">
-                <option value="">Selecciona ciudad</option>
-                {boliviaCities.map((city) => (
-                  <option key={city} value={city}>
-                    {city}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Ubicacion">
-              <input {...ruleForm.register("location")} className="premium-input" placeholder="Clinica central" />
-            </Field>
-            <Field label="Tipo de cita" error={ruleForm.formState.errors.appointment_type?.message}>
-              <select {...ruleForm.register("appointment_type")} className="premium-input">
-                {appointmentTypes.map((item) => <option key={item}>{item}</option>)}
-              </select>
-            </Field>
-            <Field label="Tag de agenda opcional">
-              <input {...ruleForm.register("agenda_tag")} className="premium-input" placeholder="Ej: madres-mayo-2026" />
-            </Field>
-            <Field label="Modalidad">
-              <select {...ruleForm.register("availability_type")} className="premium-input">
-                <option value="recurring">Recurrente semanal</option>
-                <option value="specific">Fecha especifica</option>
-              </select>
-            </Field>
-
-            {watchedRule.availability_type === "specific" ? (
-              <Field label="Fecha especifica" error={ruleForm.formState.errors.specific_date?.message}>
-                <input type="date" {...ruleForm.register("specific_date")} className="premium-input" />
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <DoctorCombobox
+                label="Doctora"
+                query={doctorQuery}
+                open={doctorPickerOpen}
+                doctors={filteredDoctors}
+                error={ruleForm.formState.errors.doctor_id?.message}
+                onFocus={() => setDoctorPickerOpen(true)}
+                onBlur={() => window.setTimeout(() => setDoctorPickerOpen(false), 120)}
+                onChange={(value) => {
+                  setDoctorQuery(value);
+                  setDoctorPickerOpen(true);
+                  ruleForm.setValue("doctor_id", "", { shouldValidate: true });
+                }}
+                onSelect={(doctor) => {
+                  ruleForm.setValue("doctor_id", doctor.id, { shouldValidate: true });
+                  setDoctorQuery(doctor.full_name);
+                  setDoctorPickerOpen(false);
+                }}
+              />
+              <Field label="Ciudad" error={ruleForm.formState.errors.city?.message}>
+                <select {...ruleForm.register("city")} className="premium-input">
+                  <option value="">Selecciona ciudad</option>
+                  {boliviaCities.map((city) => (
+                    <option key={city} value={city}>
+                      {city}
+                    </option>
+                  ))}
+                </select>
               </Field>
-            ) : (
-              <>
-                <Field label="Fecha inicio">
-                  <input type="date" {...ruleForm.register("start_date")} className="premium-input" />
+              <Field label="Ubicacion">
+                <input {...ruleForm.register("location")} className="premium-input" placeholder="Clinica central" />
+              </Field>
+              <Field label="Tipo de cita" error={ruleForm.formState.errors.appointment_type?.message}>
+                <select {...ruleForm.register("appointment_type")} className="premium-input">
+                  {appointmentTypes.map((item) => (
+                    <option key={item}>{item}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Tag de agenda opcional">
+                <input {...ruleForm.register("agenda_tag")} className="premium-input" placeholder="Ej: madres-mayo-2026" />
+              </Field>
+              <Field label="Modalidad">
+                <select {...ruleForm.register("availability_type")} className="premium-input">
+                  <option value="recurring">Recurrente semanal</option>
+                  <option value="specific">Fecha especifica</option>
+                </select>
+              </Field>
+
+              {watchedRule.availability_type === "specific" ? (
+                <Field label="Fecha especifica" error={ruleForm.formState.errors.specific_date?.message}>
+                  <input type="date" {...ruleForm.register("specific_date")} className="premium-input" />
                 </Field>
-                <Field label="Fecha fin">
-                  <input type="date" {...ruleForm.register("end_date")} className="premium-input" />
-                </Field>
-                <div className="md:col-span-2">
-                  <p className="text-sm font-semibold">¿Que dias estaras disponible?</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {days.map((day) => {
-                      const selected = watchedRule.days?.includes(day.value);
-                      return (
-                        <button
-                          key={day.value}
-                          type="button"
-                          onClick={() => {
-                            const current = ruleForm.getValues("days") ?? [];
-                            ruleForm.setValue(
-                              "days",
-                              selected ? current.filter((item) => item !== day.value) : [...current, day.value],
-                              { shouldValidate: true }
-                            );
-                          }}
-                          className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                            selected ? "border-[var(--color-mocha)] bg-[var(--color-mocha)] text-white" : "border-[var(--color-border)] bg-white/70"
-                          }`}
-                        >
-                          {day.label}
-                        </button>
-                      );
-                    })}
+              ) : (
+                <>
+                  <Field label="Fecha inicio">
+                    <input type="date" {...ruleForm.register("start_date")} className="premium-input" />
+                  </Field>
+                  <Field label="Fecha fin">
+                    <input type="date" {...ruleForm.register("end_date")} className="premium-input" />
+                  </Field>
+                  <div className="md:col-span-2">
+                    <p className="text-sm font-semibold">Dias de atencion</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {days.map((day) => {
+                        const selected = watchedRule.days?.includes(day.value);
+                        return (
+                          <button
+                            key={day.value}
+                            type="button"
+                            onClick={() => {
+                              const current = ruleForm.getValues("days") ?? [];
+                              ruleForm.setValue(
+                                "days",
+                                selected ? current.filter((item) => item !== day.value) : [...current, day.value],
+                                { shouldValidate: true }
+                              );
+                            }}
+                            className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                              selected ? "border-[var(--color-mocha)] bg-[var(--color-mocha)] text-white" : "border-[var(--color-border)] bg-white/70"
+                            }`}
+                          >
+                            {day.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {ruleForm.formState.errors.days?.message ? (
+                      <p className="mt-2 text-xs text-red-700">{ruleForm.formState.errors.days.message}</p>
+                    ) : null}
                   </div>
-                  {ruleForm.formState.errors.days?.message && (
-                    <p className="mt-2 text-xs text-red-700">{ruleForm.formState.errors.days.message}</p>
-                  )}
-                </div>
-              </>
-            )}
+                </>
+              )}
 
-            <Field label="¿Desde que hora?" error={ruleForm.formState.errors.start_time?.message}>
-              <input type="time" {...ruleForm.register("start_time")} className="premium-input" />
-            </Field>
-            <Field label="¿Hasta que hora?" error={ruleForm.formState.errors.end_time?.message}>
-              <input type="time" {...ruleForm.register("end_time")} className="premium-input" />
-            </Field>
-            <Field label="¿Cuanto dura cada cita?" error={ruleForm.formState.errors.slot_duration_minutes?.message}>
-              <input type="number" {...ruleForm.register("slot_duration_minutes", { valueAsNumber: true })} className="premium-input" min={5} />
-            </Field>
-            <Field label="¿Descanso entre pacientes?" error={ruleForm.formState.errors.break_minutes?.message}>
-              <input type="number" {...ruleForm.register("break_minutes", { valueAsNumber: true })} className="premium-input" min={0} />
-            </Field>
-            <Field label="¿Cupos por horario?" error={ruleForm.formState.errors.capacity_per_slot?.message}>
-              <input type="number" {...ruleForm.register("capacity_per_slot", { valueAsNumber: true })} className="premium-input" min={1} />
-            </Field>
-            <label className="flex items-center gap-3 self-end rounded-2xl border border-[var(--color-border)] bg-white/60 px-4 py-3 text-sm font-semibold">
-              <input type="checkbox" {...ruleForm.register("is_active")} />
-              Activo
-            </label>
-          </div>
+              <Field label="Hora inicio" error={ruleForm.formState.errors.start_time?.message}>
+                <input type="time" {...ruleForm.register("start_time")} className="premium-input" />
+              </Field>
+              <Field label="Hora fin" error={ruleForm.formState.errors.end_time?.message}>
+                <input type="time" {...ruleForm.register("end_time")} className="premium-input" />
+              </Field>
+              <Field label="Duracion por cita" error={ruleForm.formState.errors.slot_duration_minutes?.message}>
+                <input type="number" {...ruleForm.register("slot_duration_minutes", { valueAsNumber: true })} className="premium-input" min={5} />
+              </Field>
+              <Field label="Descanso entre pacientes" error={ruleForm.formState.errors.break_minutes?.message}>
+                <input type="number" {...ruleForm.register("break_minutes", { valueAsNumber: true })} className="premium-input" min={0} />
+              </Field>
+              <Field label="Cupos por horario" error={ruleForm.formState.errors.capacity_per_slot?.message}>
+                <input type="number" {...ruleForm.register("capacity_per_slot", { valueAsNumber: true })} className="premium-input" min={1} />
+              </Field>
+              <label className="flex items-center gap-3 self-end rounded-2xl border border-[var(--color-border)] bg-white/60 px-4 py-3 text-sm font-semibold">
+                <input type="checkbox" {...ruleForm.register("is_active")} />
+                Activo
+              </label>
+            </div>
 
-          <button disabled={saving} className="mt-6 inline-flex items-center gap-2 rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-60">
-            <Save className="h-4 w-4" />
-            {saving ? "Guardando..." : "Guardar disponibilidad"}
-          </button>
-        </form>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <button disabled={saving} className="inline-flex items-center gap-2 rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-60">
+                <Save className="h-4 w-4" />
+                {saving ? "Guardando..." : editingRuleId ? "Guardar cambios" : "Guardar disponibilidad"}
+              </button>
+              {editingRuleId ? (
+                <button type="button" onClick={cancelRuleEditing} className="rounded-full border border-[var(--color-border)] px-6 py-3 text-sm font-semibold">
+                  Cancelar edicion
+                </button>
+              ) : null}
+            </div>
+          </form>
 
-        <aside className="space-y-6">
-          <div className="rounded-[30px] border border-[var(--color-border)] bg-[rgba(255,249,244,0.78)] p-6">
+          <aside className="rounded-[30px] border border-[var(--color-border)] bg-[rgba(255,249,244,0.78)] p-6">
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-accent-strong)]">
               Vista previa
             </p>
@@ -422,12 +574,111 @@ export function AvailabilityAdminPage() {
                 ))
               )}
             </div>
-          </div>
+          </aside>
+        </section>
+      ) : null}
 
-          <form onSubmit={blockForm.handleSubmit(createBlock)} className="rounded-[30px] border border-[var(--color-border)] bg-white/75 p-6">
-            <h2 className="text-2xl font-semibold">Bloquear horario</h2>
-            <p className="mt-1 text-sm text-[var(--color-copy)]">Úsalo para viajes, cirugías o días sin atención.</p>
+      {view === "rules" ? (
+        <section className="rounded-[30px] border border-[var(--color-border)] bg-[rgba(255,249,244,0.62)] p-5">
+          <h2 className="text-2xl font-semibold">Disponibilidades vigentes</h2>
+          <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">
+            Solo mostramos fechas especificas desde hoy y reglas recurrentes que siguen vivas para no ensuciar la vista con historico pasado.
+          </p>
+          <div className="mt-5 grid gap-3">
+            {loading ? <LoadingState /> : null}
+            {error ? <ErrorState /> : null}
+            {!loading && !error && futureRules.length === 0 ? <EmptyState label="No hay disponibilidades vigentes desde hoy." /> : null}
+            {!loading && !error && futureRules.map((rule) => (
+              <div key={rule.id} className="rounded-[24px] border border-[var(--color-border)] bg-white/70 p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-semibold">
+                      {rule.doctor_profiles?.full_name ?? "Doctora sin asignar"} · {rule.city} · {rule.appointment_type}
+                    </h3>
+                    <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">
+                      {rule.availability_type === "specific"
+                        ? `Fecha: ${rule.specific_date}`
+                        : `${days.find((day) => day.value === rule.day_of_week)?.label ?? "Dia"} · ${rule.start_date ?? "sin inicio"} a ${rule.end_date ?? "sin fin"}`}
+                      <br />
+                      {normalizeTime(rule.start_time)} - {normalizeTime(rule.end_time)} · {rule.slot_duration_minutes} min · descanso {rule.break_minutes} min · cupos {rule.capacity_per_slot}
+                      {rule.agenda_tag ? ` · tag ${rule.agenda_tag}` : ""}
+                    </p>
+                    <DeletedStatusNote row={rule} />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={() => beginRuleEdit(rule)} className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] px-4 py-2 text-xs font-semibold">
+                      <Pencil className="h-3.5 w-3.5" />
+                      Editar
+                    </button>
+                    <button
+                      onClick={() => void updateAvailabilityRule(rule.id, { is_active: !rule.is_active }).then(load)}
+                      className="rounded-full border border-[var(--color-border)] px-4 py-2 text-xs font-semibold"
+                    >
+                      {rule.is_active ? "Desactivar" : "Activar"}
+                    </button>
+                    <DeleteActions
+                      role={role}
+                      row={rule}
+                      compact
+                      onSoftDelete={() =>
+                        void softDeleteRecord({
+                          table: "doctor_availability_rules",
+                          id: rule.id,
+                          actorId: profile?.id ?? user?.id ?? null,
+                          actorRole: role,
+                          actorName: profile?.full_name ?? user?.user_metadata.full_name ?? null,
+                          actorEmail: profile?.email ?? user?.email ?? null,
+                        }).then(load)
+                      }
+                      onRestore={() => void restoreRecord("doctor_availability_rules", rule.id).then(load)}
+                      onHardDelete={() => void hardDeleteRecord("doctor_availability_rules", rule.id).then(load)}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {view === "new-block" ? (
+        <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+          <form onSubmit={blockForm.handleSubmit(createOrUpdateBlock)} className="rounded-[30px] border border-[var(--color-border)] bg-white/75 p-6 shadow-[0_20px_70px_rgba(62,42,31,0.07)]">
+            <div className="flex items-center gap-3">
+              <div className="rounded-full bg-[rgba(198,162,123,0.16)] p-3 text-[var(--color-mocha)]">
+                {editingBlockId ? <Pencil className="h-5 w-5" /> : <PauseCircle className="h-5 w-5" />}
+              </div>
+              <div>
+                <h2 className="text-2xl font-semibold">{editingBlockId ? "Editar bloqueo" : "Bloquear horario"}</h2>
+                <p className="text-sm text-[var(--color-copy)]">Lo dejamos en una vista aparte para que viajes, pausas o cirugias no compitan con la carga de disponibilidades.</p>
+              </div>
+            </div>
+
             <div className="mt-5 grid gap-4">
+              <DoctorCombobox
+                label="Doctora opcional"
+                query={blockDoctorQuery}
+                open={blockDoctorPickerOpen}
+                doctors={filteredBlockDoctors}
+                onFocus={() => setBlockDoctorPickerOpen(true)}
+                onBlur={() => window.setTimeout(() => setBlockDoctorPickerOpen(false), 120)}
+                onChange={(value) => {
+                  setBlockDoctorQuery(value);
+                  setBlockDoctorPickerOpen(true);
+                  blockForm.setValue("doctor_id", "", { shouldValidate: false });
+                }}
+                onSelect={(doctor) => {
+                  blockForm.setValue("doctor_id", doctor.id, { shouldValidate: false });
+                  setBlockDoctorQuery(doctor.full_name);
+                  setBlockDoctorPickerOpen(false);
+                }}
+                allowClear
+                onClear={() => {
+                  blockForm.setValue("doctor_id", "", { shouldValidate: false });
+                  setBlockDoctorQuery("");
+                  setBlockDoctorPickerOpen(false);
+                }}
+              />
               <Field label="Fecha" error={blockForm.formState.errors.block_date?.message}>
                 <input type="date" {...blockForm.register("block_date")} className="premium-input" />
               </Field>
@@ -445,7 +696,7 @@ export function AvailabilityAdminPage() {
                 <input type="checkbox" {...blockForm.register("full_day")} />
                 Bloquear dia completo
               </label>
-              {!blockForm.watch("full_day") && (
+              {!blockForm.watch("full_day") ? (
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Field label="Hora inicio" error={blockForm.formState.errors.start_time?.message}>
                     <input type="time" {...blockForm.register("start_time")} className="premium-input" />
@@ -454,120 +705,105 @@ export function AvailabilityAdminPage() {
                     <input type="time" {...blockForm.register("end_time")} className="premium-input" />
                   </Field>
                 </div>
-              )}
+              ) : null}
               <Field label="Motivo">
                 <textarea {...blockForm.register("reason")} className="premium-input min-h-24" />
               </Field>
-              <button disabled={saving} className="rounded-full border border-[var(--color-border)] bg-white/70 px-5 py-3 text-sm font-semibold">
-                Guardar bloqueo
+            </div>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <button disabled={saving} className="inline-flex items-center gap-2 rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-60">
+                <Save className="h-4 w-4" />
+                {saving ? "Guardando..." : editingBlockId ? "Guardar bloqueo" : "Guardar bloqueo"}
               </button>
+              {editingBlockId ? (
+                <button type="button" onClick={cancelBlockEditing} className="rounded-full border border-[var(--color-border)] px-6 py-3 text-sm font-semibold">
+                  Cancelar edicion
+                </button>
+              ) : null}
             </div>
           </form>
-        </aside>
-      </section>
 
-      <section className="grid gap-6 xl:grid-cols-2">
-        <AdminList
-          title="Disponibilidades"
-          loading={loading}
-          error={error}
-          empty="Todavía no hay disponibilidades."
-          rows={rules}
-          render={(rule) => (
-            <div key={rule.id} className="rounded-[24px] border border-[var(--color-border)] bg-white/70 p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-lg font-semibold">
-                    {rule.doctor_profiles?.full_name ?? "Doctora sin asignar"} · {rule.city} · {rule.appointment_type}
-                  </h3>
-                  <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">
-                    {rule.availability_type === "specific"
-                      ? `Fecha: ${rule.specific_date}`
-                      : `${days.find((day) => day.value === rule.day_of_week)?.label ?? "Dia"} · ${rule.start_date ?? "sin inicio"} a ${rule.end_date ?? "sin fin"}`}
-                    <br />
-                    {rule.start_time} - {rule.end_time} · {rule.slot_duration_minutes} min · descanso {rule.break_minutes} min · cupos {rule.capacity_per_slot}
-                    {rule.agenda_tag ? ` · tag ${rule.agenda_tag}` : ""}
-                  </p>
-                  <DeletedStatusNote row={rule} />
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => void updateAvailabilityRule(rule.id, { is_active: !rule.is_active }).then(load)}
-                    className="rounded-full border border-[var(--color-border)] px-4 py-2 text-xs font-semibold"
-                  >
-                    {rule.is_active ? "Desactivar" : "Activar"}
-                  </button>
-                  <DeleteActions
-                    role={role}
-                    row={rule}
-                    compact
-                    onSoftDelete={() =>
-                      void softDeleteRecord({
-                        table: "doctor_availability_rules",
-                        id: rule.id,
-                        actorId: profile?.id ?? user?.id ?? null,
-                        actorRole: role,
-                        actorName: profile?.full_name ?? user?.user_metadata.full_name ?? null,
-                        actorEmail: profile?.email ?? user?.email ?? null,
-                      }).then(load)
-                    }
-                    onRestore={() => void restoreRecord("doctor_availability_rules", rule.id).then(load)}
-                    onHardDelete={() => void hardDeleteRecord("doctor_availability_rules", rule.id).then(load)}
-                  />
-                </div>
+          <aside className="rounded-[30px] border border-[var(--color-border)] bg-[rgba(255,249,244,0.78)] p-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-accent-strong)]">
+              Criterio visual
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold">Bloqueos mas claros</h2>
+            <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
+              Si el bloqueo es general, dejas doctora vacia. Si es solo para una doctora o una media jornada, aqui puedes limitarlo sin ensuciar toda la agenda.
+            </p>
+            <div className="mt-5 grid gap-3">
+              <div className="rounded-[22px] bg-white/72 px-4 py-4 text-sm leading-7 text-[var(--color-copy)]">
+                <strong className="text-[var(--color-ink)]">Desde hoy en adelante:</strong> los bloqueos historicos ya no se muestran en la vista operativa.
+              </div>
+              <div className="rounded-[22px] bg-white/72 px-4 py-4 text-sm leading-7 text-[var(--color-copy)]">
+                <strong className="text-[var(--color-ink)]">Con lapiz:</strong> puedes volver a abrir un bloqueo para ajustar horario, motivo o ciudad cuando cambie la jornada.
               </div>
             </div>
-          )}
-        />
+          </aside>
+        </section>
+      ) : null}
 
-        <AdminList
-          title="Bloqueos"
-          loading={loading}
-          error={error}
-          empty="Todavía no hay bloqueos."
-          rows={blocks}
-          render={(block) => (
-            <div key={block.id} className="rounded-[24px] border border-[var(--color-border)] bg-white/70 p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-lg font-semibold">{block.block_date} · {block.city ?? "Todas las ciudades"}</h3>
-                  <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">
-                    {block.start_time ? `${block.start_time} - ${block.end_time}` : "Dia completo"}
-                    <br />
-                    {block.reason ?? "Sin motivo"}
-                  </p>
-                  <DeletedStatusNote row={block} />
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => void updateAvailabilityBlock(block.id, { is_active: !block.is_active }).then(load)}
-                    className="rounded-full border border-[var(--color-border)] px-4 py-2 text-xs font-semibold"
-                  >
-                    {block.is_active ? "Desactivar" : "Activar"}
-                  </button>
-                  <DeleteActions
-                    role={role}
-                    row={block}
-                    compact
-                    onSoftDelete={() =>
-                      void softDeleteRecord({
-                        table: "availability_blocks",
-                        id: block.id,
-                        actorId: profile?.id ?? user?.id ?? null,
-                        actorRole: role,
-                        actorName: profile?.full_name ?? user?.user_metadata.full_name ?? null,
-                        actorEmail: profile?.email ?? user?.email ?? null,
-                      }).then(load)
-                    }
-                    onRestore={() => void restoreRecord("availability_blocks", block.id).then(load)}
-                    onHardDelete={() => void hardDeleteRecord("availability_blocks", block.id).then(load)}
-                  />
+      {view === "blocks" ? (
+        <section className="rounded-[30px] border border-[var(--color-border)] bg-[rgba(255,249,244,0.62)] p-5">
+          <h2 className="text-2xl font-semibold">Bloqueos vigentes</h2>
+          <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">
+            Solo aparecen bloqueos desde hoy hacia adelante para que la recepcion no tenga que escanear semanas ya pasadas.
+          </p>
+          <div className="mt-5 grid gap-3">
+            {loading ? <LoadingState /> : null}
+            {error ? <ErrorState /> : null}
+            {!loading && !error && futureBlocks.length === 0 ? <EmptyState label="No hay bloqueos futuros registrados." /> : null}
+            {!loading && !error && futureBlocks.map((block) => (
+              <div key={block.id} className="rounded-[24px] border border-[var(--color-border)] bg-white/70 p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-semibold">
+                      {block.block_date} · {block.city ?? "Todas las ciudades"}
+                    </h3>
+                    <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">
+                      {block.doctor_profiles?.full_name ? `${block.doctor_profiles.full_name} · ` : ""}
+                      {block.start_time ? `${normalizeTime(block.start_time)} - ${normalizeTime(block.end_time)}` : "Dia completo"}
+                      <br />
+                      {block.reason ?? "Sin motivo"}
+                    </p>
+                    <DeletedStatusNote row={block} />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={() => beginBlockEdit(block)} className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] px-4 py-2 text-xs font-semibold">
+                      <Pencil className="h-3.5 w-3.5" />
+                      Editar
+                    </button>
+                    <button
+                      onClick={() => void updateAvailabilityBlock(block.id, { is_active: !block.is_active }).then(load)}
+                      className="rounded-full border border-[var(--color-border)] px-4 py-2 text-xs font-semibold"
+                    >
+                      {block.is_active ? "Desactivar" : "Activar"}
+                    </button>
+                    <DeleteActions
+                      role={role}
+                      row={block}
+                      compact
+                      onSoftDelete={() =>
+                        void softDeleteRecord({
+                          table: "availability_blocks",
+                          id: block.id,
+                          actorId: profile?.id ?? user?.id ?? null,
+                          actorRole: role,
+                          actorName: profile?.full_name ?? user?.user_metadata.full_name ?? null,
+                          actorEmail: profile?.email ?? user?.email ?? null,
+                        }).then(load)
+                      }
+                      onRestore={() => void restoreRecord("availability_blocks", block.id).then(load)}
+                      onHardDelete={() => void hardDeleteRecord("availability_blocks", block.id).then(load)}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-        />
-      </section>
+            ))}
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }
@@ -584,42 +820,152 @@ function SummaryCard({ icon, label, value }: { icon: ReactNode; label: string; v
   );
 }
 
+function ViewCard({
+  label,
+  description,
+  value,
+  active,
+  onClick,
+}: {
+  label: string;
+  description: string;
+  value: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-[24px] px-5 py-4 text-left transition ${
+        active ? "bg-[var(--color-mocha)] text-white shadow-[0_18px_35px_rgba(62,42,31,0.16)]" : "border border-[var(--color-border)] bg-[rgba(247,242,236,0.75)] text-[var(--color-ink)]"
+      }`}
+    >
+      <p className="text-xs font-semibold uppercase tracking-[0.22em] opacity-80">{label}</p>
+      <p className="mt-2 text-xl font-semibold">{value}</p>
+      <p className="mt-2 text-sm opacity-80">{description}</p>
+    </button>
+  );
+}
+
+function DoctorCombobox({
+  label,
+  query,
+  open,
+  doctors,
+  error,
+  onFocus,
+  onBlur,
+  onChange,
+  onSelect,
+  allowClear = false,
+  onClear,
+}: {
+  label: string;
+  query: string;
+  open: boolean;
+  doctors: DoctorProfileRow[];
+  error?: string;
+  onFocus: () => void;
+  onBlur: () => void;
+  onChange: (value: string) => void;
+  onSelect: (doctor: DoctorProfileRow) => void;
+  allowClear?: boolean;
+  onClear?: () => void;
+}) {
+  return (
+    <Field label={label} error={error}>
+      <div className="relative">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-copy)]" />
+          <input
+            value={query}
+            onFocus={onFocus}
+            onBlur={onBlur}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder="Escribe para buscar doctora"
+            className="premium-input !pl-12"
+          />
+        </div>
+        {open ? (
+          <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-[24px] border border-[var(--color-border)] bg-white shadow-[0_18px_45px_rgba(62,42,31,0.12)]">
+            <div className="max-h-72 overflow-y-auto p-2">
+              {allowClear && onClear ? (
+                <button
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={onClear}
+                  className="flex w-full flex-col rounded-[18px] px-4 py-3 text-left transition hover:bg-[rgba(247,242,236,0.82)]"
+                >
+                  <span className="text-sm font-semibold text-[var(--color-ink)]">Sin doctora especifica</span>
+                  <span className="mt-1 text-xs text-[var(--color-copy)]">Aplicar a todas o dejar el bloqueo general.</span>
+                </button>
+              ) : null}
+              {doctors.map((doctor) => (
+                <button
+                  type="button"
+                  key={doctor.id}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => onSelect(doctor)}
+                  className="flex w-full flex-col rounded-[18px] px-4 py-3 text-left transition hover:bg-[rgba(247,242,236,0.82)]"
+                >
+                  <span className="text-sm font-semibold text-[var(--color-ink)]">{doctor.full_name}</span>
+                  <span className="mt-1 text-xs text-[var(--color-copy)]">{doctor.specialty ?? "Doctora"} · {doctor.city ?? "sin ciudad"}</span>
+                </button>
+              ))}
+              {doctors.length === 0 ? (
+                <div className="px-4 py-3 text-sm text-[var(--color-copy)]">No encontramos doctoras con ese nombre.</div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </Field>
+  );
+}
+
 function Field({ label, error, children }: { label: string; error?: string; children: ReactNode }) {
   return (
     <label className="grid gap-2">
       <span className="text-sm font-semibold">{label}</span>
       {children}
-      {error && <span className="text-xs text-red-700">{error}</span>}
+      {error ? <span className="text-xs text-red-700">{error}</span> : null}
     </label>
   );
 }
 
-function AdminList<T>({
-  title,
-  loading,
-  error,
-  empty,
-  rows,
-  render,
-}: {
-  title: string;
-  loading: boolean;
-  error: boolean;
-  empty: string;
-  rows: T[];
-  render: (row: T) => ReactNode;
-}) {
-  return (
-    <div className="rounded-[30px] border border-[var(--color-border)] bg-[rgba(255,249,244,0.62)] p-5">
-      <h2 className="text-2xl font-semibold">{title}</h2>
-      <div className="mt-5 grid gap-3">
-        {loading && <LoadingState />}
-        {error && <ErrorState />}
-        {!loading && !error && rows.length === 0 && <EmptyState label={empty} />}
-        {!loading && !error && rows.map(render)}
-      </div>
-    </div>
-  );
+function getDefaultRuleValues(): RuleForm {
+  return {
+    doctor_id: "",
+    city: "Cochabamba",
+    location: "",
+    appointment_type: "Valoracion estetica",
+    agenda_tag: "",
+    availability_type: "recurring",
+    start_date: "",
+    end_date: "",
+    specific_date: "",
+    days: [1],
+    start_time: "09:00",
+    end_time: "12:00",
+    slot_duration_minutes: 30,
+    break_minutes: 10,
+    capacity_per_slot: 1,
+    is_active: true,
+  };
+}
+
+function getDefaultBlockValues(): BlockForm {
+  return {
+    doctor_id: "",
+    city: "",
+    block_date: "",
+    full_day: true,
+    start_time: "",
+    end_time: "",
+    reason: "",
+    is_active: true,
+  };
 }
 
 function generatePreviewSlots(startTime?: string, endTime?: string, duration = 30, rest = 0) {
@@ -646,4 +992,30 @@ function timeFromMinutes(value: number) {
   const hours = Math.floor(value / 60).toString().padStart(2, "0");
   const minutes = (value % 60).toString().padStart(2, "0");
   return `${hours}:${minutes}`;
+}
+
+function normalizeSearchText(value?: string | null) {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^0-9a-zA-Z\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function buildDoctorSearchIndex(doctor: DoctorProfileRow) {
+  return normalizeSearchText([doctor.full_name, doctor.specialty, doctor.city, doctor.email].filter(Boolean).join(" "));
+}
+
+function normalizeTime(value?: string | null) {
+  if (!value) return "";
+  return value.slice(0, 5);
+}
+
+function getRuleSortDate(rule: AvailabilityRuleRow) {
+  const today = new Date().toISOString().slice(0, 10);
+  if (rule.availability_type === "specific") return rule.specific_date ?? today;
+  if (rule.start_date && rule.start_date > today) return rule.start_date;
+  return today;
 }
