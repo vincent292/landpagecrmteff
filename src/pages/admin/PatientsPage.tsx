@@ -10,6 +10,8 @@ import { EmptyState, ErrorState, LoadingState } from "../../components/common/As
 import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteActions";
 import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
+import { useFormDraft } from "../../hooks/useFormDraft";
+import { useWorkspaceState } from "../../hooks/useWorkspaceState";
 import { hardDeleteRecord, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
 import { createPatient, getPatients, type PatientRow } from "../../services/patientService";
 import { normalizeDocumentNumber } from "../../utils/documentNumber";
@@ -28,21 +30,27 @@ type PatientFormValues = z.infer<typeof patientSchema>;
 export function PatientsPage() {
   const { role, profile, user } = useAuth();
   const [rows, setRows] = useState<PatientRow[]>([]);
-  const [query, setQuery] = useState("");
-  const [city, setCity] = useState("Todas");
+  const [query, setQuery] = useWorkspaceState("admin:patients:query", "", { ttlMs: 1000 * 60 * 60 * 8 });
+  const [city, setCity] = useWorkspaceState("admin:patients:city", "Todas", { ttlMs: 1000 * 60 * 60 * 8 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [showNew, setShowNew] = useState(false);
+  const [showNew, setShowNew] = useWorkspaceState("admin:patients:show-new", false, { ttlMs: 1000 * 60 * 60 });
   const [saving, setSaving] = useState(false);
 
+  const form = useForm<PatientFormValues>({
+    resolver: zodResolver(patientSchema),
+    defaultValues: { full_name: "", document_number: "", phone: "", email: "", city: "" },
+  });
   const {
     register,
     handleSubmit,
     reset,
     formState: { errors },
-  } = useForm<PatientFormValues>({
-    resolver: zodResolver(patientSchema),
-    defaultValues: { full_name: "", document_number: "", phone: "", email: "", city: "" },
+  } = form;
+  const { clearDraft } = useFormDraft(form, "admin:patients:new-patient-draft", {
+    ttlMs: 1000 * 60 * 60,
+    enabled: showNew,
+    isEmpty: (value) => !Object.values(value ?? {}).some((item) => typeof item === "string" && item.trim().length > 0),
   });
 
   const load = () => {
@@ -82,6 +90,7 @@ export function PatientsPage() {
     });
     setSaving(false);
     setShowNew(false);
+    clearDraft();
     reset();
     load();
   };
@@ -285,7 +294,15 @@ export function PatientsPage() {
               <button disabled={saving} className="rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white">
                 {saving ? "Guardando..." : "Guardar paciente"}
               </button>
-              <button type="button" onClick={() => setShowNew(false)} className="rounded-full border border-[var(--color-border)] px-6 py-3 text-sm font-semibold">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowNew(false);
+                  clearDraft();
+                  reset();
+                }}
+                className="rounded-full border border-[var(--color-border)] px-6 py-3 text-sm font-semibold"
+              >
                 Cancelar
               </button>
             </div>

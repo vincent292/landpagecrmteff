@@ -9,6 +9,7 @@ import {
 
 import type { Session, User } from "@supabase/supabase-js";
 
+import { clearWorkspaceState } from "../lib/workspaceState";
 import { supabase } from "../lib/supabase";
 import { normalizeRole } from "../lib/roles";
 import type { Profile, UserRole } from "../types/platform";
@@ -88,6 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (error && isInvalidStoredSession(error.message)) {
           await supabase.auth.signOut({ scope: "local" });
+          clearWorkspaceState();
           setSession(null);
           setProfile(null);
           setRole("user");
@@ -160,6 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOut: async () => {
         const { error } = await supabase.auth.signOut();
         if (error) throw error;
+        clearWorkspaceState();
       },
       refreshProfile: async () => {
         await loadProfile(session?.user.id);

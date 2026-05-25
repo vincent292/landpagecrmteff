@@ -1,4 +1,4 @@
-import { Bell, LogOut, Menu, X } from "lucide-react";
+import { Bell, LogOut, Menu, X, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { Link, Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 
@@ -14,9 +14,18 @@ type AdminLink = {
   module: string;
 };
 
-const adminSections: Array<{ title: string; links: AdminLink[] }> = [
+type AdminSection = {
+  title: string;
+  accent: string;
+  icon: LucideIcon;
+  links: AdminLink[];
+};
+
+const adminSections: AdminSection[] = [
   {
     title: "General",
+    accent: "from-[rgba(255,255,255,0.84)] to-[rgba(239,229,218,0.86)]",
+    icon: Bell,
     links: [
       { label: "Dashboard", href: "/panel", module: "dashboard" },
       { label: "Solicitudes", href: "/panel/solicitudes", module: "solicitudes" },
@@ -29,6 +38,8 @@ const adminSections: Array<{ title: string; links: AdminLink[] }> = [
   },
   {
     title: "Operacion",
+    accent: "from-[rgba(255,249,244,0.88)] to-[rgba(216,194,174,0.3)]",
+    icon: Menu,
     links: [
       { label: "Inventario", href: "/panel/inventario", module: "inventario" },
       { label: "Caja", href: "/panel/caja", module: "caja" },
@@ -38,6 +49,8 @@ const adminSections: Array<{ title: string; links: AdminLink[] }> = [
   },
   {
     title: "Contenido",
+    accent: "from-[rgba(255,255,255,0.82)] to-[rgba(198,162,123,0.22)]",
+    icon: X,
     links: [
       { label: "Doctoras", href: "/panel/doctoras", module: "doctoras" },
       { label: "Tratamientos", href: "/panel/tratamientos", module: "tratamientos" },
@@ -48,6 +61,8 @@ const adminSections: Array<{ title: string; links: AdminLink[] }> = [
   },
   {
     title: "Sistema",
+    accent: "from-[rgba(255,249,244,0.88)] to-[rgba(183,156,132,0.22)]",
+    icon: LogOut,
     links: [
       { label: "Usuarios", href: "/panel/usuarios", module: "usuarios" },
       { label: "Configuracion", href: "/panel/configuracion", module: "configuracion" },
@@ -74,6 +89,8 @@ export function AdminLayout() {
       }),
     }))
     .filter((section) => section.links.length > 0);
+
+  const activeLink = visibleSections.flatMap((section) => section.links).find((link) => link.module === activeModule);
 
   useEffect(() => {
     setOpen(false);
@@ -128,7 +145,7 @@ export function AdminLayout() {
   }
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#f7f2ec] text-[var(--color-ink)] lg:grid lg:grid-cols-[300px_minmax(0,1fr)]">
+    <main className="min-h-screen overflow-x-hidden bg-[#f7f2ec] text-[var(--color-ink)] lg:pl-[300px]">
       <div className="sticky top-0 z-40 flex items-center justify-between gap-3 border-b border-[rgba(198,162,123,0.18)] bg-[rgba(255,249,244,0.92)] p-4 backdrop-blur-2xl lg:hidden">
         <button
           type="button"
@@ -175,76 +192,93 @@ export function AdminLayout() {
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-[min(84vw,300px)] -translate-x-full flex-col overflow-hidden overscroll-contain border-r border-[rgba(198,162,123,0.18)] bg-[rgba(255,249,244,0.96)] p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] shadow-[20px_0_60px_rgba(43,33,27,0.18)] backdrop-blur-2xl transition-transform duration-300 [webkit-overflow-scrolling:touch] touch-pan-y lg:sticky lg:top-0 lg:z-40 lg:h-screen lg:w-auto lg:translate-x-0 lg:pb-5 lg:shadow-none",
+          "fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-[min(84vw,300px)] -translate-x-full flex-col overflow-hidden overscroll-contain border-r border-[rgba(198,162,123,0.18)] bg-[rgba(255,249,244,0.96)] p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] shadow-[20px_0_60px_rgba(43,33,27,0.18)] backdrop-blur-2xl transition-transform duration-300 [webkit-overflow-scrolling:touch] touch-pan-y lg:z-40 lg:h-screen lg:w-[300px] lg:translate-x-0 lg:border-r-[rgba(198,162,123,0.22)] lg:bg-[rgba(255,249,244,0.88)] lg:pb-5 lg:shadow-none",
           open && "translate-x-0"
         )}
       >
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <BrandSignature
-              subtitle="Panel administrativo"
-              textClassName="text-[1.35rem] sm:text-[1.55rem] lg:text-[1.8rem]"
-              subtitleClassName="tracking-[0.18em]"
-              className="max-w-full"
-            />
-            <p className="mt-2 truncate text-xs text-[var(--color-copy)] sm:text-sm">
-              Panel administrativo · {roleLabels[role]}
-            </p>
-          </div>
+        <div className="rounded-[28px] border border-[rgba(198,162,123,0.16)] bg-white/58 p-4 shadow-[0_18px_46px_rgba(62,42,31,0.06)]">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <BrandSignature
+                subtitle="Panel administrativo"
+                textClassName="text-[1.35rem] sm:text-[1.55rem] lg:text-[1.8rem]"
+                subtitleClassName="tracking-[0.18em]"
+                className="max-w-full"
+              />
+              <p className="mt-2 truncate text-xs text-[var(--color-copy)] sm:text-sm">
+                Panel administrativo · {roleLabels[role]}
+              </p>
+            </div>
 
-          <button
-            type="button"
-            onClick={() => setOpen(false)}
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[var(--color-border)] bg-white/70 text-[var(--color-ink)] lg:hidden"
-            aria-label="Cerrar menu"
-          >
-            <X className="h-4 w-4" />
-          </button>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[var(--color-border)] bg-white/70 text-[var(--color-ink)] lg:hidden"
+              aria-label="Cerrar menu"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
-        <nav className="mt-8 flex-1 overflow-y-auto pr-1">
+        <nav className="mt-6 flex-1 overflow-y-auto pr-1">
           <div className="grid gap-6 pb-6">
-            {visibleSections.map((section) => (
-              <div key={section.title}>
-                <p className="px-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">
-                  {section.title}
-                </p>
-                <div className="mt-2 grid gap-2">
-                  {section.links.map((link) => (
-                    <NavLink
-                      key={link.href}
-                      to={link.href}
-                      end={link.href === "/panel"}
-                      onClick={() => setOpen(false)}
-                      className={({ isActive }) =>
-                        cn(
-                          "rounded-2xl px-4 py-3 text-sm font-medium transition",
-                          isActive
-                            ? "bg-[var(--color-mocha)] text-white"
-                            : "text-[var(--color-copy)] hover:bg-white/60 hover:text-[var(--color-ink)]"
-                        )
-                      }
-                    >
-                      <span className="flex items-center justify-between gap-3">
-                        <span>{link.label}</span>
-                        {unreadByModule[link.module] ? (
-                          <span className="inline-flex min-h-5 min-w-5 animate-pulse items-center justify-center rounded-full bg-[var(--color-mocha)] px-1.5 text-[10px] font-bold text-white">
-                            {unreadByModule[link.module] > 9 ? "9+" : unreadByModule[link.module]}
-                          </span>
-                        ) : null}
-                      </span>
-                    </NavLink>
-                  ))}
+            {visibleSections.map((section) => {
+              const SectionIcon = section.icon;
+
+              return (
+                <div
+                  key={section.title}
+                  className={cn(
+                    "rounded-[26px] border border-[rgba(198,162,123,0.14)] bg-[linear-gradient(135deg,rgba(255,249,244,0.74),rgba(255,255,255,0.52))] p-3",
+                    `bg-gradient-to-br ${section.accent}`
+                  )}
+                >
+                  <div className="flex items-center gap-2 px-2">
+                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[rgba(198,162,123,0.16)] bg-white/72 text-[var(--color-mocha)]">
+                      <SectionIcon className="h-4 w-4" />
+                    </span>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">
+                      {section.title}
+                    </p>
+                  </div>
+                  <div className="mt-3 grid gap-2">
+                    {section.links.map((link) => (
+                      <NavLink
+                        key={link.href}
+                        to={link.href}
+                        end={link.href === "/panel"}
+                        onClick={() => setOpen(false)}
+                        className={({ isActive }) =>
+                          cn(
+                            "rounded-2xl border px-4 py-3 text-sm font-medium transition",
+                            isActive
+                              ? "border-[rgba(110,74,47,0.26)] bg-[var(--color-mocha)] text-white shadow-[0_14px_32px_rgba(110,74,47,0.18)]"
+                              : "border-transparent bg-white/20 text-[var(--color-copy)] hover:border-[rgba(198,162,123,0.18)] hover:bg-white/70 hover:text-[var(--color-ink)]"
+                          )
+                        }
+                      >
+                        <span className="flex items-center justify-between gap-3">
+                          <span>{link.label}</span>
+                          {unreadByModule[link.module] ? (
+                            <span className="inline-flex min-h-5 min-w-5 animate-pulse items-center justify-center rounded-full bg-[var(--color-mocha)] px-1.5 text-[10px] font-bold text-white">
+                              {unreadByModule[link.module] > 9 ? "9+" : unreadByModule[link.module]}
+                            </span>
+                          ) : null}
+                        </span>
+                      </NavLink>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </nav>
 
         <button
           type="button"
           onClick={() => void signOut()}
-          className="mt-4 hidden w-full items-center justify-center gap-2 rounded-full border border-[var(--color-border)] px-4 py-3 text-sm font-semibold lg:inline-flex"
+          className="mt-4 hidden w-full items-center justify-center gap-2 rounded-full border border-[var(--color-border)] bg-white/62 px-4 py-3 text-sm font-semibold lg:inline-flex"
         >
           <LogOut className="h-4 w-4" />
           Cerrar sesion
@@ -254,6 +288,9 @@ export function AdminLayout() {
       <div className="min-w-0">
         <header className="sticky top-[76px] z-30 flex flex-wrap items-center justify-between gap-4 border-b border-[rgba(198,162,123,0.16)] bg-[rgba(247,242,236,0.82)] px-4 py-4 backdrop-blur-xl md:px-8 lg:top-0">
           <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">
+              {activeLink?.label ?? "Dashboard"}
+            </p>
             <p className="truncate text-sm font-semibold text-[var(--color-ink)]">
               {user?.user_metadata.full_name ?? user?.email ?? "Usuario"}
             </p>

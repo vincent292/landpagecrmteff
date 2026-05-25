@@ -9,6 +9,8 @@ import { z } from "zod";
 import { EmptyState, LoadingState } from "../../components/common/AsyncState";
 import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
+import { useFormDraft } from "../../hooks/useFormDraft";
+import { useWorkspaceState } from "../../hooks/useWorkspaceState";
 import { createAppointment, getAppointmentsByPatient, updateAppointmentStatus, type AppointmentRow } from "../../services/appointmentService";
 import { getAvailableSlots, getAvailabilityRulesByIds, type AvailableSlot } from "../../services/availabilityService";
 import { getCashPaymentMethods, type CashPaymentMethodRow } from "../../services/cashService";
@@ -67,7 +69,7 @@ export function PatientAppointmentsAdminPage() {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
-  const [slotTypeFilter, setSlotTypeFilter] = useState("Todos");
+  const [slotTypeFilter, setSlotTypeFilter] = useWorkspaceState(`admin:patient-appointments:${id}:slot-type`, "Todos", { ttlMs: 1000 * 60 * 60 * 8 });
   const [paymentMethods, setPaymentMethods] = useState<CashPaymentMethodRow[]>([]);
 
   const form = useForm<FormValuesInput, undefined, FormValues>({
@@ -81,6 +83,14 @@ export function PatientAppointmentsAdminPage() {
       payment_amount: 0,
       payment_method: "efectivo",
     },
+  });
+  const { clearDraft } = useFormDraft(form, `admin:patient-appointments:${id}:draft`, {
+    ttlMs: 1000 * 60 * 60,
+    isEmpty: (value) => !Object.values(value ?? {}).some((item) => {
+      if (typeof item === "boolean") return item;
+      if (typeof item === "number") return item > 0;
+      return typeof item === "string" && item.trim().length > 0;
+    }),
   });
 
   const watched = form.watch();
@@ -219,6 +229,7 @@ export function PatientAppointmentsAdminPage() {
         payment_amount: 0,
         payment_method: values.payment_method,
       });
+      clearDraft();
       setSlots([]);
       setSelectedSlot(null);
       setMessage(

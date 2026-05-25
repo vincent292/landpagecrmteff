@@ -50,6 +50,7 @@ import {
 import { slugify } from "../../utils/text";
 import { canManageUsers, roleLabels } from "../../lib/roles";
 import { useAuth } from "../../hooks/useAuth";
+import { useWorkspaceState } from "../../hooks/useWorkspaceState";
 import { boliviaCities } from "../../data/cities";
 import { hardDeleteRecord, restoreRecord, softDeleteRecord, type DeletableTable, type DeletionMetadata } from "../../services/adminDeletionService";
 import { supabase } from "../../lib/supabaseClient";
@@ -108,7 +109,9 @@ export function AdminCollectionPage({ module }: Props) {
   const [error, setError] = useState(false);
   const [editing, setEditing] = useState<AdminRow | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [filters, setFilters] = useState<AdminListFilters>(() => getDefaultFilters(module));
+  const [filters, setFilters] = useWorkspaceState<AdminListFilters>(`admin:${module}:filters`, () => getDefaultFilters(module), {
+    ttlMs: 1000 * 60 * 60 * 8,
+  });
   const [pendingRealtime, setPendingRealtime] = useState(false);
   const [paymentMethods, setPaymentMethods] = useState<CashPaymentMethodRow[]>([]);
   const [enrollmentApproval, setEnrollmentApproval] = useState<EnrollmentApprovalDraft | null>(null);
@@ -128,10 +131,6 @@ export function AdminCollectionPage({ module }: Props) {
   };
 
   useEffect(load, [module, role]);
-
-  useEffect(() => {
-    setFilters(getDefaultFilters(module));
-  }, [module]);
 
   useEffect(() => {
     if (module !== "inscripciones" && module !== "solicitudes") return;

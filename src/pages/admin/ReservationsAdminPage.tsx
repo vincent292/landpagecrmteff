@@ -8,6 +8,8 @@ import { z } from "zod";
 import { EmptyState, LoadingState } from "../../components/common/AsyncState";
 import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
+import { useFormDraft } from "../../hooks/useFormDraft";
+import { useWorkspaceState } from "../../hooks/useWorkspaceState";
 import { getAppointmentsAdmin, updateAppointment, updateAppointmentStatus, type AppointmentAdminRow } from "../../services/appointmentService";
 import { getAvailableSlots, type AvailableSlot } from "../../services/availabilityService";
 import { getCashPaymentMethods, getCashRegisterSessions, type CashPaymentMethodRow } from "../../services/cashService";
@@ -84,25 +86,25 @@ export function ReservationsAdminPage() {
   const [paymentMethods, setPaymentMethods] = useState<CashPaymentMethodRow[]>([]);
   const [siteSettings, setSiteSettings] = useState<SiteSettingsRow | null>(null);
   const [approvalDraft, setApprovalDraft] = useState<ApprovalDraft | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>("create");
-  const [patientQuery, setPatientQuery] = useState("");
+  const [viewMode, setViewMode] = useWorkspaceState<ViewMode>("admin:reservations:view-mode", "create", { ttlMs: 1000 * 60 * 60 * 8 });
+  const [patientQuery, setPatientQuery] = useWorkspaceState("admin:reservations:patient-query", "", { ttlMs: 1000 * 60 * 60 });
   const [patientPickerOpen, setPatientPickerOpen] = useState(false);
-  const [doctorQuery, setDoctorQuery] = useState("");
+  const [doctorQuery, setDoctorQuery] = useWorkspaceState("admin:reservations:doctor-query", "", { ttlMs: 1000 * 60 * 60 });
   const [doctorPickerOpen, setDoctorPickerOpen] = useState(false);
-  const [patientModalOpen, setPatientModalOpen] = useState(false);
+  const [patientModalOpen, setPatientModalOpen] = useWorkspaceState("admin:reservations:patient-modal-open", false, { ttlMs: 1000 * 60 * 60 });
   const [patientModalError, setPatientModalError] = useState("");
   const [savingPatient, setSavingPatient] = useState(false);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [cashOpen, setCashOpen] = useState(false);
   const [followUpWhatsappHref, setFollowUpWhatsappHref] = useState<string | null>(null);
   const [followUpWhatsappLabel, setFollowUpWhatsappLabel] = useState("");
-  const [scheduleFilters, setScheduleFilters] = useState({
+  const [scheduleFilters, setScheduleFilters] = useWorkspaceState("admin:reservations:schedule-filters", () => ({
     query: "",
     city: "Todas",
     status: "Todos",
     date: "",
     source: "Todos" as SourceFilter,
-  });
+  }), { ttlMs: 1000 * 60 * 60 * 8 });
   const [loading, setLoading] = useState(true);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [savingApproval, setSavingApproval] = useState(false);
@@ -137,6 +139,20 @@ export function ReservationsAdminPage() {
   });
 
   const watched = form.watch();
+  const { clearDraft: clearManualDraft } = useFormDraft(form, "admin:reservations:manual-draft", {
+    ttlMs: 1000 * 60 * 60,
+    enabled: viewMode === "create",
+    isEmpty: (value) => !Object.values(value ?? {}).some((item) => {
+      if (typeof item === "boolean") return item;
+      if (typeof item === "number") return item > 0;
+      return typeof item === "string" && item.trim().length > 0;
+    }),
+  });
+  const { clearDraft: clearQuickPatientDraft } = useFormDraft(quickPatientForm, "admin:reservations:quick-patient-draft", {
+    ttlMs: 1000 * 60 * 60,
+    enabled: patientModalOpen,
+    isEmpty: (value) => !Object.values(value ?? {}).some((item) => typeof item === "string" && item.trim().length > 0),
+  });
 
   const load = () => {
     setLoading(true);
@@ -190,6 +206,17 @@ export function ReservationsAdminPage() {
   );
 
   const selectedPatient = patients.find((patient) => patient.id === watched.patient_id) ?? null;
+  const selectedDoctor = doctors.find((doctor) => doctor.id === watched.doctor_id) ?? null;
+
+  useEffect(() => {
+    if (!selectedPatient) return;
+    setPatientQuery((current) => current || buildPatientLabel(selectedPatient));
+  }, [selectedPatient, setPatientQuery]);
+
+  useEffect(() => {
+    if (!selectedDoctor) return;
+    setDoctorQuery((current) => current || selectedDoctor.full_name);
+  }, [selectedDoctor, setDoctorQuery]);
 
   const filteredPatients = useMemo(() => {
     const normalizedQuery = normalizeSearchText(patientQuery);
@@ -339,6 +366,7 @@ export function ReservationsAdminPage() {
     setPatientPickerOpen(false);
     setPatientModalOpen(false);
     setPatientModalError("");
+    clearQuickPatientDraft();
   };
 
   const handleSelectDoctor = (doctor: DoctorProfileRow | null) => {
@@ -356,6 +384,7 @@ export function ReservationsAdminPage() {
     if (existing) {
       handleSelectPatient(existing);
       setSavingPatient(false);
+      clearQuickPatientDraft();
       setSuccess("Ese paciente ya existia. Lo dejamos seleccionado para que sigas con la cita.");
       return;
     }
@@ -370,6 +399,7 @@ export function ReservationsAdminPage() {
       });
       setPatients((current) => [created, ...current]);
       handleSelectPatient(created);
+      clearQuickPatientDraft();
       quickPatientForm.reset({
         full_name: "",
         document_number: "",
@@ -478,6 +508,7 @@ export function ReservationsAdminPage() {
         payment_method: values.payment_method,
         payment_window_hours: values.payment_window_hours,
       });
+      clearManualDraft();
       setPatientQuery("");
       setDoctorQuery(values.doctor_id ? doctorQuery : "");
       setReceiptFile(null);
@@ -989,7 +1020,21 @@ export function ReservationsAdminPage() {
       ) : null}
 
       {patientModalOpen ? (
-        <ModalShell title="Crear paciente rapido" onClose={() => setPatientModalOpen(false)}>
+        <ModalShell
+          title="Crear paciente rapido"
+          onClose={() => {
+            setPatientModalOpen(false);
+            setPatientModalError("");
+            clearQuickPatientDraft();
+            quickPatientForm.reset({
+              full_name: "",
+              document_number: "",
+              phone: "",
+              email: "",
+              city: "Cochabamba",
+            });
+          }}
+        >
           <form onSubmit={quickPatientForm.handleSubmit((values) => void submitQuickPatient(values))} className="grid gap-4">
             {patientModalError ? <div className="rounded-[20px] border border-[rgba(154,107,67,0.2)] bg-[rgba(154,107,67,0.08)] px-4 py-3 text-sm font-semibold text-[var(--color-ink)]">{patientModalError}</div> : null}
             <div className="grid gap-4 sm:grid-cols-2">
@@ -1026,7 +1071,22 @@ export function ReservationsAdminPage() {
               <button disabled={savingPatient} className="rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-60">
                 {savingPatient ? "Guardando..." : "Guardar y usar en esta cita"}
               </button>
-              <button type="button" onClick={() => setPatientModalOpen(false)} className="rounded-full border border-[var(--color-border)] px-6 py-3 text-sm font-semibold">
+              <button
+                type="button"
+                onClick={() => {
+                  setPatientModalOpen(false);
+                  setPatientModalError("");
+                  clearQuickPatientDraft();
+                  quickPatientForm.reset({
+                    full_name: "",
+                    document_number: "",
+                    phone: "",
+                    email: "",
+                    city: "Cochabamba",
+                  });
+                }}
+                className="rounded-full border border-[var(--color-border)] px-6 py-3 text-sm font-semibold"
+              >
                 Cancelar
               </button>
             </div>
