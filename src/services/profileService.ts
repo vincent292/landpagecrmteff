@@ -44,3 +44,29 @@ export async function updateMyProfile(id: string, data: Partial<ProfileRow>) {
   const { error } = await supabase.from("profiles").update(payload).eq("id", id);
   if (error) throw error;
 }
+
+type UpdateUserAccessInput = {
+  userId: string;
+  email: string;
+  fullName?: string | null;
+  password?: string | null;
+  phone?: string | null;
+  city?: string | null;
+};
+
+export async function updateUserAccess(input: UpdateUserAccessInput) {
+  const { data, error } = await supabase.functions.invoke("update-user-access", {
+    body: {
+      user_id: input.userId,
+      email: input.email,
+      full_name: input.fullName ?? null,
+      password: input.password?.trim() ? input.password.trim() : null,
+      phone: input.phone ?? null,
+      city: input.city ?? null,
+    },
+  });
+
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data;
+}

@@ -21,7 +21,7 @@ import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteA
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
-import { restoreRecord, softDeleteRecord, type DeletableTable, type DeletionMetadata } from "../../services/adminDeletionService";
+import { hardDeleteRecord, restoreRecord, softDeleteRecord, type DeletableTable, type DeletionMetadata } from "../../services/adminDeletionService";
 import {
   createInventoryCategory,
   createInventoryItem,
@@ -482,7 +482,7 @@ export function InventoryAdminPage() {
               ]}
               detail={`Stock ${item.current_stock} · minimo ${item.minimum_stock} · costo ${formatMoney(item.reference_cost)}`}
               deletedRow={item}
-              actions={<CrudActions role={role} row={item} table="inventory_items" onEdit={() => openModal("item", item)} onArchive={() => void archive("inventory_items", item.id)} onRestore={() => void restoreRecord("inventory_items", item.id).then(load)} />}
+              actions={<CrudActions role={role} row={item} table="inventory_items" onEdit={() => openModal("item", item)} onArchive={() => void archive("inventory_items", item.id)} onRestore={() => void restoreRecord("inventory_items", item.id).then(load)} onHardDelete={() => void hardDeleteRecord("inventory_items", item.id).then(load)} />}
             />
           )} />
         </Panel>
@@ -492,12 +492,12 @@ export function InventoryAdminPage() {
         <div className="grid gap-5 xl:grid-cols-2">
           <Panel eyebrow="Categorias" title="Familias de inventario" action={<CommandButton icon={<Plus className="h-4 w-4" />} label="Categoria" onClick={() => openModal("category")} primary />}>
             <RowsEmpty rows={categories} empty="Sin categorias." render={(category) => (
-              <RowCard key={category.id} title={category.name} detail={category.description ?? "Sin descripcion"} deletedRow={category} actions={<CrudActions role={role} row={category} table="inventory_categories" onEdit={() => openModal("category", category)} onArchive={() => void archive("inventory_categories", category.id)} onRestore={() => void restoreRecord("inventory_categories", category.id).then(load)} />} />
+              <RowCard key={category.id} title={category.name} detail={category.description ?? "Sin descripcion"} deletedRow={category} actions={<CrudActions role={role} row={category} table="inventory_categories" onEdit={() => openModal("category", category)} onArchive={() => void archive("inventory_categories", category.id)} onRestore={() => void restoreRecord("inventory_categories", category.id).then(load)} onHardDelete={() => void hardDeleteRecord("inventory_categories", category.id).then(load)} />} />
             )} />
           </Panel>
           <Panel eyebrow="Unidades" title="Medidas y empaques" action={<CommandButton icon={<Plus className="h-4 w-4" />} label="Unidad" onClick={() => openModal("unit")} primary />}>
             <RowsEmpty rows={units} empty="Sin unidades." render={(unit) => (
-              <RowCard key={unit.id} title={unit.name} tags={[unit.abbreviation, unit.unit_type, unit.is_base_unit ? "Base" : `x ${unit.conversion_factor}`]} detail="Medida disponible para items e insumos." deletedRow={unit} actions={<CrudActions role={role} row={unit} table="inventory_units" onEdit={() => openModal("unit", unit)} onArchive={() => void archive("inventory_units", unit.id)} onRestore={() => void restoreRecord("inventory_units", unit.id).then(load)} />} />
+              <RowCard key={unit.id} title={unit.name} tags={[unit.abbreviation, unit.unit_type, unit.is_base_unit ? "Base" : `x ${unit.conversion_factor}`]} detail="Medida disponible para items e insumos." deletedRow={unit} actions={<CrudActions role={role} row={unit} table="inventory_units" onEdit={() => openModal("unit", unit)} onArchive={() => void archive("inventory_units", unit.id)} onRestore={() => void restoreRecord("inventory_units", unit.id).then(load)} onHardDelete={() => void hardDeleteRecord("inventory_units", unit.id).then(load)} />} />
             )} />
           </Panel>
         </div>
@@ -506,7 +506,7 @@ export function InventoryAdminPage() {
       {activeTab === "lotes" ? (
         <Panel eyebrow="Trazabilidad" title="Lotes y vencimientos" action={<CommandButton icon={<Plus className="h-4 w-4" />} label="Lote" onClick={() => openModal("lot")} primary />}>
           <RowsEmpty rows={lots} empty="Sin lotes." render={(lot) => (
-            <RowCard key={lot.id} title={`${itemMap.get(lot.item_id)?.name ?? "Item"} · ${lot.lot_number}`} tags={[locationMap.get(lot.location_id ?? "")?.name ?? "Sin lugar", supplierMap.get(lot.supplier_id ?? "")?.name ?? "Sin proveedor"]} detail={`Cantidad ${lot.current_quantity} / ${lot.initial_quantity} · vence ${formatDate(lot.expiration_date) || "sin fecha"} · costo ${formatMoney(lot.unit_cost)}`} deletedRow={lot} actions={<CrudActions role={role} row={lot} table="inventory_lots" onEdit={() => openModal("lot", lot)} onArchive={() => void archive("inventory_lots", lot.id)} onRestore={() => void restoreRecord("inventory_lots", lot.id).then(load)} />} />
+            <RowCard key={lot.id} title={`${itemMap.get(lot.item_id)?.name ?? "Item"} · ${lot.lot_number}`} tags={[locationMap.get(lot.location_id ?? "")?.name ?? "Sin lugar", supplierMap.get(lot.supplier_id ?? "")?.name ?? "Sin proveedor"]} detail={`Cantidad ${lot.current_quantity} / ${lot.initial_quantity} · vence ${formatDate(lot.expiration_date) || "sin fecha"} · costo ${formatMoney(lot.unit_cost)}`} deletedRow={lot} actions={<CrudActions role={role} row={lot} table="inventory_lots" onEdit={() => openModal("lot", lot)} onArchive={() => void archive("inventory_lots", lot.id)} onRestore={() => void restoreRecord("inventory_lots", lot.id).then(load)} onHardDelete={() => void hardDeleteRecord("inventory_lots", lot.id).then(load)} />} />
           )} />
         </Panel>
       ) : null}
@@ -514,7 +514,7 @@ export function InventoryAdminPage() {
       {activeTab === "movimientos" ? (
         <Panel eyebrow="Kardex" title="Entradas, salidas, mermas y transferencias" action={<CommandButton icon={<Plus className="h-4 w-4" />} label="Movimiento" onClick={() => openModal("movement")} primary />}>
           <RowsEmpty rows={movements} empty="Sin movimientos." render={(movement) => (
-            <RowCard key={movement.id} title={`${movement.item_name_snapshot} · ${movement.movement_type}`} tags={[movement.lot_number_snapshot ?? "Sin lote", movement.supplier_name_snapshot ?? "Sin proveedor"]} detail={`${movement.quantity} · ${movement.reason ?? "Sin motivo"} · ${new Date(movement.movement_date).toLocaleString("es-BO")}`} deletedRow={movement} actions={<CrudActions role={role} row={movement} table="inventory_movements" onEdit={undefined} onArchive={() => void archive("inventory_movements", movement.id)} onRestore={() => void restoreRecord("inventory_movements", movement.id).then(load)} />} />
+            <RowCard key={movement.id} title={`${movement.item_name_snapshot} · ${movement.movement_type}`} tags={[movement.lot_number_snapshot ?? "Sin lote", movement.supplier_name_snapshot ?? "Sin proveedor"]} detail={`${movement.quantity} · ${movement.reason ?? "Sin motivo"} · ${new Date(movement.movement_date).toLocaleString("es-BO")}`} deletedRow={movement} actions={<CrudActions role={role} row={movement} table="inventory_movements" onEdit={undefined} onArchive={() => void archive("inventory_movements", movement.id)} onRestore={() => void restoreRecord("inventory_movements", movement.id).then(load)} onHardDelete={() => void hardDeleteRecord("inventory_movements", movement.id).then(load)} />} />
           )} />
         </Panel>
       ) : null}
@@ -522,7 +522,7 @@ export function InventoryAdminPage() {
       {activeTab === "conteos" ? (
         <Panel eyebrow="Conteos" title="Conteos fisicos y diferencias" action={<CommandButton icon={<Plus className="h-4 w-4" />} label="Conteo" onClick={() => openModal("count")} primary />}>
           <RowsEmpty rows={counts} empty="Sin conteos." render={(count) => (
-            <RowCard key={count.id} title={`${count.count_date} · ${count.status}`} tags={[locationMap.get(count.location_id ?? "")?.name ?? "Sin lugar"]} detail={count.notes ?? "Sin notas"} deletedRow={count} actions={<CrudActions role={role} row={count} table="inventory_counts" onEdit={undefined} onArchive={() => void archive("inventory_counts", count.id)} onRestore={() => void restoreRecord("inventory_counts", count.id).then(load)} />} />
+            <RowCard key={count.id} title={`${count.count_date} · ${count.status}`} tags={[locationMap.get(count.location_id ?? "")?.name ?? "Sin lugar"]} detail={count.notes ?? "Sin notas"} deletedRow={count} actions={<CrudActions role={role} row={count} table="inventory_counts" onEdit={undefined} onArchive={() => void archive("inventory_counts", count.id)} onRestore={() => void restoreRecord("inventory_counts", count.id).then(load)} onHardDelete={() => void hardDeleteRecord("inventory_counts", count.id).then(load)} />} />
           )} />
         </Panel>
       ) : null}
@@ -549,17 +549,17 @@ export function InventoryAdminPage() {
         <div className="grid gap-5 xl:grid-cols-3">
           <Panel eyebrow="Proveedores" title="Contactos de compra" action={<CommandButton icon={<Plus className="h-4 w-4" />} label="Proveedor" onClick={() => openModal("supplier")} primary />}>
             <RowsEmpty rows={suppliers} empty="Sin proveedores." render={(supplier) => (
-              <RowCard key={supplier.id} title={supplier.name} tags={[supplier.contact_name ?? "Sin contacto", supplier.phone ?? "Sin telefono", supplier.whatsapp_phone ?? "Sin WhatsApp"]} detail={`${supplier.email ?? "Sin email"} · plazo ${supplier.payment_terms_days ?? 0} dias · ${supplier.allows_consignment ? "Con consignacion" : "Compra directa"} · ${supplier.notes ?? "Sin notas"}`} deletedRow={supplier} actions={<CrudActions role={role} row={supplier} table="inventory_suppliers" onEdit={() => openModal("supplier", supplier)} onArchive={() => void archive("inventory_suppliers", supplier.id)} onRestore={() => void restoreRecord("inventory_suppliers", supplier.id).then(load)} />} />
+              <RowCard key={supplier.id} title={supplier.name} tags={[supplier.contact_name ?? "Sin contacto", supplier.phone ?? "Sin telefono", supplier.whatsapp_phone ?? "Sin WhatsApp"]} detail={`${supplier.email ?? "Sin email"} · plazo ${supplier.payment_terms_days ?? 0} dias · ${supplier.allows_consignment ? "Con consignacion" : "Compra directa"} · ${supplier.notes ?? "Sin notas"}`} deletedRow={supplier} actions={<CrudActions role={role} row={supplier} table="inventory_suppliers" onEdit={() => openModal("supplier", supplier)} onArchive={() => void archive("inventory_suppliers", supplier.id)} onRestore={() => void restoreRecord("inventory_suppliers", supplier.id).then(load)} onHardDelete={() => void hardDeleteRecord("inventory_suppliers", supplier.id).then(load)} />} />
             )} />
           </Panel>
           <Panel eyebrow="Ubicaciones" title="Almacenes y zonas" action={<CommandButton icon={<Plus className="h-4 w-4" />} label="Ubicacion" onClick={() => openModal("location")} primary />}>
             <RowsEmpty rows={locations} empty="Sin ubicaciones." render={(location) => (
-              <RowCard key={location.id} title={location.name} tags={[location.city ?? "Sin ciudad"]} detail={location.description ?? "Sin descripcion"} deletedRow={location} actions={<CrudActions role={role} row={location} table="inventory_locations" onEdit={() => openModal("location", location)} onArchive={() => void archive("inventory_locations", location.id)} onRestore={() => void restoreRecord("inventory_locations", location.id).then(load)} />} />
+              <RowCard key={location.id} title={location.name} tags={[location.city ?? "Sin ciudad"]} detail={location.description ?? "Sin descripcion"} deletedRow={location} actions={<CrudActions role={role} row={location} table="inventory_locations" onEdit={() => openModal("location", location)} onArchive={() => void archive("inventory_locations", location.id)} onRestore={() => void restoreRecord("inventory_locations", location.id).then(load)} onHardDelete={() => void hardDeleteRecord("inventory_locations", location.id).then(load)} />} />
             )} />
           </Panel>
           <Panel eyebrow="Unidades" title="Medidas y empaques" action={<CommandButton icon={<Plus className="h-4 w-4" />} label="Unidad" onClick={() => openModal("unit")} primary />}>
             <RowsEmpty rows={units} empty="Sin unidades." render={(unit) => (
-              <RowCard key={unit.id} title={unit.name} tags={[unit.abbreviation, unit.unit_type]} detail={unit.is_base_unit ? "Unidad base" : `Equivale a ${unit.conversion_factor}`} deletedRow={unit} actions={<CrudActions role={role} row={unit} table="inventory_units" onEdit={() => openModal("unit", unit)} onArchive={() => void archive("inventory_units", unit.id)} onRestore={() => void restoreRecord("inventory_units", unit.id).then(load)} />} />
+              <RowCard key={unit.id} title={unit.name} tags={[unit.abbreviation, unit.unit_type]} detail={unit.is_base_unit ? "Unidad base" : `Equivale a ${unit.conversion_factor}`} deletedRow={unit} actions={<CrudActions role={role} row={unit} table="inventory_units" onEdit={() => openModal("unit", unit)} onArchive={() => void archive("inventory_units", unit.id)} onRestore={() => void restoreRecord("inventory_units", unit.id).then(load)} onHardDelete={() => void hardDeleteRecord("inventory_units", unit.id).then(load)} />} />
             )} />
           </Panel>
         </div>
@@ -697,6 +697,7 @@ function CrudActions({
   onEdit,
   onArchive,
   onRestore,
+  onHardDelete,
 }: {
   role: ReturnType<typeof useAuth>["role"];
   row: DeletionMetadata;
@@ -704,6 +705,7 @@ function CrudActions({
   onEdit?: () => void;
   onArchive: () => void;
   onRestore: () => void;
+  onHardDelete?: () => void;
 }) {
   return (
     <>
@@ -713,7 +715,7 @@ function CrudActions({
           Editar
         </button>
       ) : null}
-      <DeleteActions role={role} row={row} compact onSoftDelete={onArchive} onRestore={onRestore} />
+      <DeleteActions role={role} row={row} compact onSoftDelete={onArchive} onRestore={onRestore} onHardDelete={onHardDelete} />
       <span className="sr-only">{table}</span>
     </>
   );

@@ -186,10 +186,11 @@ export async function getPromotionBySlug(slug: string) {
   return normalizePromotionRow(data as PromotionRow | null);
 }
 
-export async function getAdminPromotions(includeDeleted = false) {
+export async function getAdminPromotions(includeDeleted = false, doctorId?: string | null) {
   let query = supabase.from("promotions").select(promotionSelect).order("created_at", { ascending: false });
   const filter = getVisibleDeletionFilter("promotions", includeDeleted);
   if (filter.column) query = query.is(filter.column, filter.value);
+  if (doctorId) query = query.eq("doctor_id", doctorId);
   const { data, error } = await query;
   if (error) throw error;
   return normalizePromotionRows((data ?? []) as PromotionRow[]);

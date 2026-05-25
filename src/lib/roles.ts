@@ -64,15 +64,15 @@ export function canAccessAdminModule(role: UserRole, module: string) {
   return [
     "dashboard",
     "pacientes",
+    "libros",
     "tratamientos",
     "promociones",
-    "pagos-reservas",
     "cursos",
-    "solicitudes",
     "agenda",
     "calendario-citas",
     "disponibilidad",
     "citas",
+    "galeria",
   ].includes(module);
 }
 

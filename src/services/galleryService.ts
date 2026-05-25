@@ -15,6 +15,13 @@ export type GalleryAlbumRow = DeletionMetadata & {
   is_public?: boolean | null;
   is_featured: boolean | null;
   is_active: boolean | null;
+  doctor_id?: string | null;
+  created_by?: string | null;
+  doctor_profiles?: {
+    full_name: string;
+    specialty: string | null;
+    photo_url: string | null;
+  } | null;
   created_at: string;
   gallery_images?: {
     image_url: string;
@@ -27,7 +34,12 @@ export type GalleryAlbumRow = DeletionMetadata & {
 };
 
 export async function getGalleryAlbums() {
-  const { data, error } = await supabase.from("gallery_albums").select("*").eq("is_active", true).is("deleted_at", null).order("event_date", { ascending: false });
+  const { data, error } = await supabase
+    .from("gallery_albums")
+    .select("*, doctor_profiles(full_name, specialty, photo_url)")
+    .eq("is_active", true)
+    .is("deleted_at", null)
+    .order("event_date", { ascending: false });
   if (error) throw error;
   return (data ?? []) as GalleryAlbumRow[];
 }
@@ -35,7 +47,7 @@ export async function getGalleryAlbums() {
 export async function getGalleryAlbumBySlug(slug: string) {
   const { data, error } = await supabase
     .from("gallery_albums")
-    .select("*, gallery_images(*)")
+    .select("*, gallery_images(*), doctor_profiles(full_name, specialty, photo_url)")
     .eq("slug", slug)
     .is("deleted_at", null)
     .maybeSingle();
@@ -43,10 +55,14 @@ export async function getGalleryAlbumBySlug(slug: string) {
   return data as GalleryAlbumRow | null;
 }
 
-export async function getAdminGalleryAlbums(includeDeleted = false) {
-  let query = supabase.from("gallery_albums").select("*, gallery_images(id)").order("created_at", { ascending: false });
+export async function getAdminGalleryAlbums(includeDeleted = false, doctorId?: string | null) {
+  let query = supabase
+    .from("gallery_albums")
+    .select("*, gallery_images(id), doctor_profiles(full_name, specialty, photo_url)")
+    .order("created_at", { ascending: false });
   const filter = getVisibleDeletionFilter("gallery_albums", includeDeleted);
   if (filter.column) query = query.is(filter.column, filter.value);
+  if (doctorId) query = query.eq("doctor_id", doctorId);
   const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as GalleryAlbumRow[];

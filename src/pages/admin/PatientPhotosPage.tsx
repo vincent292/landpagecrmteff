@@ -8,6 +8,7 @@ import { z } from "zod";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { useAuth } from "../../hooks/useAuth";
+import { getMyDoctorProfile } from "../../services/doctorService";
 import {
   createPhotoComparison,
   getPatientPhotos,
@@ -38,7 +39,7 @@ type ComparisonValues = z.infer<typeof comparisonSchema>;
 
 export function PatientPhotosPage() {
   const { id = "" } = useParams();
-  const { user } = useAuth();
+  const { role, profile, user } = useAuth();
   const [photos, setPhotos] = useState<Awaited<ReturnType<typeof getPatientPhotos>>>([]);
   const [comparisons, setComparisons] = useState<Awaited<ReturnType<typeof getPhotoComparisons>>>([]);
   const [typeFilter, setTypeFilter] = useState("Todos");
@@ -50,6 +51,7 @@ export function PatientPhotosPage() {
   const [state, setState] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [doctorProfileId, setDoctorProfileId] = useState<string | null>(null);
 
   const uploadForm = useForm<UploadValues>({
     resolver: zodResolver(uploadSchema),
@@ -89,6 +91,17 @@ export function PatientPhotosPage() {
   useEffect(() => {
     void load();
   }, [id]);
+
+  useEffect(() => {
+    if (role !== "doctor" || !profile?.id) {
+      setDoctorProfileId(null);
+      return;
+    }
+
+    getMyDoctorProfile(profile.id)
+      .then((doctor) => setDoctorProfileId(doctor?.id ?? null))
+      .catch(() => setDoctorProfileId(null));
+  }, [profile?.id, role]);
 
   const treatments = useMemo(
     () => [...new Set(photos.map((item) => item.treatment_name).filter(Boolean))] as string[],
@@ -131,7 +144,11 @@ export function PatientPhotosPage() {
     setUploading(true);
     setState(null);
     try {
-      await uploadPatientPhoto(file, id, { ...values, uploaded_by: user?.id ?? null });
+      await uploadPatientPhoto(file, id, {
+        ...values,
+        uploaded_by: user?.id ?? null,
+        doctor_id: role === "doctor" ? doctorProfileId : null,
+      });
       setFile(null);
       setPreview("");
       uploadForm.reset();
@@ -207,7 +224,7 @@ export function PatientPhotosPage() {
               <img src={preview} alt="Previsualizacion de subida" className="mt-3 h-72 w-full rounded-[18px] object-cover md:max-w-md" />
             </div>
           ) : null}
-          <button disabled={uploading} className="w-fit rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white">
+          <button disabled={uploading || (role === "doctor" && !doctorProfileId)} className="w-fit rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-60">
             {uploading ? "Subiendo..." : "Subir foto"}
           </button>
         </form>
@@ -306,7 +323,12 @@ export function PatientPhotosPage() {
                     <Link2 className="h-4 w-4" />
                   </button>
                   <label className="ml-auto flex items-center gap-2 text-xs font-semibold">
-                    <input type="checkbox" checked={item.is_visible_to_patient} onChange={(event) => void updatePhotoVisibility(item.id, event.target.checked).then(load)} />
+                    <input
+                      type="checkbox"
+                      checked={item.is_visible_to_patient}
+                      onChange={(event) => void updatePhotoVisibility(item.id, event.target.checked).then(load)}
+                      disabled={role === "doctor" && item.doctor_id !== doctorProfileId}
+                    />
                     Visible
                   </label>
                 </div>

@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteActions";
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
+import { useAuth } from "../../hooks/useAuth";
 import { supabase } from "../../lib/supabaseClient";
+import { hardDeleteRecord, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
 import { getCashPaymentMethods, type CashPaymentMethodRow } from "../../services/cashService";
 import {
   approvePromotionOrder,
@@ -25,6 +28,7 @@ type ApprovalDraft = {
 };
 
 export function PromotionOrdersAdminPage() {
+  const { role, profile, user } = useAuth();
   const [rows, setRows] = useState<PromotionOrderRow[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<CashPaymentMethodRow[]>([]);
   const [statusFilter, setStatusFilter] = useState("Todos");
@@ -39,13 +43,16 @@ export function PromotionOrdersAdminPage() {
   const [pendingRealtime, setPendingRealtime] = useState(false);
   const [notesDrafts, setNotesDrafts] = useState<Record<string, string>>({});
   const listRef = useRef<HTMLDivElement | null>(null);
+  const actorId = profile?.id ?? user?.id ?? null;
+  const actorName = profile?.full_name ?? user?.user_metadata.full_name ?? null;
+  const actorEmail = profile?.email ?? user?.email ?? null;
 
   const load = async () => {
     setLoading(true);
     setError(false);
     try {
       const [nextRows, nextMethods] = await Promise.all([
-        getPromotionOrdersAdmin(),
+        getPromotionOrdersAdmin(role === "superadmin"),
         getCashPaymentMethods(true),
       ]);
       setRows(nextRows);
@@ -59,7 +66,7 @@ export function PromotionOrdersAdminPage() {
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [role]);
 
   useEffect(() => {
     const isEditingListField = () => {
@@ -381,6 +388,13 @@ export function PromotionOrdersAdminPage() {
                         Enviar rechazo
                       </a>
                     ) : null}
+                    <DeleteActions
+                      role={role}
+                      row={row}
+                      onSoftDelete={() => void softDeleteRecord({ table: "promotion_orders", id: row.id, actorId, actorRole: role, actorName, actorEmail }).then(load)}
+                      onRestore={() => void restoreRecord("promotion_orders", row.id).then(load)}
+                      onHardDelete={() => void hardDeleteRecord("promotion_orders", row.id).then(load)}
+                    />
                   </div>
                 </div>
 
@@ -391,6 +405,7 @@ export function PromotionOrdersAdminPage() {
                   className="premium-input mt-4 min-h-24"
                   placeholder="Notas internas. Si rechazas, aqui escribe el motivo que tambien se enviara por WhatsApp."
                 />
+                <DeletedStatusNote row={row} />
               </div>
             );
           })}

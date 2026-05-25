@@ -4,7 +4,7 @@ import { Archive, Download, MessageCircle, PackagePlus, Pencil, Plus, Receipt, S
 import { DeleteActions, DeletedStatusNote } from "./DeleteActions";
 import { EmptyState, ErrorState, LoadingState } from "../common/AsyncState";
 import { boliviaCities } from "../../data/cities";
-import { restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
+import { hardDeleteRecord, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
 import { getCashPaymentMethods, type CashPaymentMethodRow } from "../../services/cashService";
 import type { InventoryItemRow, InventoryLocationRow, InventorySupplierRow } from "../../services/inventoryService";
 import {
@@ -671,6 +671,7 @@ export function InventorySupplierOrdersPanel({
                       compact
                       onSoftDelete={() => void softDeleteRecord({ table: "inventory_supplier_orders", id: order.id, actorId, actorRole: role, actorName, actorEmail }).then(load)}
                       onRestore={() => void restoreRecord("inventory_supplier_orders", order.id).then(load)}
+                      onHardDelete={() => void hardDeleteRecord("inventory_supplier_orders", order.id).then(load)}
                     />
                   </div>
                 </div>

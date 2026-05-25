@@ -36,10 +36,11 @@ export async function getCalendarEventBySlug(slug: string) {
   return data as CalendarEventRow | null;
 }
 
-export async function getAdminCalendarEvents(includeDeleted = false) {
+export async function getAdminCalendarEvents(includeDeleted = false, doctorId?: string | null) {
   let query = supabase.from("calendar_events").select("*, doctor_profiles(full_name, specialty, photo_url)").order("event_date", { ascending: false });
   const filter = getVisibleDeletionFilter("calendar_events", includeDeleted);
   if (filter.column) query = query.is(filter.column, filter.value);
+  if (doctorId) query = query.eq("doctor_id", doctorId);
   const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as CalendarEventRow[];

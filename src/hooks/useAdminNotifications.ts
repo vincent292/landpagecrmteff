@@ -13,11 +13,11 @@ import { getReservationById } from "../services/reservationService";
 export type AdminNotification = {
   id: string;
   entityId: string;
-  type: "request" | "enrollment" | "reservation" | "promotion_order" | "book_order";
+  type: "request" | "enrollment" | "reservation" | "promotion_order" | "book_order" | "appointment";
   title: string;
   detail: string;
   href: string;
-  module: "solicitudes" | "pagos-reservas";
+  module: "solicitudes" | "pagos-reservas" | "citas";
   createdAt: string;
 };
 
@@ -46,16 +46,83 @@ function getJoinedTitle(value: { title?: string | null; doctor_id?: string | nul
   return value?.title ?? null;
 }
 
-function getJoinedDoctorId(value: { doctor_id?: string | null } | { doctor_id?: string | null }[] | null | undefined) {
-  if (Array.isArray(value)) return value[0]?.doctor_id ?? null;
-  return value?.doctor_id ?? null;
-}
-
 function getJoinedFullName(
   value: { full_name?: string | null } | { full_name?: string | null }[] | null | undefined
 ) {
   if (Array.isArray(value)) return value[0]?.full_name ?? null;
   return value?.full_name ?? null;
+}
+
+function isManualReservationSource(source?: string | null) {
+  return (source ?? "").toLowerCase().includes("admin_manual");
+}
+
+function buildDoctorAppointmentNotification(row: {
+  id: string;
+  title?: string | null;
+  appointment_date?: string | null;
+  start_time?: string | null;
+  created_at: string;
+  patients?: { full_name?: string | null } | { full_name?: string | null }[] | null;
+}): AdminNotification {
+  const patientName = getJoinedFullName(row.patients) ?? "Paciente";
+  const appointmentTitle = row.title ?? "Cita manual";
+  const schedule = row.appointment_date && row.start_time ? ` · ${row.appointment_date} ${row.start_time.slice(0, 5)}` : "";
+
+  return {
+    id: `appointment-${row.id}`,
+    entityId: row.id,
+    type: "appointment",
+    title: "Nueva cita manual asignada",
+    detail: `${patientName} · ${appointmentTitle}${schedule}`,
+    href: "/panel/citas",
+    module: "citas",
+    createdAt: row.created_at,
+  };
+}
+
+function buildDoctorManualReservationNotification(row: {
+  id: string;
+  appointment_type: string;
+  created_at: string;
+  appointment_date?: string | null;
+  start_time?: string | null;
+  patients?: { full_name?: string | null } | { full_name?: string | null }[] | null;
+}): AdminNotification {
+  const patientName = getJoinedFullName(row.patients) ?? "Paciente";
+  const schedule = row.appointment_date && row.start_time ? ` · ${row.appointment_date} ${row.start_time.slice(0, 5)}` : "";
+
+  return {
+    id: `reservation-manual-${row.id}`,
+    entityId: row.id,
+    type: "reservation",
+    title: "Nueva cita manual asignada",
+    detail: `${patientName} · ${row.appointment_type}${schedule}`,
+    href: "/panel/citas",
+    module: "citas",
+    createdAt: row.created_at,
+  };
+}
+
+function buildDoctorConfirmedReservationNotification(row: {
+  id: string;
+  appointment_type: string;
+  payment_verified_at?: string | null;
+  patients?: { full_name?: string | null } | { full_name?: string | null }[] | null;
+}): AdminNotification | null {
+  if (!row.payment_verified_at) return null;
+  const patientName = getJoinedFullName(row.patients) ?? "Paciente";
+
+  return {
+    id: `reservation-paid-${row.id}`,
+    entityId: row.id,
+    type: "reservation",
+    title: "Pago confirmado de cita",
+    detail: `${patientName} · ${row.appointment_type}`,
+    href: "/panel/citas",
+    module: "citas",
+    createdAt: row.payment_verified_at,
+  };
 }
 
 export function useAdminNotifications(userId?: string | null, role?: UserRole) {
@@ -102,7 +169,7 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
       const enrollmentsFilter = getVisibleDeletionFilter("course_enrollments", false);
       const promotionOrdersFilter = getVisibleDeletionFilter("promotion_orders", false);
 
-      const [requestsResult, enrollmentsResult, promotionOrdersResult, reservationsResult, bookOrders] = await Promise.all([
+      const [requestsResult, enrollmentsResult, promotionOrdersResult, reservationsResult, bookOrders, doctorAppointmentsResult] = await Promise.all([
         supabase
           .from("information_requests")
           .select("id, full_name, interest_title, interest_type, created_at")
@@ -127,13 +194,26 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
           if (promotionOrdersFilter.column) query = query.eq(promotionOrdersFilter.column, promotionOrdersFilter.value);
           return query;
         })(),
-        supabase
-          .from("appointment_reservations")
-          .select("id, appointment_type, title, source, payment_receipt_path, payment_amount, payment_expires_at, doctor_id, created_at, patients(full_name)")
-          .eq("is_deleted", false)
-          .order("created_at", { ascending: false })
-          .limit(6),
+        (() => {
+          let query = supabase
+            .from("appointment_reservations")
+            .select("id, appointment_type, title, source, payment_receipt_path, payment_amount, payment_expires_at, doctor_id, status, created_at, payment_verified_at, appointment_date, start_time, patients(full_name)")
+            .eq("is_deleted", false)
+            .order(role === "doctor" ? "payment_verified_at" : "created_at", { ascending: false })
+            .limit(6);
+          if (role === "doctor" && doctorProfileId) query = query.eq("doctor_id", doctorProfileId);
+          return query;
+        })(),
         role === "doctor" ? Promise.resolve([]) : getBookOrdersAdmin().catch(() => []),
+        role !== "doctor" || !doctorProfileId
+          ? Promise.resolve({ data: [], error: null })
+          : supabase
+              .from("appointments")
+              .select("id, title, appointment_date, start_time, doctor_id, created_at, patients(full_name)")
+              .eq("is_deleted", false)
+              .eq("doctor_id", doctorProfileId)
+              .order("created_at", { ascending: false })
+              .limit(6),
       ]);
 
       if (!active) return;
@@ -164,7 +244,7 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
               createdAt: row.created_at,
             }))),
         ...(promotionOrdersResult.data ?? [])
-          .filter((row) => (role === "doctor" ? getJoinedDoctorId(row.promotions) === doctorProfileId : true))
+          .filter(() => role !== "doctor")
           .map((row) => ({
             id: `promotion-order-${row.id}`,
             entityId: row.id,
@@ -187,7 +267,7 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
         })),
         ...(reservationsResult.data ?? [])
           .filter((row) => isPaymentManagedReservation(row))
-          .filter((row) => (role === "doctor" ? row.doctor_id === doctorProfileId : true))
+          .filter(() => role !== "doctor")
           .map((row) => ({
             id: `reservation-${row.id}`,
             entityId: row.id,
@@ -198,6 +278,22 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
             module: "pagos-reservas" as const,
             createdAt: row.created_at,
           })),
+        ...(role !== "doctor"
+          ? []
+          : (doctorAppointmentsResult.data ?? []).map((row) => buildDoctorAppointmentNotification(row))),
+        ...(role !== "doctor"
+          ? []
+          : (reservationsResult.data ?? [])
+              .filter((row) => row.doctor_id === doctorProfileId)
+              .flatMap((row) => {
+                const doctorNotifications: AdminNotification[] = [];
+                if (isManualReservationSource(row.source)) {
+                  doctorNotifications.push(buildDoctorManualReservationNotification(row));
+                }
+                const confirmedNotification = row.status === "Confirmada" ? buildDoctorConfirmedReservationNotification(row) : null;
+                if (confirmedNotification) doctorNotifications.push(confirmedNotification);
+                return doctorNotifications;
+              })),
       ];
 
       setItems(sortNotifications(notifications));
@@ -211,7 +307,7 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
   }, [doctorProfileId, role, userId]);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || role === "doctor") return;
 
     let active = true;
 
@@ -228,7 +324,7 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "information_requests" },
         async (payload) => {
-          if (!active || role === "doctor") return;
+          if (!active) return;
           const row = await getInformationRequestById(payload.new.id).catch(() => null);
           if (!row) return;
           prepend({
@@ -247,7 +343,7 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "course_enrollments" },
         async (payload) => {
-          if (!active || role === "doctor") return;
+          if (!active) return;
           const row = await getEnrollmentById(payload.new.id).catch(() => null);
           if (!row) return;
           prepend({
@@ -269,7 +365,6 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
           if (!active) return;
           const row = await getPromotionOrderById(payload.new.id).catch(() => null);
           if (!row) return;
-          if (role === "doctor" && row.promotions?.doctor_id !== doctorProfileId) return;
           prepend({
             id: `promotion-order-${row.id}`,
             entityId: row.id,
@@ -286,7 +381,7 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "book_orders" },
         async (payload) => {
-          if (!active || role === "doctor") return;
+          if (!active) return;
           const rows = await getBookOrdersAdmin().catch(() => []);
           const row = rows.find((item) => item.id === payload.new.id);
           if (!row) return;
@@ -309,7 +404,6 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
           if (!active) return;
           const row = await getReservationById(payload.new.id).catch(() => null);
           if (!row || !isPaymentManagedReservation(row)) return;
-          if (role === "doctor" && row.doctor_id !== doctorProfileId) return;
           prepend({
             id: `reservation-${row.id}`,
             entityId: row.id,
@@ -320,6 +414,67 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
             module: "pagos-reservas",
             createdAt: row.created_at,
           });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      active = false;
+      void supabase.removeChannel(channel);
+    };
+  }, [doctorProfileId, role, userId]);
+
+  useEffect(() => {
+    if (!userId || role !== "doctor" || !doctorProfileId) return;
+
+    let active = true;
+
+    const prepend = (notification: AdminNotification | null) => {
+      if (!notification) return;
+      setItems((current) => {
+        const next = [notification, ...current.filter((item) => item.id !== notification.id)];
+        return sortNotifications(next);
+      });
+    };
+
+    const channel = supabase
+      .channel(`doctor-live-notifications:${userId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "appointments" },
+        async (payload) => {
+          if (!active || payload.new.doctor_id !== doctorProfileId) return;
+
+          const { data } = await supabase
+            .from("appointments")
+            .select("id, title, appointment_date, start_time, created_at, patients(full_name)")
+            .eq("id", payload.new.id)
+            .eq("is_deleted", false)
+            .maybeSingle();
+
+          if (!data) return;
+          prepend(buildDoctorAppointmentNotification(data));
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "appointment_reservations" },
+        async (payload) => {
+          if (!active || payload.new.doctor_id !== doctorProfileId || !isManualReservationSource(payload.new.source)) return;
+          const row = await getReservationById(payload.new.id).catch(() => null);
+          if (!row) return;
+          prepend(buildDoctorManualReservationNotification(row));
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "appointment_reservations" },
+        async (payload) => {
+          if (!active || payload.new.doctor_id !== doctorProfileId) return;
+          if (payload.old.status === "Confirmada" || payload.new.status !== "Confirmada") return;
+          const row = await getReservationById(payload.new.id).catch(() => null);
+          if (!row) return;
+          prepend(buildDoctorConfirmedReservationNotification(row));
         }
       )
       .subscribe();

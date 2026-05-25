@@ -14,6 +14,7 @@ import {
   uploadBookFile,
   type BookRow,
 } from "../../services/bookService";
+import { getAdminDoctors, getMyDoctorProfile, type DoctorProfileRow } from "../../services/doctorService";
 import { getSiteSettings, type SiteSettingsRow } from "../../services/siteSettingsService";
 import { formatMoney, slugify } from "../../utils/text";
 
@@ -25,9 +26,12 @@ export function BooksAdminPage() {
   const isForm = location.pathname.includes("/nuevo") || location.pathname.includes("/editar");
   const [rows, setRows] = useState<BookRow[]>([]);
   const [current, setCurrent] = useState<BookRow | null>(null);
+  const [doctors, setDoctors] = useState<DoctorProfileRow[]>([]);
   const [siteSettings, setSiteSettings] = useState<SiteSettingsRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [doctorProfileId, setDoctorProfileId] = useState<string | null>(null);
+  const [doctorProfileResolved, setDoctorProfileResolved] = useState(role !== "doctor");
   const [form, setForm] = useState({
     title: "",
     slug: "",
@@ -40,21 +44,38 @@ export function BooksAdminPage() {
     price: 0,
     download_token_mode: "single_use",
     default_token_max_uses: 1,
+    doctor_id: "",
     is_active: true,
   });
   const [bookFile, setBookFile] = useState<File | null>(null);
+  const doctorFieldLocked = role === "doctor" && Boolean(doctorProfileId);
 
   const load = () => {
+    if (role === "doctor" && !doctorProfileResolved) return;
+    if (role === "doctor" && !doctorProfileId) {
+      setRows([]);
+      setCurrent(null);
+      setDoctors([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     Promise.all([
-      getBooksAdmin(role === "superadmin"),
+      getBooksAdmin(role === "superadmin", role === "doctor" ? doctorProfileId : null),
       id ? getBookById(id) : Promise.resolve(null),
       getSiteSettings().catch(() => null),
+      getAdminDoctors(role === "superadmin").then((doctorRows) =>
+        doctorRows.filter((doctor) =>
+          doctor.is_active && (!doctorFieldLocked || doctor.id === doctorProfileId)
+        )
+      ),
     ])
-      .then(([books, selected, settings]) => {
+      .then(([books, selected, settings, doctorRows]) => {
         setRows(books);
         setCurrent(selected);
         setSiteSettings(settings);
+        setDoctors(doctorRows);
         if (selected) {
           setForm({
             title: selected.title ?? "",
@@ -68,6 +89,7 @@ export function BooksAdminPage() {
             price: selected.price ?? 0,
             download_token_mode: selected.download_token_mode ?? "single_use",
             default_token_max_uses: selected.default_token_max_uses ?? 1,
+            doctor_id: selected.doctor_id ?? doctorProfileId ?? "",
             is_active: selected.is_active ?? true,
           });
         } else {
@@ -83,6 +105,7 @@ export function BooksAdminPage() {
             price: 0,
             download_token_mode: "single_use",
             default_token_max_uses: 1,
+            doctor_id: doctorProfileId ?? "",
             is_active: true,
           });
         }
@@ -91,7 +114,29 @@ export function BooksAdminPage() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(load, [id, role]);
+  useEffect(() => {
+    if (role !== "doctor" || !profile?.id) {
+      setDoctorProfileId(null);
+      setDoctorProfileResolved(true);
+      return;
+    }
+
+    setDoctorProfileResolved(false);
+    getMyDoctorProfile(profile.id)
+      .then((doctor) => setDoctorProfileId(doctor?.id ?? null))
+      .catch(() => setDoctorProfileId(null))
+      .finally(() => setDoctorProfileResolved(true));
+  }, [profile?.id, role]);
+
+  useEffect(() => {
+    load();
+  }, [doctorFieldLocked, doctorProfileId, doctorProfileResolved, id, role]);
+
+  useEffect(() => {
+    if (!doctorFieldLocked || !doctorProfileId) return;
+    if (form.doctor_id === doctorProfileId) return;
+    setForm((currentForm) => ({ ...currentForm, doctor_id: doctorProfileId }));
+  }, [doctorFieldLocked, doctorProfileId, form.doctor_id]);
 
   const submit = async () => {
     let filePath = form.file_path;
@@ -103,6 +148,7 @@ export function BooksAdminPage() {
     const payload = {
       ...form,
       file_path: filePath,
+      doctor_id: doctorFieldLocked ? doctorProfileId : form.doctor_id || null,
     };
 
     if (current) {
@@ -145,6 +191,9 @@ export function BooksAdminPage() {
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-accent-strong)]">{book.author}</p>
                     <h2 className="mt-2 text-2xl font-semibold">{book.title}</h2>
+                    <p className="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-copy)]">
+                      {book.doctor_profiles?.full_name ?? "Sin doctora asignada"}
+                    </p>
                     <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">{formatMoney(book.price)} - {book.is_active ? "Activo" : "Inactivo"}</p>
                     <DeletedStatusNote row={book} />
                   </div>
@@ -186,6 +235,24 @@ export function BooksAdminPage() {
       <div className="mt-8 grid gap-4 md:grid-cols-2">
         <Field label="Titulo"><input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value, slug: current ? form.slug : slugify(event.target.value) })} className="premium-input mt-2" /></Field>
         <Field label="Slug"><input value={form.slug} onChange={(event) => setForm({ ...form, slug: event.target.value })} className="premium-input mt-2" /></Field>
+        <Field label="Doctora">
+          {doctorFieldLocked ? (
+            <input
+              value={doctors.find((doctor) => doctor.id === form.doctor_id)?.full_name ?? ""}
+              className="premium-input mt-2"
+              disabled
+            />
+          ) : (
+            <select value={form.doctor_id} onChange={(event) => setForm({ ...form, doctor_id: event.target.value })} className="premium-input mt-2">
+              <option value="">Selecciona doctora</option>
+              {doctors.map((doctor) => (
+                <option key={doctor.id} value={doctor.id}>
+                  {doctor.full_name}
+                </option>
+              ))}
+            </select>
+          )}
+        </Field>
         <Field label="Autor"><input value={form.author} onChange={(event) => setForm({ ...form, author: event.target.value })} className="premium-input mt-2" /></Field>
         <Field label="Precio"><input type="number" value={String(form.price)} onChange={(event) => setForm({ ...form, price: Number(event.target.value) })} className="premium-input mt-2" /></Field>
         <Field label="Modo de token">

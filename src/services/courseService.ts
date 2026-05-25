@@ -42,10 +42,11 @@ export async function getCourseBySlug(slug: string) {
   return attachDoctorProfile(data as CourseRow | null);
 }
 
-export async function getAdminCourses(includeDeleted = false) {
+export async function getAdminCourses(includeDeleted = false, doctorId?: string | null) {
   let query = supabase.from("courses").select("*, doctor_profiles(full_name, specialty, photo_url), course_enrollments(id)").order("created_at", { ascending: false });
   const filter = getVisibleDeletionFilter("courses", includeDeleted);
   if (filter.column) query = query.is(filter.column, filter.value);
+  if (doctorId) query = query.eq("doctor_id", doctorId);
   const { data, error } = await query;
   if (error) throw error;
   return attachDoctorProfiles((data ?? []) as (CourseRow & { course_enrollments?: { id: string }[] })[]);

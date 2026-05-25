@@ -149,11 +149,12 @@ export async function getPaymentsAndReservationsFeed(options?: {
   role?: UserRole;
   doctorProfileId?: string | null;
 }) {
+  const includeDeleted = options?.role === "superadmin";
   const [promotionRows, courseRows, bookRows, reservationRows] = await Promise.all([
-    getPromotionOrdersAdmin(),
-    getCourseEnrollments(),
-    getBookOrdersAdmin(),
-    getReservationsAdmin(),
+    getPromotionOrdersAdmin(includeDeleted),
+    getCourseEnrollments(includeDeleted),
+    getBookOrdersAdmin(includeDeleted),
+    getReservationsAdmin({}, includeDeleted),
   ]);
 
   const promotionItems: PaymentsAndReservationsItem[] = promotionRows.map((row) => ({

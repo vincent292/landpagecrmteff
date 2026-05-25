@@ -52,10 +52,11 @@ export async function getTreatmentBySlug(slug: string) {
   return attachDoctorProfile(data as (TreatmentRow & { treatment_images?: { image_url: string; alt_text?: string | null }[] }) | null);
 }
 
-export async function getAdminTreatments(includeDeleted = false) {
+export async function getAdminTreatments(includeDeleted = false, doctorId?: string | null) {
   let query = supabase.from(table).select("*, doctor_profiles(full_name, specialty, photo_url)").order("created_at", { ascending: false });
   const filter = getVisibleDeletionFilter("treatments", includeDeleted);
   if (filter.column) query = query.is(filter.column, filter.value);
+  if (doctorId) query = query.eq("doctor_id", doctorId);
   const { data, error } = await query;
   if (error) throw error;
   return attachDoctorProfiles((data ?? []) as TreatmentRow[]);

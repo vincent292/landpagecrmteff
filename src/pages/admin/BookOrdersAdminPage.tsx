@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
+import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteActions";
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
+import { useAuth } from "../../hooks/useAuth";
+import { hardDeleteRecord, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
 import { getCashPaymentMethods, type CashPaymentMethodRow } from "../../services/cashService";
 import {
   getBookOrdersAdmin,
@@ -31,6 +34,7 @@ type ApprovalDraft = {
 };
 
 export function BookOrdersAdminPage() {
+  const { role, profile, user } = useAuth();
   const [rows, setRows] = useState<BookOrderRow[]>([]);
   const [tokens, setTokens] = useState<BookTokenRow[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<CashPaymentMethodRow[]>([]);
@@ -41,12 +45,15 @@ export function BookOrdersAdminPage() {
   const [generatedToken, setGeneratedToken] = useState("");
   const [approvalDraft, setApprovalDraft] = useState<ApprovalDraft | null>(null);
   const [savingApproval, setSavingApproval] = useState(false);
+  const actorId = profile?.id ?? user?.id ?? null;
+  const actorName = profile?.full_name ?? user?.user_metadata.full_name ?? null;
+  const actorEmail = profile?.email ?? user?.email ?? null;
 
   const load = async () => {
     setLoading(true);
     setError(false);
     try {
-      const [nextRows, nextTokens, nextMethods] = await Promise.all([getBookOrdersAdmin(), getAllTokensAdmin(), getCashPaymentMethods(true)]);
+      const [nextRows, nextTokens, nextMethods] = await Promise.all([getBookOrdersAdmin(role === "superadmin"), getAllTokensAdmin(), getCashPaymentMethods(true)]);
       setRows(nextRows);
       setTokens(nextTokens);
       setPaymentMethods(nextMethods);
@@ -59,7 +66,7 @@ export function BookOrdersAdminPage() {
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [role]);
 
   const filtered = useMemo(
     () =>
@@ -182,6 +189,13 @@ export function BookOrdersAdminPage() {
                   <a href={`https://wa.me/${(row.phone ?? "").replace(/\D/g, "")}`} target="_blank" rel="noreferrer" className="rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-semibold">
                     Abrir WhatsApp
                   </a>
+                  <DeleteActions
+                    role={role}
+                    row={row}
+                    onSoftDelete={() => void softDeleteRecord({ table: "book_orders", id: row.id, actorId, actorRole: role, actorName, actorEmail }).then(load)}
+                    onRestore={() => void restoreRecord("book_orders", row.id).then(load)}
+                    onHardDelete={() => void hardDeleteRecord("book_orders", row.id).then(load)}
+                  />
                 </div>
               </div>
 
@@ -191,6 +205,7 @@ export function BookOrdersAdminPage() {
                 className="premium-input mt-4 min-h-24"
                 placeholder="Notas internas"
               />
+              <DeletedStatusNote row={row} />
             </div>
           ))}
         </div>

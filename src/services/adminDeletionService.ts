@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabaseClient";
+import { deleteFile } from "./storageService";
 import type { UserRole } from "../types/platform";
 
 export type DeletionMetadata = {
@@ -166,7 +167,165 @@ export async function restoreRecord(table: DeletableTable, id: string) {
   if (error) throw error;
 }
 
+async function deleteStorageFileIfPresent(bucket: string, path?: string | null) {
+  if (!path) return;
+  try {
+    await deleteFile(bucket, path);
+  } catch (error) {
+    if (isStorageNotFoundError(error)) return;
+    throw error;
+  }
+}
+
+function isStorageNotFoundError(error: unknown) {
+  if (!(error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
+  return message.includes("not found") || message.includes("does not exist") || message.includes("no such object");
+}
+
+async function deleteLinkedCashMovement(id?: string | null) {
+  if (!id) return;
+
+  const { data, error } = await supabase.from("cash_movements").select("attachment_path").eq("id", id).maybeSingle();
+  if (error) throw error;
+  if (!data) return;
+
+  await deleteStorageFileIfPresent("payment-receipts-private", data.attachment_path);
+
+  const { error: deleteError } = await supabase.from("cash_movements").delete().eq("id", id);
+  if (deleteError) throw deleteError;
+}
+
+async function cleanupBeforeHardDelete(table: DeletableTable, id: string) {
+  switch (table) {
+    case "course_enrollments": {
+      const { data, error } = await supabase
+        .from("course_enrollments")
+        .select("payment_receipt_path, cash_movement_id")
+        .eq("id", id)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return;
+      await deleteStorageFileIfPresent("payment-receipts-private", data.payment_receipt_path);
+      await deleteLinkedCashMovement(data.cash_movement_id);
+      return;
+    }
+    case "book_orders": {
+      const { data, error } = await supabase
+        .from("book_orders")
+        .select("payment_receipt_path, cash_movement_id")
+        .eq("id", id)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return;
+      await deleteStorageFileIfPresent("payment-receipts-private", data.payment_receipt_path);
+      await deleteLinkedCashMovement(data.cash_movement_id);
+      const { error: tokensError } = await supabase.from("book_download_tokens").delete().eq("order_id", id);
+      if (tokensError) throw tokensError;
+      return;
+    }
+    case "promotion_orders": {
+      const { data, error } = await supabase
+        .from("promotion_orders")
+        .select("payment_receipt_path, cash_movement_id, appointment_reservation_id, promotion_order_items(appointment_reservation_id)")
+        .eq("id", id)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return;
+
+      await deleteStorageFileIfPresent("payment-receipts-private", data.payment_receipt_path);
+      await deleteLinkedCashMovement(data.cash_movement_id);
+
+      const reservationIds = [
+        data.appointment_reservation_id,
+        ...(data.promotion_order_items ?? []).map((item: { appointment_reservation_id: string | null }) => item.appointment_reservation_id),
+      ].filter((value): value is string => Boolean(value));
+
+      for (const reservationId of new Set(reservationIds)) {
+        await hardDeleteRecord("appointment_reservations", reservationId);
+      }
+      return;
+    }
+    case "appointment_reservations": {
+      const { data, error } = await supabase
+        .from("appointment_reservations")
+        .select("payment_receipt_path, cash_movement_id")
+        .eq("id", id)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return;
+      await deleteStorageFileIfPresent("payment-receipts-private", data.payment_receipt_path);
+      await deleteLinkedCashMovement(data.cash_movement_id);
+      return;
+    }
+    case "appointments": {
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("cash_movement_id")
+        .eq("id", id)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return;
+      await deleteLinkedCashMovement(data.cash_movement_id);
+      return;
+    }
+    case "patient_photos": {
+      const { data, error } = await supabase
+        .from("patient_photos")
+        .select("image_path")
+        .eq("id", id)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return;
+      await deleteStorageFileIfPresent("patient-photos-private", data.image_path);
+      return;
+    }
+    case "books": {
+      const { data, error } = await supabase
+        .from("books")
+        .select("file_path")
+        .eq("id", id)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return;
+      await deleteStorageFileIfPresent("book-files-private", data.file_path);
+      return;
+    }
+    case "cash_movements": {
+      const { data, error } = await supabase
+        .from("cash_movements")
+        .select("attachment_path")
+        .eq("id", id)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return;
+      await deleteStorageFileIfPresent("payment-receipts-private", data.attachment_path);
+      return;
+    }
+    case "inventory_supplier_orders": {
+      const { data, error } = await supabase
+        .from("inventory_supplier_orders")
+        .select("document_path, inventory_supplier_order_payments(receipt_path, cash_movement_id)")
+        .eq("id", id)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return;
+
+      await deleteStorageFileIfPresent("payment-receipts-private", data.document_path);
+
+      for (const payment of data.inventory_supplier_order_payments ?? []) {
+        await deleteStorageFileIfPresent("payment-receipts-private", payment.receipt_path);
+        await deleteLinkedCashMovement(payment.cash_movement_id);
+      }
+      return;
+    }
+    default:
+      return;
+  }
+}
+
 export async function hardDeleteRecord(table: DeletableTable, id: string) {
+  await cleanupBeforeHardDelete(table, id);
   const { error } = await supabase.from(table).delete().eq("id", id);
   if (error) throw error;
 }

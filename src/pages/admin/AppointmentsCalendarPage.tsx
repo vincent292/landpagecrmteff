@@ -6,23 +6,51 @@ import interactionPlugin from "@fullcalendar/interaction";
 import { Download, ExternalLink, Mail, MessageCircleMore, Search } from "lucide-react";
 
 import { EmptyState, LoadingState } from "../../components/common/AsyncState";
+import { useAuth } from "../../hooks/useAuth";
+import { getMyDoctorProfile } from "../../services/doctorService";
 import { getReservationsAdmin, type AppointmentReservationRow } from "../../services/reservationService";
 import { formatDate } from "../../utils/text";
 
 const statuses = ["Todos", "Pendiente", "Confirmada", "Realizada", "Cancelada", "Rechazada"];
 
 export function AppointmentsCalendarPage() {
+  const { role, profile } = useAuth();
   const [reservations, setReservations] = useState<AppointmentReservationRow[]>([]);
   const [selected, setSelected] = useState<AppointmentReservationRow | null>(null);
   const [status, setStatus] = useState("Todos");
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [doctorProfileId, setDoctorProfileId] = useState<string | null>(null);
+  const [doctorProfileResolved, setDoctorProfileResolved] = useState(role !== "doctor");
 
   useEffect(() => {
-    getReservationsAdmin()
+    if (role !== "doctor" || !profile?.id) {
+      setDoctorProfileId(null);
+      setDoctorProfileResolved(true);
+      return;
+    }
+
+    setDoctorProfileResolved(false);
+    getMyDoctorProfile(profile.id)
+      .then((doctor) => setDoctorProfileId(doctor?.id ?? null))
+      .catch(() => setDoctorProfileId(null))
+      .finally(() => setDoctorProfileResolved(true));
+  }, [profile?.id, role]);
+
+  useEffect(() => {
+    if (role === "doctor" && !doctorProfileResolved) return;
+
+    if (role === "doctor" && !doctorProfileId) {
+      setReservations([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    getReservationsAdmin(role === "doctor" ? { doctor_id: doctorProfileId } : {})
       .then(setReservations)
       .finally(() => setLoading(false));
-  }, []);
+  }, [doctorProfileId, doctorProfileResolved, role]);
 
   const filteredReservations = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -54,7 +82,9 @@ export function AppointmentsCalendarPage() {
               Agenda clinica de doctoras
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--color-copy)]">
-              Revisa las citas por mes, semana o dia y abre cada reserva para notificar o exportar al calendario.
+              {role === "doctor"
+                ? "Revisa solo tus citas por mes, semana o dia y abre cada reserva para notificar o exportar al calendario."
+                : "Revisa las citas por mes, semana o dia y abre cada reserva para notificar o exportar al calendario."}
             </p>
           </div>
         </div>

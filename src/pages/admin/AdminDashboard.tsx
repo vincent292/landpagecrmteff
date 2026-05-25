@@ -22,10 +22,14 @@ import {
 import { Link } from "react-router-dom";
 
 import { LoadingState } from "../../components/common/AsyncState";
+import { useAuth } from "../../hooks/useAuth";
+import { getBooksAdmin } from "../../services/bookService";
 import { getAdminCalendarEvents } from "../../services/calendarService";
 import { getCashMovements, getCashRegisterSessions, getCashSessionCounts } from "../../services/cashService";
 import { getAdminCourses } from "../../services/courseService";
+import { getMyDoctorProfile } from "../../services/doctorService";
 import { getCourseEnrollments } from "../../services/enrollmentService";
+import { getAdminGalleryAlbums } from "../../services/galleryService";
 import { getInventoryItems, getInventoryLots } from "../../services/inventoryService";
 import { getInformationRequests, type InformationRequestRow } from "../../services/requestService";
 import { getReservationsAdmin, type AppointmentReservationRow } from "../../services/reservationService";
@@ -33,11 +37,14 @@ import { getAdminTreatments } from "../../services/treatmentService";
 import { formatDate, formatMoney } from "../../utils/text";
 
 export function AdminDashboard() {
+  const { role, user } = useAuth();
   const [requests, setRequests] = useState<InformationRequestRow[]>([]);
   const [coursesCount, setCoursesCount] = useState(0);
   const [enrollmentsPending, setEnrollmentsPending] = useState(0);
   const [eventsCount, setEventsCount] = useState(0);
   const [treatmentsCount, setTreatmentsCount] = useState(0);
+  const [booksCount, setBooksCount] = useState(0);
+  const [galleryCount, setGalleryCount] = useState(0);
   const [reservations, setReservations] = useState<AppointmentReservationRow[]>([]);
   const [cashOpenSessions, setCashOpenSessions] = useState(0);
   const [cashIncomeToday, setCashIncomeToday] = useState(0);
@@ -48,20 +55,40 @@ export function AdminDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([
-      getInformationRequests(),
-      getAdminCourses(),
-      getCourseEnrollments(),
-      getAdminCalendarEvents(),
-      getAdminTreatments(),
-      getReservationsAdmin(),
-      getCashMovements(),
-      getCashRegisterSessions(),
-      getCashSessionCounts(),
-      getInventoryItems(),
-      getInventoryLots(),
-    ])
-      .then(([
+    const load = async () => {
+      setLoading(true);
+
+      if (role === "doctor" && user?.id) {
+        const doctorProfile = await getMyDoctorProfile(user.id).catch(() => null);
+        const doctorId = doctorProfile?.id ?? null;
+
+        const [courseRows, eventRows, treatmentRows, reservationRows, bookRows, galleryRows] = await Promise.all([
+          getAdminCourses(false, doctorId),
+          getAdminCalendarEvents(false, doctorId),
+          getAdminTreatments(false, doctorId),
+          getReservationsAdmin({ doctor_id: doctorId }),
+          getBooksAdmin(false, doctorId),
+          getAdminGalleryAlbums(false, doctorId),
+        ]);
+
+        setRequests([]);
+        setCoursesCount(courseRows.filter((item) => item.is_active).length);
+        setEnrollmentsPending(0);
+        setEventsCount(eventRows.filter((item) => item.is_active).length);
+        setTreatmentsCount(treatmentRows.filter((item) => item.is_active).length);
+        setBooksCount(bookRows.filter((item) => item.is_active).length);
+        setGalleryCount(galleryRows.filter((item) => item.is_active).length);
+        setReservations(reservationRows);
+        setCashOpenSessions(0);
+        setCashIncomeToday(0);
+        setCashDifferenceTotal(0);
+        setInventoryLowStock(0);
+        setInventoryExpiringLots(0);
+        setLoading(false);
+        return;
+      }
+
+      const [
         requestRows,
         courseRows,
         enrollmentRows,
@@ -73,42 +100,59 @@ export function AdminDashboard() {
         cashCountRows,
         inventoryItemRows,
         inventoryLotRows,
-      ]) => {
-        const today = new Date().toISOString().slice(0, 10);
-        const todayDate = new Date(`${today}T00:00:00`);
-        const nextThirtyDays = new Date(todayDate);
-        nextThirtyDays.setDate(nextThirtyDays.getDate() + 30);
+      ] = await Promise.all([
+        getInformationRequests(),
+        getAdminCourses(),
+        getCourseEnrollments(),
+        getAdminCalendarEvents(),
+        getAdminTreatments(),
+        getReservationsAdmin(),
+        getCashMovements(),
+        getCashRegisterSessions(),
+        getCashSessionCounts(),
+        getInventoryItems(),
+        getInventoryLots(),
+      ]);
 
-        setRequests(requestRows);
-        setCoursesCount(courseRows.filter((item) => item.is_active).length);
-        setEnrollmentsPending(enrollmentRows.filter((item) => item.status === "Pendiente").length);
-        setEventsCount(eventRows.filter((item) => item.is_active).length);
-        setTreatmentsCount(treatmentRows.filter((item) => item.is_active).length);
-        setReservations(reservationRows);
-        setCashOpenSessions(cashSessionRows.filter((item) => item.status === "abierta").length);
-        setCashIncomeToday(
-          cashMovementRows
-            .filter((item) => item.status !== "anulado" && item.movement_type === "ingreso" && item.movement_date === today)
-            .reduce((sum, item) => sum + Number(item.amount ?? 0), 0)
-        );
-        setCashDifferenceTotal(
-          cashCountRows.reduce((sum, item) => sum + Math.abs(Number(item.difference_amount ?? 0)), 0)
-        );
-        setInventoryLowStock(
-          inventoryItemRows.filter(
-            (item) => item.is_active && Number(item.current_stock ?? 0) <= Number(item.minimum_stock ?? 0)
-          ).length
-        );
-        setInventoryExpiringLots(
-          inventoryLotRows.filter((lot) => {
-            if (!lot.is_active || !lot.expiration_date || Number(lot.current_quantity ?? 0) <= 0) return false;
-            const expiration = new Date(`${lot.expiration_date}T00:00:00`);
-            return expiration >= todayDate && expiration <= nextThirtyDays;
-          }).length
-        );
-      })
-      .finally(() => setLoading(false));
-  }, []);
+      const today = new Date().toISOString().slice(0, 10);
+      const todayDate = new Date(`${today}T00:00:00`);
+      const nextThirtyDays = new Date(todayDate);
+      nextThirtyDays.setDate(nextThirtyDays.getDate() + 30);
+
+      setRequests(requestRows);
+      setCoursesCount(courseRows.filter((item) => item.is_active).length);
+      setEnrollmentsPending(enrollmentRows.filter((item) => item.status === "Pendiente").length);
+      setEventsCount(eventRows.filter((item) => item.is_active).length);
+      setTreatmentsCount(treatmentRows.filter((item) => item.is_active).length);
+      setBooksCount(0);
+      setGalleryCount(0);
+      setReservations(reservationRows);
+      setCashOpenSessions(cashSessionRows.filter((item) => item.status === "abierta").length);
+      setCashIncomeToday(
+        cashMovementRows
+          .filter((item) => item.status !== "anulado" && item.movement_type === "ingreso" && item.movement_date === today)
+          .reduce((sum, item) => sum + Number(item.amount ?? 0), 0)
+      );
+      setCashDifferenceTotal(
+        cashCountRows.reduce((sum, item) => sum + Math.abs(Number(item.difference_amount ?? 0)), 0)
+      );
+      setInventoryLowStock(
+        inventoryItemRows.filter(
+          (item) => item.is_active && Number(item.current_stock ?? 0) <= Number(item.minimum_stock ?? 0)
+        ).length
+      );
+      setInventoryExpiringLots(
+        inventoryLotRows.filter((lot) => {
+          if (!lot.is_active || !lot.expiration_date || Number(lot.current_quantity ?? 0) <= 0) return false;
+          const expiration = new Date(`${lot.expiration_date}T00:00:00`);
+          return expiration >= todayDate && expiration <= nextThirtyDays;
+        }).length
+      );
+      setLoading(false);
+    };
+
+    void load();
+  }, [role, user?.id]);
 
   const newRequests = useMemo(
     () => requests.filter((item) => item.status === "Nuevo").length,
@@ -121,6 +165,105 @@ export function AdminDashboard() {
   );
 
   if (loading) return <LoadingState label="Cargando dashboard..." />;
+
+  if (role === "doctor") {
+    return (
+      <div className="space-y-8">
+        <section className="overflow-hidden rounded-[34px] border border-[rgba(198,162,123,0.18)] bg-[linear-gradient(135deg,rgba(255,249,244,0.92),rgba(239,229,218,0.92))] p-6 shadow-[0_24px_80px_rgba(62,42,31,0.10)] md:p-8">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">
+            Mi panel de doctora
+          </p>
+          <div className="mt-4 grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
+            <div>
+              <h1 className="font-display text-5xl font-semibold leading-[0.92] text-[var(--color-ink)] md:text-6xl">
+                Tu agenda, tus pacientes y tu contenido en una sola vista.
+              </h1>
+              <p className="mt-5 max-w-2xl text-sm leading-7 text-[var(--color-copy)] md:text-base">
+                Este dashboard se aisla por doctora: aqui solo aparecen tus citas, tu agenda y el contenido que te pertenece.
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <MiniStat label="Citas de mi agenda" value={String(activeReservations.length)} href="/panel/citas" />
+              <MiniStat label="Eventos propios" value={String(eventsCount)} href="/panel/agenda" />
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          <Metric icon={<CalendarDays className="h-5 w-5" />} label="Citas propias" value={String(activeReservations.length)} href="/panel/citas" />
+          <Metric icon={<Sparkles className="h-5 w-5" />} label="Tratamientos propios" value={String(treatmentsCount)} href="/panel/tratamientos" />
+          <Metric icon={<GraduationCap className="h-5 w-5" />} label="Cursos propios" value={String(coursesCount)} href="/panel/cursos" />
+          <Metric icon={<ClipboardList className="h-5 w-5" />} label="Agenda propia" value={String(eventsCount)} href="/panel/agenda" />
+          <Metric icon={<ReceiptText className="h-5 w-5" />} label="Libros propios" value={String(booksCount)} href="/panel/libros" />
+          <Metric icon={<Users className="h-5 w-5" />} label="Galeria propia" value={String(galleryCount)} href="/panel/galeria" />
+        </section>
+
+        <section className="grid gap-6 xl:grid-cols-[1fr_360px]">
+          <div className="rounded-[28px] border border-[var(--color-border)] bg-white/75 p-4 shadow-[0_18px_50px_rgba(62,42,31,0.08)] sm:p-6">
+            <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+              <div>
+                <h2 className="text-xl font-semibold text-[var(--color-ink)]">Mis citas activas</h2>
+                <p className="mt-1 text-sm text-[var(--color-copy)]">Solo aparecen reservas ligadas a tu doctora.</p>
+              </div>
+            </div>
+            <FullCalendar
+              plugins={[dayGridPlugin, interactionPlugin]}
+              initialView="dayGridMonth"
+              height="auto"
+              events={activeReservations.map((item) => ({
+                id: item.id,
+                title: `${item.start_time.slice(0, 5)} ${item.patients?.full_name ?? "Paciente"}`,
+                start: `${item.appointment_date}T${item.start_time}`,
+                end: `${item.appointment_date}T${item.end_time}`,
+                color: getReservationColor(item.status),
+              }))}
+              eventClick={(info) => setSelectedReservation(activeReservations.find((item) => item.id === info.event.id) ?? null)}
+            />
+          </div>
+
+          <aside className="rounded-[28px] border border-[var(--color-border)] bg-white/75 p-5 shadow-[0_18px_50px_rgba(62,42,31,0.08)]">
+            <h2 className="text-xl font-semibold text-[var(--color-ink)]">Proximas citas</h2>
+            <div className="mt-5 grid gap-3">
+              {activeReservations.slice(0, 6).map((reservation) => (
+                <button
+                  key={reservation.id}
+                  onClick={() => setSelectedReservation(reservation)}
+                  className="rounded-[22px] border border-[var(--color-border)] bg-[rgba(247,242,236,0.76)] p-4 text-left transition hover:bg-white"
+                >
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-accent-strong)]">
+                    {reservation.status} · {reservation.city}
+                  </p>
+                  <h3 className="mt-2 font-semibold">{reservation.patients?.full_name ?? "Paciente"}</h3>
+                  <p className="mt-2 text-sm leading-6 text-[var(--color-copy)]">
+                    {formatDate(reservation.appointment_date)} · {reservation.start_time.slice(0, 5)} - {reservation.end_time.slice(0, 5)}
+                  </p>
+                </button>
+              ))}
+              {activeReservations.length === 0 ? (
+                <p className="text-sm text-[var(--color-copy)]">Todavia no tienes citas activas.</p>
+              ) : null}
+            </div>
+          </aside>
+        </section>
+
+        <section className="rounded-[28px] border border-[var(--color-border)] bg-white/75 p-6 shadow-[0_18px_50px_rgba(62,42,31,0.08)]">
+          <h2 className="text-xl font-semibold text-[var(--color-ink)]">Accesos propios</h2>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <QuickCard label="Pacientes" value="Ver expediente" href="/panel/pacientes" />
+            <QuickCard label="Calendario de citas" value="Solo mi agenda" href="/panel/calendario-citas" />
+            <QuickCard label="Disponibilidad" value="Bloques y horarios" href="/panel/disponibilidad" />
+            <QuickCard label="Libros" value={String(booksCount)} href="/panel/libros" />
+            <QuickCard label="Tratamientos" value={String(treatmentsCount)} href="/panel/tratamientos" />
+            <QuickCard label="Galeria" value={String(galleryCount)} href="/panel/galeria" />
+          </div>
+        </section>
+
+        {selectedReservation ? (
+          <AppointmentModal reservation={selectedReservation} onClose={() => setSelectedReservation(null)} />
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">

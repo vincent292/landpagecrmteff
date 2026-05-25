@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { Download, MessageCircleMore, RefreshCcw, Wallet } from "lucide-react";
 
+import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteActions";
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { useAuth } from "../../hooks/useAuth";
 import { supabase } from "../../lib/supabaseClient";
+import { hardDeleteRecord, isSoftDeleted, restoreRecord, softDeleteRecord, type DeletableTable } from "../../services/adminDeletionService";
 import { getSignedUrl } from "../../services/storageService";
 import {
   generateBookToken,
@@ -61,7 +63,7 @@ type ApprovalDraft = {
 };
 
 export function PaymentsAndReservationsAdminPage() {
-  const { role, user } = useAuth();
+  const { role, profile, user } = useAuth();
   const [items, setItems] = useState<PaymentsAndReservationsItem[]>([]);
   const [doctorProfileId, setDoctorProfileId] = useState<string | null>(null);
   const [paymentMethods, setPaymentMethods] = useState<CashPaymentMethodRow[]>([]);
@@ -77,6 +79,9 @@ export function PaymentsAndReservationsAdminPage() {
   const [approvalDraft, setApprovalDraft] = useState<ApprovalDraft | null>(null);
   const [savingApproval, setSavingApproval] = useState(false);
   const [busyId, setBusyId] = useState("");
+  const actorId = profile?.id ?? user?.id ?? null;
+  const actorName = profile?.full_name ?? user?.user_metadata.full_name ?? null;
+  const actorEmail = profile?.email ?? user?.email ?? null;
 
   const load = async () => {
     setError("");
@@ -381,6 +386,13 @@ export function PaymentsAndReservationsAdminPage() {
     link.click();
   };
 
+  const getDeletionTable = (item: PaymentsAndReservationsItem): DeletableTable => {
+    if (item.kind === "promotion") return "promotion_orders";
+    if (item.kind === "course") return "course_enrollments";
+    if (item.kind === "book") return "book_orders";
+    return "appointment_reservations";
+  };
+
   if (loading) return <LoadingState label="Cargando pagos y reservas..." />;
 
   return (
@@ -516,6 +528,8 @@ export function PaymentsAndReservationsAdminPage() {
             const canReject = !approved && item.statusGroup !== "cancelled";
             const canReview = !approved && item.statusGroup !== "rejected" && item.kind !== "reservation";
             const phone = normalizePhoneForWhatsApp(item.phone);
+            const deleted = isSoftDeleted(item.row);
+            const deletionTable = getDeletionTable(item);
 
             return (
               <article
@@ -579,7 +593,7 @@ export function PaymentsAndReservationsAdminPage() {
                         </button>
                       </>
                     ) : null}
-                    {canReview ? (
+                    {!deleted && canReview ? (
                       <button
                         type="button"
                         disabled={busyId === item.id}
@@ -590,7 +604,7 @@ export function PaymentsAndReservationsAdminPage() {
                         En revision
                       </button>
                     ) : null}
-                    {!approved ? (
+                    {!deleted && !approved ? (
                       <button
                         type="button"
                         onClick={() => openApproval(item)}
@@ -599,7 +613,7 @@ export function PaymentsAndReservationsAdminPage() {
                         Aprobar y pasar a caja
                       </button>
                     ) : null}
-                    {canReject ? (
+                    {!deleted && canReject ? (
                       <button
                         type="button"
                         disabled={busyId === item.id}
@@ -620,6 +634,13 @@ export function PaymentsAndReservationsAdminPage() {
                         WhatsApp
                       </a>
                     ) : null}
+                    <DeleteActions
+                      role={role}
+                      row={item.row}
+                      onSoftDelete={() => void softDeleteRecord({ table: deletionTable, id: item.id, actorId, actorRole: role, actorName, actorEmail }).then(load)}
+                      onRestore={() => void restoreRecord(deletionTable, item.id).then(load)}
+                      onHardDelete={() => void hardDeleteRecord(deletionTable, item.id).then(load)}
+                    />
                   </div>
                 </div>
 
@@ -630,6 +651,7 @@ export function PaymentsAndReservationsAdminPage() {
                   className="premium-input mt-4 min-h-24"
                   placeholder="Notas administrativas. Si rechazas, escribe aqui el motivo que tambien saldra en WhatsApp."
                 />
+                <DeletedStatusNote row={item.row} />
               </article>
             );
           })}

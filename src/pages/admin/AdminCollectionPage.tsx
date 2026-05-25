@@ -27,7 +27,7 @@ import {
   type GalleryAlbumRow,
 } from "../../services/galleryService";
 import { getAdminDoctors, getMyDoctorProfile, type DoctorProfileRow } from "../../services/doctorService";
-import { getProfiles, updateProfileRole, type ProfileRow } from "../../services/profileService";
+import { getProfiles, updateProfileRole, updateUserAccess, type ProfileRow } from "../../services/profileService";
 import {
   createPromotion,
   getAdminPromotions,
@@ -116,12 +116,17 @@ export function AdminCollectionPage({ module }: Props) {
   const [paymentMethods, setPaymentMethods] = useState<CashPaymentMethodRow[]>([]);
   const [enrollmentApproval, setEnrollmentApproval] = useState<EnrollmentApprovalDraft | null>(null);
   const [savingApproval, setSavingApproval] = useState(false);
+  const [doctorProfileId, setDoctorProfileId] = useState<string | null>(null);
+  const [doctorProfileResolved, setDoctorProfileResolved] = useState(role !== "doctor");
   const listRef = useRef<HTMLDivElement | null>(null);
 
   const load = () => {
     setLoading(true);
     setError(false);
-    Promise.all([getRows(module, role === "superadmin"), module === "inscripciones" ? getCashPaymentMethods(true) : Promise.resolve([] as CashPaymentMethodRow[])])
+    Promise.all([
+      getRows(module, role === "superadmin", role === "doctor" ? doctorProfileId : null),
+      module === "inscripciones" ? getCashPaymentMethods(true) : Promise.resolve([] as CashPaymentMethodRow[]),
+    ])
       .then(([loadedRows, methods]) => {
         setRows(loadedRows);
         setPaymentMethods(methods);
@@ -130,7 +135,24 @@ export function AdminCollectionPage({ module }: Props) {
       .finally(() => setLoading(false));
   };
 
-  useEffect(load, [module, role]);
+  useEffect(() => {
+    if (role !== "doctor" || !profile?.id) {
+      setDoctorProfileId(null);
+      setDoctorProfileResolved(true);
+      return;
+    }
+
+    setDoctorProfileResolved(false);
+    getMyDoctorProfile(profile.id)
+      .then((doctor) => setDoctorProfileId(doctor?.id ?? null))
+      .catch(() => setDoctorProfileId(null))
+      .finally(() => setDoctorProfileResolved(true));
+  }, [profile?.id, role]);
+
+  useEffect(() => {
+    if (role === "doctor" && !doctorProfileResolved) return;
+    load();
+  }, [doctorProfileId, doctorProfileResolved, module, role]);
 
   useEffect(() => {
     if (module !== "inscripciones" && module !== "solicitudes") return;
@@ -528,6 +550,7 @@ function AdminListRow({
   onRefresh: () => void;
   onOpenEnrollmentApproval?: (row: AdminRow) => void;
 }) {
+  const [editingUserAccess, setEditingUserAccess] = useState(false);
   const title = getTitle(module, row);
   const meta = getMeta(module, row);
   const tableName = getDeleteTableName(module);
@@ -566,10 +589,22 @@ function AdminListRow({
   };
 
   return (
-    <div className="grid gap-4 rounded-[22px] bg-[rgba(247,242,236,0.72)] p-4 md:grid-cols-[1fr_auto] md:items-center">
-      <div>
+    <>
+      <div className="grid gap-4 rounded-[22px] bg-[rgba(247,242,236,0.72)] p-4 md:grid-cols-[1fr_auto] md:items-center">
+        <div>
         <h2 className="font-semibold">{title}</h2>
         <p className="mt-1 text-sm text-[var(--color-copy)]">{meta}</p>
+        {module === "usuarios" && "email" in row ? (
+          <div className="mt-3 rounded-[18px] bg-white/80 px-4 py-3 text-sm text-[var(--color-copy)]">
+            <p>
+              <span className="font-semibold text-[var(--color-ink)]">Correo de acceso:</span>{" "}
+              {row.email ?? "Sin correo"}
+            </p>
+            <p className="mt-1">
+              <span className="font-semibold text-[var(--color-ink)]">Usuario ID:</span> {row.id}
+            </p>
+          </div>
+        ) : null}
         <DeletedStatusNote row={deletionRow} />
         {module === "inscripciones" && "payment_receipt_path" in row ? (
           <p className="mt-2 text-sm text-[var(--color-copy)]">
@@ -592,7 +627,7 @@ function AdminListRow({
             className="premium-input mt-3 min-h-20"
           />
         ) : null}
-      </div>
+        </div>
         <div className="flex flex-wrap gap-2 md:justify-end">
         {(module === "solicitudes" || module === "inscripciones") && "status" in row && (
           <select
@@ -670,18 +705,195 @@ function AdminListRow({
           />
         ) : null}
         {module === "usuarios" && "role" in row && (
-          <select
-            defaultValue={row.role ?? "user"}
-            onChange={(event) => void updateProfileRole(row.id, event.target.value).then(onRefresh)}
-            className="rounded-full border border-[var(--color-border)] bg-white/70 px-3 py-2 text-sm"
-          >
-            {userRoles.map((roleOption) => (
-              <option key={roleOption} value={roleOption}>
-                {roleLabels[roleOption]}
-              </option>
-            ))}
-          </select>
+          <>
+            <button
+              type="button"
+              onClick={() => setEditingUserAccess(true)}
+              className="rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-semibold"
+            >
+              Editar acceso
+            </button>
+            <select
+              defaultValue={row.role ?? "user"}
+              onChange={(event) => void updateProfileRole(row.id, event.target.value).then(onRefresh)}
+              className="rounded-full border border-[var(--color-border)] bg-white/70 px-3 py-2 text-sm"
+            >
+              {userRoles.map((roleOption) => (
+                <option key={roleOption} value={roleOption}>
+                  {roleLabels[roleOption]}
+                </option>
+              ))}
+            </select>
+          </>
         )}
+      </div>
+      </div>
+      {module === "usuarios" && "role" in row ? (
+        <UserAccessModal
+          open={editingUserAccess}
+          row={row}
+          onClose={() => setEditingUserAccess(false)}
+          onSaved={() => {
+            setEditingUserAccess(false);
+            onRefresh();
+          }}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function UserAccessModal({
+  open,
+  row,
+  onClose,
+  onSaved,
+}: {
+  open: boolean;
+  row: ProfileRow;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [fullName, setFullName] = useState(row.full_name ?? "");
+  const [email, setEmail] = useState(row.email ?? "");
+  const [phone, setPhone] = useState(row.phone ?? "");
+  const [city, setCity] = useState(row.city ?? "");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    setFullName(row.full_name ?? "");
+    setEmail(row.email ?? "");
+    setPhone(row.phone ?? "");
+    setCity(row.city ?? "");
+    setPassword("");
+    setConfirmPassword("");
+    setError("");
+  }, [open, row.city, row.email, row.full_name, row.phone]);
+
+  if (!open) return null;
+
+  const submit = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      setError("El correo es obligatorio.");
+      return;
+    }
+
+    if (password && password.length < 6) {
+      setError("La nueva contraseña debe tener al menos 6 caracteres.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("La confirmación de contraseña no coincide.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    try {
+      await updateUserAccess({
+        userId: row.id,
+        email: normalizedEmail,
+        fullName,
+        phone,
+        city,
+        password: password || null,
+      });
+      onSaved();
+    } catch (submitError) {
+      setError(
+        submitError instanceof Error ? submitError.message : "No se pudo actualizar el acceso del usuario."
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-6 backdrop-blur-sm sm:items-center sm:pt-4">
+      <div className="w-full max-w-2xl rounded-[32px] bg-[var(--color-surface)] p-5 shadow-[0_30px_90px_rgba(43,33,27,0.25)] md:p-8">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">
+              Usuarios
+            </p>
+            <h2 className="font-display mt-2 text-4xl font-semibold">Editar acceso</h2>
+            <p className="mt-2 text-sm text-[var(--color-copy)]">
+              Aqui puedes cambiar el correo de ingreso y forzar una nueva contraseña si hace falta.
+            </p>
+          </div>
+          <button onClick={onClose} className="rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-semibold">
+            Cerrar
+          </button>
+        </div>
+
+        {error ? (
+          <div className="mt-6 rounded-[20px] border border-[rgba(154,107,67,0.2)] bg-[rgba(154,107,67,0.08)] px-4 py-3 text-sm font-semibold text-[var(--color-ink)]">
+            {error}
+          </div>
+        ) : null}
+
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          <label className="grid gap-2">
+            <span className="text-sm font-semibold">Nombre</span>
+            <input value={fullName} onChange={(event) => setFullName(event.target.value)} className="premium-input" />
+          </label>
+          <label className="grid gap-2">
+            <span className="text-sm font-semibold">Correo / usuario</span>
+            <input value={email} onChange={(event) => setEmail(event.target.value)} className="premium-input" type="email" />
+          </label>
+          <label className="grid gap-2">
+            <span className="text-sm font-semibold">Celular</span>
+            <input value={phone} onChange={(event) => setPhone(event.target.value)} className="premium-input" />
+          </label>
+          <label className="grid gap-2">
+            <span className="text-sm font-semibold">Ciudad</span>
+            <input value={city} onChange={(event) => setCity(event.target.value)} className="premium-input" />
+          </label>
+          <label className="grid gap-2">
+            <span className="text-sm font-semibold">Nueva contraseña</span>
+            <input
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              className="premium-input"
+              type="password"
+              placeholder="Deja vacio si no vas a cambiarla"
+            />
+          </label>
+          <label className="grid gap-2">
+            <span className="text-sm font-semibold">Confirmar contraseña</span>
+            <input
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              className="premium-input"
+              type="password"
+              placeholder="Repite la nueva contraseña"
+            />
+          </label>
+        </div>
+
+        <div className="mt-6 flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => void submit()}
+            disabled={saving}
+            className="rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            {saving ? "Guardando..." : "Guardar acceso"}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-[var(--color-border)] px-6 py-3 text-sm font-semibold"
+          >
+            Cancelar
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1033,14 +1245,14 @@ function isCrudModule(module: Module): module is Exclude<Module, "inscripciones"
   return ["tratamientos", "promociones", "cursos", "agenda", "galeria"].includes(module);
 }
 
-async function getRows(module: Module, includeDeleted: boolean): Promise<AdminRow[]> {
-  if (module === "tratamientos") return getAdminTreatments(includeDeleted);
-  if (module === "promociones") return getAdminPromotions(includeDeleted);
-  if (module === "cursos") return getAdminCourses(includeDeleted);
+async function getRows(module: Module, includeDeleted: boolean, doctorId?: string | null): Promise<AdminRow[]> {
+  if (module === "tratamientos") return getAdminTreatments(includeDeleted, doctorId);
+  if (module === "promociones") return getAdminPromotions(includeDeleted, doctorId);
+  if (module === "cursos") return getAdminCourses(includeDeleted, doctorId);
   if (module === "inscripciones") return getCourseEnrollments(includeDeleted);
   if (module === "solicitudes") return getInformationRequests(includeDeleted);
-  if (module === "agenda") return getAdminCalendarEvents(includeDeleted);
-  if (module === "galeria") return getAdminGalleryAlbums(includeDeleted);
+  if (module === "agenda") return getAdminCalendarEvents(includeDeleted, doctorId);
+  if (module === "galeria") return getAdminGalleryAlbums(includeDeleted, doctorId);
   return getProfiles(includeDeleted);
 }
 
@@ -1364,6 +1576,7 @@ function getFields(module: Exclude<Module, "inscripciones" | "solicitudes" | "us
   ];
   return [
     ...common,
+    { name: "doctor_id", label: "Doctora", type: "select-doctor" },
     { name: "city", label: "Ciudad", type: "text" },
     { name: "event_date", label: "Fecha", type: "date" },
     { name: "description", label: "Descripción", type: "textarea" },
@@ -1441,7 +1654,7 @@ function getInitialPromotionVariants(
 }
 
 function requiresDoctorAssignment(module: Exclude<Module, "inscripciones" | "solicitudes" | "usuarios">) {
-  return ["tratamientos", "promociones", "cursos", "agenda"].includes(module);
+  return ["tratamientos", "promociones", "cursos", "agenda", "galeria"].includes(module);
 }
 
 function normalizePayload(

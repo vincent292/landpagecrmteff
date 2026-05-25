@@ -5,15 +5,17 @@ import { CalendarClock, Search, Send, UserRoundPlus } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
+import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteActions";
 import { EmptyState, LoadingState } from "../../components/common/AsyncState";
 import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
 import { useFormDraft } from "../../hooks/useFormDraft";
 import { useWorkspaceState } from "../../hooks/useWorkspaceState";
+import { hardDeleteRecord, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
 import { getAppointmentsAdmin, updateAppointment, updateAppointmentStatus, type AppointmentAdminRow } from "../../services/appointmentService";
 import { getAvailableSlots, type AvailableSlot } from "../../services/availabilityService";
 import { getCashPaymentMethods, getCashRegisterSessions, type CashPaymentMethodRow } from "../../services/cashService";
-import { getAdminDoctors, type DoctorProfileRow } from "../../services/doctorService";
+import { getAdminDoctors, getMyDoctorProfile, type DoctorProfileRow } from "../../services/doctorService";
 import { createPatient, getPatients, type PatientRow } from "../../services/patientService";
 import {
   approveReservationPayment,
@@ -76,7 +78,7 @@ type ViewMode = "create" | "scheduled";
 type SourceFilter = "Todos" | "Reservas" | "Internas";
 
 export function ReservationsAdminPage() {
-  const { user } = useAuth();
+  const { role, profile, user } = useAuth();
   const [rows, setRows] = useState<AppointmentReservationRow[]>([]);
   const [appointments, setAppointments] = useState<AppointmentAdminRow[]>([]);
   const [patients, setPatients] = useState<PatientRow[]>([]);
@@ -95,6 +97,9 @@ export function ReservationsAdminPage() {
   const [patientModalError, setPatientModalError] = useState("");
   const [savingPatient, setSavingPatient] = useState(false);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [doctorProfileId, setDoctorProfileId] = useState<string | null>(null);
+  const [doctorProfileName, setDoctorProfileName] = useState("");
+  const [doctorProfileResolved, setDoctorProfileResolved] = useState(role !== "doctor");
   const [cashOpen, setCashOpen] = useState(false);
   const [followUpWhatsappHref, setFollowUpWhatsappHref] = useState<string | null>(null);
   const [followUpWhatsappLabel, setFollowUpWhatsappLabel] = useState("");
@@ -110,6 +115,9 @@ export function ReservationsAdminPage() {
   const [savingApproval, setSavingApproval] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const actorId = profile?.id ?? user?.id ?? null;
+  const actorName = profile?.full_name ?? user?.user_metadata.full_name ?? null;
+  const actorEmail = profile?.email ?? user?.email ?? null;
 
   const form = useForm<ManualFormInput, undefined, ManualForm>({
     resolver: zodResolver(manualSchema),
@@ -153,11 +161,31 @@ export function ReservationsAdminPage() {
     enabled: patientModalOpen,
     isEmpty: (value) => !Object.values(value ?? {}).some((item) => typeof item === "string" && item.trim().length > 0),
   });
+  const doctorFieldLocked = role === "doctor" && Boolean(doctorProfileId);
 
   const load = () => {
+    if (role === "doctor" && !doctorProfileResolved) return;
+    if (role === "doctor" && !doctorProfileId) {
+      setRows([]);
+      setAppointments([]);
+      setDoctors([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError("");
-    Promise.all([getReservationsAdmin(), getAppointmentsAdmin(), getPatients(), getAdminDoctors(), getCashPaymentMethods(true), getCashRegisterSessions(), getSiteSettings()])
+    Promise.all([
+      getReservationsAdmin(role === "doctor" ? { doctor_id: doctorProfileId } : {}, role === "superadmin"),
+      getAppointmentsAdmin(role === "superadmin", role === "doctor" ? doctorProfileId : null),
+      getPatients(),
+      getAdminDoctors().then((doctorRows) =>
+        role === "doctor" && doctorProfileId ? doctorRows.filter((doctor) => doctor.id === doctorProfileId) : doctorRows
+      ),
+      getCashPaymentMethods(true),
+      getCashRegisterSessions(),
+      getSiteSettings(),
+    ])
       .then(([reservations, nextAppointments, nextPatients, nextDoctors, methods, sessions, settings]) => {
         setRows(reservations);
         setAppointments(nextAppointments);
@@ -171,7 +199,30 @@ export function ReservationsAdminPage() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(load, []);
+  useEffect(() => {
+    if (role !== "doctor" || !profile?.id) {
+      setDoctorProfileId(null);
+      setDoctorProfileName("");
+      setDoctorProfileResolved(true);
+      return;
+    }
+
+    setDoctorProfileResolved(false);
+    getMyDoctorProfile(profile.id)
+      .then((doctor) => {
+        setDoctorProfileId(doctor?.id ?? null);
+        setDoctorProfileName(doctor?.full_name ?? "");
+      })
+      .catch(() => {
+        setDoctorProfileId(null);
+        setDoctorProfileName("");
+      })
+      .finally(() => setDoctorProfileResolved(true));
+  }, [profile?.id, role]);
+
+  useEffect(() => {
+    load();
+  }, [doctorProfileId, doctorProfileResolved, role]);
 
   useEffect(() => {
     if (!watched.city || !watched.appointment_type) {
@@ -217,6 +268,16 @@ export function ReservationsAdminPage() {
     if (!selectedDoctor) return;
     setDoctorQuery((current) => current || selectedDoctor.full_name);
   }, [selectedDoctor, setDoctorQuery]);
+
+  useEffect(() => {
+    if (!doctorFieldLocked || !doctorProfileId) return;
+    if (watched.doctor_id !== doctorProfileId) {
+      form.setValue("doctor_id", doctorProfileId, { shouldDirty: false, shouldValidate: false });
+    }
+    if (!doctorQuery) {
+      setDoctorQuery(doctorProfileName);
+    }
+  }, [doctorFieldLocked, doctorProfileId, doctorProfileName, doctorQuery, form, setDoctorQuery, watched.doctor_id]);
 
   const filteredPatients = useMemo(() => {
     const normalizedQuery = normalizeSearchText(patientQuery);
@@ -498,7 +559,7 @@ export function ReservationsAdminPage() {
 
       form.reset({
         patient_id: "",
-        doctor_id: values.doctor_id,
+        doctor_id: doctorFieldLocked ? doctorProfileId ?? "" : values.doctor_id,
         city: values.city,
         appointment_type: values.appointment_type,
         date: "",
@@ -510,7 +571,7 @@ export function ReservationsAdminPage() {
       });
       clearManualDraft();
       setPatientQuery("");
-      setDoctorQuery(values.doctor_id ? doctorQuery : "");
+      setDoctorQuery(doctorFieldLocked ? doctorProfileName : values.doctor_id ? doctorQuery : "");
       setReceiptFile(null);
       setSelectedSlot(null);
       setViewMode("scheduled");
@@ -707,9 +768,10 @@ export function ReservationsAdminPage() {
                         }}
                         placeholder="Escribe para filtrar por doctora"
                         className="premium-input !pl-12"
+                        disabled={doctorFieldLocked}
                       />
                     </div>
-                    {doctorPickerOpen ? (
+                    {!doctorFieldLocked && doctorPickerOpen ? (
                       <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-[24px] border border-[var(--color-border)] bg-white shadow-[0_18px_45px_rgba(62,42,31,0.12)]">
                         <div className="max-h-72 overflow-y-auto p-2">
                           <button
@@ -941,11 +1003,16 @@ export function ReservationsAdminPage() {
               {!loading && filteredReservations.length === 0 ? <EmptyState label="No hay reservas con esos filtros." /> : null}
               {!loading &&
                 filteredReservations.map((row) => (
-                  <ReservationCard
-                    key={row.id}
-                    row={row}
-                    doctors={doctors}
-                    onChanged={load}
+                <ReservationCard
+                  key={row.id}
+                  row={row}
+                  role={role}
+                  actorId={actorId}
+                  actorName={actorName}
+                  actorEmail={actorEmail}
+                  doctors={doctors}
+                  doctorFieldLocked={doctorFieldLocked}
+                  onChanged={load}
                     onOpenApproval={openApproval}
                     onSendManualPaymentLink={openManualPaymentLink}
                     onRegenerateManualPaymentLink={regenerateAndOpenManualPaymentLink}
@@ -961,7 +1028,19 @@ export function ReservationsAdminPage() {
               {loading ? <LoadingState /> : null}
               {!loading && filteredAppointments.length === 0 ? <EmptyState label="No hay citas internas con esos filtros." /> : null}
               {!loading &&
-                filteredAppointments.map((item) => <AppointmentCard key={item.id} item={item} doctors={doctors} onChanged={load} />)}
+                filteredAppointments.map((item) => (
+                <AppointmentCard
+                  key={item.id}
+                  item={item}
+                  role={role}
+                  actorId={actorId}
+                  actorName={actorName}
+                  actorEmail={actorEmail}
+                  doctors={doctors}
+                  doctorFieldLocked={doctorFieldLocked}
+                  onChanged={load}
+                  />
+                ))}
             </section>
           </div>
         </section>
@@ -1099,14 +1178,24 @@ export function ReservationsAdminPage() {
 
 function ReservationCard({
   row,
+  role,
+  actorId,
+  actorName,
+  actorEmail,
   doctors,
+  doctorFieldLocked,
   onChanged,
   onOpenApproval,
   onSendManualPaymentLink,
   onRegenerateManualPaymentLink,
 }: {
   row: AppointmentReservationRow;
+  role: ReturnType<typeof useAuth>["role"];
+  actorId?: string | null;
+  actorName?: string | null;
+  actorEmail?: string | null;
   doctors: DoctorProfileRow[];
+  doctorFieldLocked: boolean;
   onChanged: () => void;
   onOpenApproval: (row: AppointmentReservationRow) => void;
   onSendManualPaymentLink: (row: AppointmentReservationRow) => void;
@@ -1167,6 +1256,7 @@ function ReservationCard({
             value={row.doctor_id ?? ""}
             onChange={(event) => void updateReservation(row.id, { doctor_id: event.target.value || null }).then(onChanged)}
             className="rounded-full border border-[var(--color-border)] bg-white/80 px-3 py-2 text-sm font-semibold"
+            disabled={doctorFieldLocked}
           >
             <option value="">Sin doctora</option>
             {doctors.map((doctor) => (
@@ -1205,6 +1295,13 @@ function ReservationCard({
               Abrir WhatsApp
             </a>
           ) : null}
+          <DeleteActions
+            role={role}
+            row={row}
+            onSoftDelete={() => void softDeleteRecord({ table: "appointment_reservations", id: row.id, actorId, actorRole: role, actorName, actorEmail }).then(onChanged)}
+            onRestore={() => void restoreRecord("appointment_reservations", row.id).then(onChanged)}
+            onHardDelete={() => void hardDeleteRecord("appointment_reservations", row.id).then(onChanged)}
+          />
         </div>
       </div>
       <textarea
@@ -1213,17 +1310,28 @@ function ReservationCard({
         className="premium-input mt-4 min-h-24"
         placeholder="Notas administrativas"
       />
+      <DeletedStatusNote row={row} />
     </article>
   );
 }
 
 function AppointmentCard({
   item,
+  role,
+  actorId,
+  actorName,
+  actorEmail,
   doctors,
+  doctorFieldLocked,
   onChanged,
 }: {
   item: AppointmentAdminRow;
+  role: ReturnType<typeof useAuth>["role"];
+  actorId?: string | null;
+  actorName?: string | null;
+  actorEmail?: string | null;
   doctors: DoctorProfileRow[];
+  doctorFieldLocked: boolean;
   onChanged: () => void;
 }) {
   const phone = item.patients?.phone?.replace(/\D/g, "") ?? "";
@@ -1263,6 +1371,7 @@ function AppointmentCard({
             value={item.doctor_id ?? ""}
             onChange={(event) => void updateAppointment(item.id, { doctor_id: event.target.value || null }).then(onChanged)}
             className="rounded-full border border-[var(--color-border)] bg-white/80 px-3 py-2 text-sm font-semibold"
+            disabled={doctorFieldLocked}
           >
             <option value="">Sin doctora</option>
             {doctors.map((doctor) => (
@@ -1276,6 +1385,13 @@ function AppointmentCard({
               Abrir WhatsApp
             </a>
           ) : null}
+          <DeleteActions
+            role={role}
+            row={item}
+            onSoftDelete={() => void softDeleteRecord({ table: "appointments", id: item.id, actorId, actorRole: role, actorName, actorEmail }).then(onChanged)}
+            onRestore={() => void restoreRecord("appointments", item.id).then(onChanged)}
+            onHardDelete={() => void hardDeleteRecord("appointments", item.id).then(onChanged)}
+          />
         </div>
       </div>
       <textarea
@@ -1284,6 +1400,7 @@ function AppointmentCard({
         className="premium-input mt-4 min-h-24"
         placeholder="Notas administrativas"
       />
+      <DeletedStatusNote row={item} />
     </article>
   );
 }

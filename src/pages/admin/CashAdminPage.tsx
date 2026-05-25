@@ -6,7 +6,7 @@ import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteA
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
-import { isSoftDeleted, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
+import { hardDeleteRecord, isSoftDeleted, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
 import {
   closeCashRegisterSession,
   createCashDrawer,
@@ -91,8 +91,10 @@ const tabs: Array<{ key: TabKey; label: string }> = [
   { key: "configuracion", label: "Cajas y metodos" },
 ];
 
+const boliviaTimeZone = "America/La_Paz";
+
 const emptySessionForm: SessionFormState = {
-  session_date: new Date().toISOString().slice(0, 10),
+  session_date: getBoliviaDateInputValue(),
   drawer_id: "",
   city: "",
   location_name: "",
@@ -111,7 +113,7 @@ const emptyMovementForm: MovementFormState = {
   concept: "",
   reference_name: "",
   city: "",
-  movement_date: new Date().toISOString().slice(0, 10),
+  movement_date: getBoliviaDateInputValue(),
   status: "registrado",
   notes: "",
 };
@@ -248,26 +250,28 @@ export function CashAdminPage() {
 
   const totalDifference = counts.reduce((sum, row) => sum + Number(row.difference_amount ?? 0), 0);
   const sessionWithoutDrawer = sessions.filter((row) => !row.is_deleted && !row.drawer_id).length;
-  const today = new Date().toISOString().slice(0, 10);
-  const todayMovements = useMemo(
-    () => activeMovements.filter((row) => row.movement_date === today),
-    [activeMovements, today]
+  const today = getBoliviaDateInputValue();
+  const summaryDate = dateFilter || today;
+  const summaryMovements = useMemo(
+    () => activeMovements.filter((row) => row.movement_date === summaryDate),
+    [activeMovements, summaryDate]
   );
-  const todayIncome = useMemo(
+  const summaryIncome = useMemo(
     () =>
-      todayMovements
+      summaryMovements
         .filter((row) => row.movement_type === "ingreso")
         .reduce((sum, row) => sum + Number(row.amount ?? 0), 0),
-    [todayMovements]
+    [summaryMovements]
   );
-  const todayExpense = useMemo(
+  const summaryExpense = useMemo(
     () =>
-      todayMovements
+      summaryMovements
         .filter((row) => row.movement_type === "egreso")
         .reduce((sum, row) => sum + Number(row.amount ?? 0), 0),
-    [todayMovements]
+    [summaryMovements]
   );
-  const todayNet = todayIncome - todayExpense;
+  const summaryNet = summaryIncome - summaryExpense;
+  const summaryDateLabel = dateFilter ? formatDate(summaryDate) : "hoy";
   const openSessionSummaries = useMemo(
     () =>
       openSessions.map((session) => {
@@ -603,11 +607,28 @@ export function CashAdminPage() {
           ))}
         </div>
 
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-[var(--color-border)] bg-[rgba(247,242,236,0.72)] px-4 py-3 text-sm">
+          <p className="text-[var(--color-copy)]">
+            Resumen diario calculado con fecha local de Bolivia.
+            {dateFilter ? ` Viendo ${formatDate(summaryDate)}.` : " Sin filtro toma hoy."}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {dateFilter ? (
+              <button onClick={() => setDateFilter("")} className="rounded-full border border-[var(--color-border)] px-4 py-2 font-semibold">
+                Volver a hoy
+              </button>
+            ) : null}
+            <button onClick={() => { setDateFilter(summaryDate); setActiveTab("movimientos"); }} className="rounded-full border border-[var(--color-border)] px-4 py-2 font-semibold">
+              Ver movimientos del dia
+            </button>
+          </div>
+        </div>
+
         <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-7">
           <SummaryCard icon={<Landmark className="h-5 w-5" />} label="Sesiones abiertas" value={String(openSessions.length)} onClick={() => setActiveTab("sesiones")} />
-          <SummaryCard icon={<Wallet className="h-5 w-5" />} label="Ingresos de hoy" value={formatMoney(todayIncome)} onClick={() => setActiveTab("movimientos")} />
-          <SummaryCard icon={<Archive className="h-5 w-5" />} label="Egresos de hoy" value={formatMoney(todayExpense)} onClick={() => setActiveTab("movimientos")} />
-          <SummaryCard icon={<Calculator className="h-5 w-5" />} label="Neto de hoy" value={formatMoney(todayNet)} onClick={() => setActiveTab("movimientos")} />
+          <SummaryCard icon={<Wallet className="h-5 w-5" />} label="Ingresos del dia" caption={summaryDateLabel} value={formatMoney(summaryIncome)} onClick={() => { setDateFilter(summaryDate); setActiveTab("movimientos"); }} />
+          <SummaryCard icon={<Archive className="h-5 w-5" />} label="Egresos del dia" caption={summaryDateLabel} value={formatMoney(summaryExpense)} onClick={() => { setDateFilter(summaryDate); setActiveTab("movimientos"); }} />
+          <SummaryCard icon={<Calculator className="h-5 w-5" />} label="Neto del dia" caption={summaryDateLabel} value={formatMoney(summaryNet)} onClick={() => { setDateFilter(summaryDate); setActiveTab("movimientos"); }} />
           <SummaryCard icon={<Wallet className="h-5 w-5" />} label="Caja abierta ahora" value={formatMoney(openNowNet)} onClick={() => setActiveTab("sesiones")} />
           <SummaryCard icon={<Calculator className="h-5 w-5" />} label="Esperado abierto" value={formatMoney(openNowExpected)} onClick={() => setActiveTab("sesiones")} />
           <SummaryCard icon={<Calculator className="h-5 w-5" />} label="Diferencias de arqueo" value={formatMoney(totalDifference)} onClick={() => setActiveTab("arqueos")} />
@@ -720,6 +741,7 @@ export function CashAdminPage() {
                         compact
                         onSoftDelete={() => void softDeleteRecord({ table: "cash_register_sessions", id: session.id, actorId, actorRole: role, actorName, actorEmail }).then(load)}
                         onRestore={() => void restoreRecord("cash_register_sessions", session.id).then(load)}
+                        onHardDelete={() => void hardDeleteRecord("cash_register_sessions", session.id).then(load)}
                       />
                     </div>
                   </div>
@@ -786,6 +808,7 @@ export function CashAdminPage() {
                         compact
                         onSoftDelete={() => void softDeleteRecord({ table: "cash_movements", id: row.id, actorId, actorRole: role, actorName, actorEmail }).then(load)}
                         onRestore={() => void restoreRecord("cash_movements", row.id).then(load)}
+                        onHardDelete={() => void hardDeleteRecord("cash_movements", row.id).then(load)}
                       />
                     </div>
                   </div>
@@ -831,6 +854,7 @@ export function CashAdminPage() {
                       compact
                       onSoftDelete={() => void softDeleteRecord({ table: "cash_session_counts", id: count.id, actorId, actorRole: role, actorName, actorEmail }).then(load)}
                       onRestore={() => void restoreRecord("cash_session_counts", count.id).then(load)}
+                      onHardDelete={() => void hardDeleteRecord("cash_session_counts", count.id).then(load)}
                     />
                   </div>
                 </div>
@@ -865,6 +889,7 @@ export function CashAdminPage() {
                         compact
                         onSoftDelete={() => void softDeleteRecord({ table: "cash_drawers", id: drawer.id, actorId, actorRole: role, actorName, actorEmail }).then(load)}
                         onRestore={() => void restoreRecord("cash_drawers", drawer.id).then(load)}
+                        onHardDelete={() => void hardDeleteRecord("cash_drawers", drawer.id).then(load)}
                       />
                     </div>
                   </div>
@@ -1107,11 +1132,14 @@ export function CashAdminPage() {
   );
 }
 
-function SummaryCard({ icon, label, value, onClick }: { icon: ReactNode; label: string; value: string; onClick: () => void }) {
+function SummaryCard({ icon, label, caption, value, onClick }: { icon: ReactNode; label: string; caption?: string; value: string; onClick: () => void }) {
   return (
     <button onClick={onClick} className="rounded-[24px] border border-[var(--color-border)] bg-white/78 p-5 text-left transition hover:-translate-y-0.5">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-semibold text-[var(--color-copy)]">{label}</p>
+        <div>
+          <p className="text-sm font-semibold text-[var(--color-copy)]">{label}</p>
+          {caption ? <p className="mt-1 text-xs uppercase tracking-[0.14em] text-[var(--color-accent-strong)]">{caption}</p> : null}
+        </div>
         <span className="rounded-full bg-[rgba(198,162,123,0.16)] p-2 text-[var(--color-mocha)]">{icon}</span>
       </div>
       <p className="mt-4 font-display text-4xl font-semibold">{value}</p>
@@ -1212,4 +1240,18 @@ function ModalShell({
 function normalizeText(value: string) {
   const next = value.trim();
   return next.length > 0 ? next : null;
+}
+
+function getBoliviaDateInputValue(date = new Date()) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: boliviaTimeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const parts = formatter.formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value ?? "";
+  const month = parts.find((part) => part.type === "month")?.value ?? "";
+  const day = parts.find((part) => part.type === "day")?.value ?? "";
+  return `${year}-${month}-${day}`;
 }

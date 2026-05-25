@@ -72,13 +72,14 @@ export type SlotFilters = {
   date_to: string;
 };
 
-export async function getAvailabilityRules(includeDeleted = false) {
+export async function getAvailabilityRules(includeDeleted = false, doctorId?: string | null) {
   let query = supabase
     .from("doctor_availability_rules")
     .select("*, doctor_profiles(id, full_name, whatsapp, email)")
     .order("created_at", { ascending: false });
   const filter = getVisibleDeletionFilter("doctor_availability_rules", includeDeleted);
   if (filter.column) query = query.is(filter.column, filter.value);
+  if (doctorId) query = query.eq("doctor_id", doctorId);
   const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as AvailabilityRuleRow[];
@@ -132,13 +133,14 @@ export async function deleteAvailabilityRule(id: string) {
   if (error) throw error;
 }
 
-export async function getAvailabilityBlocks(includeDeleted = false) {
+export async function getAvailabilityBlocks(includeDeleted = false, doctorId?: string | null) {
   let query = supabase
     .from("availability_blocks")
     .select("*, doctor_profiles(id, full_name, whatsapp, email)")
     .order("block_date", { ascending: true });
   const filter = getVisibleDeletionFilter("availability_blocks", includeDeleted);
   if (filter.column) query = query.is(filter.column, filter.value);
+  if (doctorId) query = query.eq("doctor_id", doctorId);
   const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as AvailabilityBlockRow[];

@@ -6,15 +6,17 @@ import { MessageCircleMore, Send } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
+import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteActions";
 import { EmptyState, LoadingState } from "../../components/common/AsyncState";
 import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
 import { useFormDraft } from "../../hooks/useFormDraft";
 import { useWorkspaceState } from "../../hooks/useWorkspaceState";
+import { hardDeleteRecord, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
 import { createAppointment, getAppointmentsByPatient, updateAppointmentStatus, type AppointmentRow } from "../../services/appointmentService";
 import { getAvailableSlots, getAvailabilityRulesByIds, type AvailableSlot } from "../../services/availabilityService";
 import { getCashPaymentMethods, type CashPaymentMethodRow } from "../../services/cashService";
-import { getAdminDoctors, type DoctorProfileRow } from "../../services/doctorService";
+import { getAdminDoctors, getMyDoctorProfile, type DoctorProfileRow } from "../../services/doctorService";
 import { getPatientById, type PatientRow } from "../../services/patientService";
 import {
   bookAppointmentSlot,
@@ -59,7 +61,7 @@ function getErrorMessage(error: unknown, fallback: string) {
 
 export function PatientAppointmentsAdminPage() {
   const { id = "" } = useParams();
-  const { user } = useAuth();
+  const { role, profile, user } = useAuth();
   const [patient, setPatient] = useState<PatientRow | null>(null);
   const [items, setItems] = useState<AppointmentRow[]>([]);
   const [reservations, setReservations] = useState<AppointmentReservationRow[]>([]);
@@ -71,6 +73,11 @@ export function PatientAppointmentsAdminPage() {
   const [message, setMessage] = useState("");
   const [slotTypeFilter, setSlotTypeFilter] = useWorkspaceState(`admin:patient-appointments:${id}:slot-type`, "Todos", { ttlMs: 1000 * 60 * 60 * 8 });
   const [paymentMethods, setPaymentMethods] = useState<CashPaymentMethodRow[]>([]);
+  const [doctorProfileId, setDoctorProfileId] = useState<string | null>(null);
+  const [doctorProfileResolved, setDoctorProfileResolved] = useState(role !== "doctor");
+  const actorId = profile?.id ?? user?.id ?? null;
+  const actorName = profile?.full_name ?? user?.user_metadata.full_name ?? null;
+  const actorEmail = profile?.email ?? user?.email ?? null;
 
   const form = useForm<FormValuesInput, undefined, FormValues>({
     resolver: zodResolver(schema),
@@ -92,21 +99,67 @@ export function PatientAppointmentsAdminPage() {
       return typeof item === "string" && item.trim().length > 0;
     }),
   });
+  const doctorFieldLocked = role === "doctor" && Boolean(doctorProfileId);
 
   const watched = form.watch();
 
   const load = () =>
-    void Promise.all([getAppointmentsByPatient(id), getReservationsByPatientId(id), getPatientById(id), getAdminDoctors(), getCashPaymentMethods(true)]).then(([appointments, reservationRows, patientRow, doctorRows, methods]) => {
+    void Promise.all([
+      getAppointmentsByPatient(id, role === "superadmin"),
+      getReservationsByPatientId(id, role === "superadmin"),
+      getPatientById(id),
+      getAdminDoctors(),
+      getCashPaymentMethods(true),
+    ]).then(([appointments, reservationRows, patientRow, doctorRows, methods]) => {
       setItems(appointments);
       setReservations(reservationRows);
       setPatient(patientRow);
-      setDoctors(doctorRows.filter((doctor) => doctor.is_active));
+      setDoctors(
+        doctorRows.filter((doctor) =>
+          doctor.is_active && (!doctorFieldLocked || doctor.id === doctorProfileId)
+        )
+      );
       setPaymentMethods(methods);
     });
 
-  useEffect(load, [id]);
+  useEffect(() => {
+    if (role !== "doctor" || !profile?.id) {
+      setDoctorProfileId(null);
+      setDoctorProfileResolved(true);
+      return;
+    }
+
+    setDoctorProfileResolved(false);
+    getMyDoctorProfile(profile.id)
+      .then((doctor) => setDoctorProfileId(doctor?.id ?? null))
+      .catch(() => setDoctorProfileId(null))
+      .finally(() => setDoctorProfileResolved(true));
+  }, [profile?.id, role]);
 
   useEffect(() => {
+    if (role === "doctor" && !doctorProfileResolved) return;
+    if (role === "doctor" && !doctorProfileId) {
+      setItems([]);
+      setReservations([]);
+      setDoctors([]);
+      return;
+    }
+    load();
+  }, [doctorFieldLocked, doctorProfileId, doctorProfileResolved, id, role]);
+
+  useEffect(() => {
+    if (!doctorFieldLocked || !doctorProfileId) return;
+    if (watched.doctor_id !== doctorProfileId) {
+      form.setValue("doctor_id", doctorProfileId, { shouldDirty: false, shouldValidate: false });
+    }
+  }, [doctorFieldLocked, doctorProfileId, form, watched.doctor_id]);
+
+  useEffect(() => {
+    if (role === "doctor" && !doctorProfileId) {
+      setSlots([]);
+      setSelectedSlot(null);
+      return;
+    }
     if (!watched.city || !watched.date) {
       setSlots([]);
       setSelectedSlot(null);
@@ -123,6 +176,7 @@ export function PatientAppointmentsAdminPage() {
       city: watched.city,
       date_from: watched.date,
       date_to: watched.date,
+      doctor_id: doctorFieldLocked ? doctorProfileId : watched.doctor_id || null,
     })
       .then(async (rows) => {
         const rules = await getAvailabilityRulesByIds(rows.map((slot) => slot.rule_id));
@@ -141,7 +195,7 @@ export function PatientAppointmentsAdminPage() {
       })
       .catch((error) => setMessage(getErrorMessage(error, "No pudimos cargar horarios disponibles.")))
       .finally(() => setLoadingSlots(false));
-  }, [watched.city, watched.date]);
+  }, [doctorFieldLocked, doctorProfileId, role, watched.city, watched.date, watched.doctor_id]);
 
   const availableDoctors = useMemo(
     () =>
@@ -223,7 +277,7 @@ export function PatientAppointmentsAdminPage() {
       form.reset({
         city: values.city,
         date: "",
-        doctor_id: "",
+        doctor_id: doctorFieldLocked ? doctorProfileId ?? "" : "",
         notes: "",
         register_payment_now: false,
         payment_amount: 0,
@@ -278,8 +332,8 @@ export function PatientAppointmentsAdminPage() {
               <input type="date" min={new Date().toISOString().slice(0, 10)} {...form.register("date")} className="premium-input" />
             </Field>
             <Field label="Doctora" error={form.formState.errors.doctor_id?.message}>
-              <select {...form.register("doctor_id")} className="premium-input">
-                <option value="">Todas las doctoras</option>
+              <select {...form.register("doctor_id")} className="premium-input" disabled={doctorFieldLocked}>
+                {!doctorFieldLocked ? <option value="">Todas las doctoras</option> : null}
                 {availableDoctors.map((doctor) => (
                   <option key={doctor.id} value={doctor.id}>
                     {doctor.name}
@@ -375,7 +429,12 @@ export function PatientAppointmentsAdminPage() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h3 className="text-lg font-semibold">{item.appointment_type}</h3>
                 <div className="flex flex-wrap items-center gap-2">
-                  <select value={item.status} onChange={(event) => void updateReservationStatus(item.id, event.target.value as AppointmentReservationRow["status"]).then(load)} className="rounded-full border border-[var(--color-border)] bg-white/70 px-3 py-2 text-sm">
+                  <select
+                    value={item.status}
+                    onChange={(event) => void updateReservationStatus(item.id, event.target.value as AppointmentReservationRow["status"]).then(load)}
+                    className="rounded-full border border-[var(--color-border)] bg-white/70 px-3 py-2 text-sm"
+                    disabled={role === "doctor" && item.doctor_id !== doctorProfileId}
+                  >
                     <option>Pendiente</option>
                     <option>Confirmada</option>
                     <option>Realizada</option>
@@ -393,6 +452,14 @@ export function PatientAppointmentsAdminPage() {
                       <MessageCircleMore className="h-4 w-4" />
                     </a>
                   ) : null}
+                  <DeleteActions
+                    role={role}
+                    row={item}
+                    compact
+                    onSoftDelete={() => void softDeleteRecord({ table: "appointment_reservations", id: item.id, actorId, actorRole: role, actorName, actorEmail }).then(load)}
+                    onRestore={() => void restoreRecord("appointment_reservations", item.id).then(load)}
+                    onHardDelete={() => void hardDeleteRecord("appointment_reservations", item.id).then(load)}
+                  />
                 </div>
               </div>
               <p className="mt-1 text-xs font-semibold text-[var(--color-copy)]">
@@ -405,6 +472,7 @@ export function PatientAppointmentsAdminPage() {
                 <br />
                 {item.doctor_profiles?.full_name ? `Con ${item.doctor_profiles.full_name}` : "Doctora por confirmar"}
               </p>
+              <DeletedStatusNote row={item} />
             </article>
           ))}
         </section>
@@ -417,7 +485,12 @@ export function PatientAppointmentsAdminPage() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-lg font-semibold">{item.title}</h2>
               <div className="flex flex-wrap items-center gap-2">
-                <select value={item.status} onChange={(event) => void updateAppointmentStatus(item.id, event.target.value).then(load)} className="rounded-full border border-[var(--color-border)] bg-white/70 px-3 py-2 text-sm">
+                <select
+                  value={item.status}
+                  onChange={(event) => void updateAppointmentStatus(item.id, event.target.value).then(load)}
+                  className="rounded-full border border-[var(--color-border)] bg-white/70 px-3 py-2 text-sm"
+                  disabled={role === "doctor" && item.doctor_id !== doctorProfileId}
+                >
                   <option>Programada</option>
                   <option>Confirmada</option>
                   <option>Realizada</option>
@@ -434,6 +507,14 @@ export function PatientAppointmentsAdminPage() {
                     <MessageCircleMore className="h-4 w-4" />
                   </a>
                 ) : null}
+                <DeleteActions
+                  role={role}
+                  row={item}
+                  compact
+                  onSoftDelete={() => void softDeleteRecord({ table: "appointments", id: item.id, actorId, actorRole: role, actorName, actorEmail }).then(load)}
+                  onRestore={() => void restoreRecord("appointments", item.id).then(load)}
+                  onHardDelete={() => void hardDeleteRecord("appointments", item.id).then(load)}
+                />
               </div>
             </div>
             <p className="mt-1 text-xs font-semibold text-[var(--color-copy)]">
@@ -446,6 +527,7 @@ export function PatientAppointmentsAdminPage() {
               <br />
               {item.doctor_profiles?.full_name ? `Con ${item.doctor_profiles.full_name}` : "Doctora por confirmar"}
             </p>
+            <DeletedStatusNote row={item} />
           </article>
         ))}
       </div>

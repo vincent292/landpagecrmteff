@@ -122,6 +122,8 @@ export type Patient = {
   birth_date: string | null;
   gender: string | null;
   emergency_contact: string | null;
+  emergency_contact_relationship?: string | null;
+  address?: string | null;
   notes: string | null;
   created_at: string;
 };

@@ -13,9 +13,25 @@ export type PatientRow = DeletionMetadata & {
   birth_date: string | null;
   gender: string | null;
   emergency_contact: string | null;
+  emergency_contact_relationship?: string | null;
+  address?: string | null;
   assigned_doctor_id?: string | null;
   notes: string | null;
   created_at: string;
+};
+
+export type PortalPatientProfileInput = {
+  full_name: string;
+  phone?: string | null;
+  email?: string | null;
+  city?: string | null;
+  document_number: string;
+  birth_date?: string | null;
+  gender?: string | null;
+  emergency_contact?: string | null;
+  emergency_contact_relationship?: string | null;
+  address?: string | null;
+  notes?: string | null;
 };
 
 export async function getPatients(includeDeleted = false) {
@@ -53,4 +69,29 @@ export async function updatePatient(id: string, data: Record<string, unknown>) {
   const { data: row, error } = await supabase.from("patients").update(payload).eq("id", id).select("*").single();
   if (error) throw error;
   return row as PatientRow;
+}
+
+export async function upsertMyPatientProfile(data: PortalPatientProfileInput) {
+  const { data: row, error } = await supabase.rpc("upsert_patient_profile_from_portal", {
+    p_full_name: data.full_name,
+    p_phone: data.phone ?? null,
+    p_email: data.email ?? null,
+    p_city: data.city ?? null,
+    p_document_number: normalizeDocumentNumber(data.document_number),
+    p_birth_date: data.birth_date ?? null,
+    p_gender: data.gender ?? null,
+    p_emergency_contact: data.emergency_contact ?? null,
+    p_emergency_contact_relationship: data.emergency_contact_relationship ?? null,
+    p_address: data.address ?? null,
+    p_notes: data.notes ?? null,
+  });
+
+  if (error) {
+    if (error.code === "PGRST202" || error.code === "404") {
+      throw new Error("Falta aplicar la migracion del portal del paciente en Supabase. Ejecuta npx supabase db push y vuelve a intentar.");
+    }
+    throw error;
+  }
+
+  return (Array.isArray(row) ? row[0] : row) as PatientRow;
 }

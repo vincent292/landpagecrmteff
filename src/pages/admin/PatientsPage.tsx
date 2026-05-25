@@ -168,22 +168,24 @@ export function PatientsPage() {
                   <PatientAction href={`/panel/pacientes/${patient.id}/citas`} label="Citas" />
                   <PatientAction href={`/panel/pacientes/${patient.id}/recetas`} label="Recetas" />
                   <PatientAction href={`/panel/pacientes/${patient.id}/cuidados`} label="Cuidados" />
-                  <DeleteActions
-                    role={role}
-                    row={patient}
-                    onSoftDelete={() =>
-                      void softDeleteRecord({
-                        table: "patients",
-                        id: patient.id,
-                        actorId: profile?.id ?? user?.id ?? null,
-                        actorRole: role,
-                        actorName: profile?.full_name ?? user?.user_metadata.full_name ?? null,
-                        actorEmail: profile?.email ?? user?.email ?? null,
-                      }).then(load)
-                    }
-                    onRestore={() => void restoreRecord("patients", patient.id).then(load)}
-                    onHardDelete={() => void hardDeleteRecord("patients", patient.id).then(load)}
-                  />
+                  {role !== "doctor" ? (
+                    <DeleteActions
+                      role={role}
+                      row={patient}
+                      onSoftDelete={() =>
+                        void softDeleteRecord({
+                          table: "patients",
+                          id: patient.id,
+                          actorId: profile?.id ?? user?.id ?? null,
+                          actorRole: role,
+                          actorName: profile?.full_name ?? user?.user_metadata.full_name ?? null,
+                          actorEmail: profile?.email ?? user?.email ?? null,
+                        }).then(load)
+                      }
+                      onRestore={() => void restoreRecord("patients", patient.id).then(load)}
+                      onHardDelete={() => void hardDeleteRecord("patients", patient.id).then(load)}
+                    />
+                  ) : null}
                 </div>
                 <DeletedStatusNote row={patient} />
               </div>
@@ -224,22 +226,24 @@ export function PatientsPage() {
                       <PatientAction href={`/panel/pacientes/${patient.id}/citas`} label="Citas" />
                       <PatientAction href={`/panel/pacientes/${patient.id}/recetas`} label="Recetas" />
                       <PatientAction href={`/panel/pacientes/${patient.id}/cuidados`} label="Cuidados" />
-                      <DeleteActions
-                        role={role}
-                        row={patient}
-                        onSoftDelete={() =>
-                          void softDeleteRecord({
-                            table: "patients",
-                            id: patient.id,
-                            actorId: profile?.id ?? user?.id ?? null,
-                            actorRole: role,
-                            actorName: profile?.full_name ?? user?.user_metadata.full_name ?? null,
-                            actorEmail: profile?.email ?? user?.email ?? null,
-                          }).then(load)
-                        }
-                        onRestore={() => void restoreRecord("patients", patient.id).then(load)}
-                        onHardDelete={() => void hardDeleteRecord("patients", patient.id).then(load)}
-                      />
+                      {role !== "doctor" ? (
+                        <DeleteActions
+                          role={role}
+                          row={patient}
+                          onSoftDelete={() =>
+                            void softDeleteRecord({
+                              table: "patients",
+                              id: patient.id,
+                              actorId: profile?.id ?? user?.id ?? null,
+                              actorRole: role,
+                              actorName: profile?.full_name ?? user?.user_metadata.full_name ?? null,
+                              actorEmail: profile?.email ?? user?.email ?? null,
+                            }).then(load)
+                          }
+                          onRestore={() => void restoreRecord("patients", patient.id).then(load)}
+                          onHardDelete={() => void hardDeleteRecord("patients", patient.id).then(load)}
+                        />
+                      ) : null}
                     </div>
                     <DeletedStatusNote row={patient} />
                   </td>

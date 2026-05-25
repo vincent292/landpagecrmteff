@@ -21,13 +21,20 @@ export type BookRow = DeletionMetadata & {
   download_token_mode: "single_use" | "multiple_use";
   default_token_max_uses: number;
   is_active: boolean;
+  doctor_id?: string | null;
+  created_by?: string | null;
+  doctor_profiles?: {
+    full_name: string;
+    specialty: string | null;
+    photo_url: string | null;
+  } | null;
   created_at: string;
 };
 
 export async function getActiveBooks() {
   const { data, error } = await supabase
     .from("books")
-    .select("*")
+    .select("*, doctor_profiles(full_name, specialty, photo_url)")
     .eq("is_active", true)
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
@@ -36,21 +43,34 @@ export async function getActiveBooks() {
 }
 
 export async function getBookBySlug(slug: string) {
-  const { data, error } = await supabase.from("books").select("*").eq("slug", slug).is("deleted_at", null).maybeSingle();
+  const { data, error } = await supabase
+    .from("books")
+    .select("*, doctor_profiles(full_name, specialty, photo_url)")
+    .eq("slug", slug)
+    .is("deleted_at", null)
+    .maybeSingle();
   if (error) throw error;
   return data as BookRow | null;
 }
 
 export async function getBookById(id: string) {
-  const { data, error } = await supabase.from("books").select("*").eq("id", id).maybeSingle();
+  const { data, error } = await supabase
+    .from("books")
+    .select("*, doctor_profiles(full_name, specialty, photo_url)")
+    .eq("id", id)
+    .maybeSingle();
   if (error) throw error;
   return data as BookRow | null;
 }
 
-export async function getBooksAdmin(includeDeleted = false) {
-  let query = supabase.from("books").select("*").order("created_at", { ascending: false });
+export async function getBooksAdmin(includeDeleted = false, doctorId?: string | null) {
+  let query = supabase
+    .from("books")
+    .select("*, doctor_profiles(full_name, specialty, photo_url)")
+    .order("created_at", { ascending: false });
   const filter = getVisibleDeletionFilter("books", includeDeleted);
   if (filter.column) query = query.is(filter.column, filter.value);
+  if (doctorId) query = query.eq("doctor_id", doctorId);
   const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as BookRow[];

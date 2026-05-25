@@ -94,18 +94,20 @@ export async function createAppointment(data: Record<string, unknown>) {
   return row as AppointmentRow;
 }
 
-export async function getAppointmentsByPatient(patientId: string) {
-  const { data, error } = await supabase
+export async function getAppointmentsByPatient(patientId: string, includeDeleted = false) {
+  let query = supabase
     .from("appointments")
     .select("*")
     .eq("patient_id", patientId)
-    .eq("is_deleted", false)
     .order("appointment_date", { ascending: true });
+  const deletedFilter = getVisibleDeletionFilter("appointments", includeDeleted);
+  if (deletedFilter.column) query = query.eq(deletedFilter.column, deletedFilter.value);
+  const { data, error } = await query;
   if (error) throw error;
   return enrichAppointments((data ?? []) as AppointmentBaseRow[]);
 }
 
-export async function getAppointmentsAdmin(includeDeleted = false) {
+export async function getAppointmentsAdmin(includeDeleted = false, doctorId?: string | null) {
   let query = supabase
     .from("appointments")
     .select("*, patients(full_name, phone, email, city, document_number), doctor_profiles(id, full_name, whatsapp, email), profiles!appointments_created_by_fkey(full_name, email, role)")
@@ -114,6 +116,7 @@ export async function getAppointmentsAdmin(includeDeleted = false) {
 
   const deletedFilter = getVisibleDeletionFilter("appointments", includeDeleted);
   if (deletedFilter.column) query = query.eq(deletedFilter.column, deletedFilter.value);
+  if (doctorId) query = query.eq("doctor_id", doctorId);
 
   const { data, error } = await query;
   if (error) throw error;

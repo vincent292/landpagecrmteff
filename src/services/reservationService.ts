@@ -77,6 +77,7 @@ export type ReservationFilters = {
   appointment_type?: string;
   date?: string;
   query?: string;
+  doctor_id?: string | null;
 };
 
 export type PublicAssessmentReservationInput = {
@@ -148,6 +149,7 @@ export async function getReservationsAdmin(filters: ReservationFilters = {}, inc
   if (filters.appointment_type && filters.appointment_type !== "Todos") {
     query = query.eq("appointment_type", filters.appointment_type);
   }
+  if (filters.doctor_id) query = query.eq("doctor_id", filters.doctor_id);
   if (filters.date) query = query.eq("appointment_date", filters.date);
 
   const { data, error } = await query;
@@ -194,15 +196,17 @@ export async function getMyReservations(userId: string) {
   return (data ?? []) as AppointmentReservationRow[];
 }
 
-export async function getReservationsByPatientId(patientId: string) {
+export async function getReservationsByPatientId(patientId: string, includeDeleted = false) {
   await expireUnpaidReservations();
-  const { data, error } = await supabase
+  let query = supabase
     .from("appointment_reservations")
     .select("*, doctor_profiles(id, full_name, whatsapp, email)")
     .eq("patient_id", patientId)
-    .eq("is_deleted", false)
     .order("appointment_date", { ascending: true })
     .order("start_time", { ascending: true });
+  const deletedFilter = getVisibleDeletionFilter("appointment_reservations", includeDeleted);
+  if (deletedFilter.column) query = query.eq(deletedFilter.column, deletedFilter.value);
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as AppointmentReservationRow[];
 }
@@ -321,11 +325,17 @@ export async function uploadManualReservationReceipt(file: File, token?: string 
 }
 
 export async function attachReservationPaymentReceipt(reservationId: string, payment_receipt_path: string) {
-  const { error } = await supabase
-    .from("appointment_reservations")
-    .update({ payment_receipt_path, payment_submitted_at: new Date().toISOString() })
-    .eq("id", reservationId);
-  if (error) throw error;
+  const { data, error } = await supabase.rpc("submit_patient_reservation_receipt", {
+    p_reservation_id: reservationId,
+    p_payment_receipt_path: payment_receipt_path,
+  });
+  if (error) {
+    if (error.code === "PGRST202" || error.code === "404") {
+      throw new Error("Falta aplicar la migracion del portal del paciente en Supabase. Ejecuta npx supabase db push y vuelve a intentar.");
+    }
+    throw error;
+  }
+  return data as AppointmentReservationRow;
 }
 
 export async function getReservationReceiptUrl(path?: string | null) {

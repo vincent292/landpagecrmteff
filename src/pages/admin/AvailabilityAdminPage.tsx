@@ -20,7 +20,7 @@ import {
   type AvailabilityBlockRow,
   type AvailabilityRuleRow,
 } from "../../services/availabilityService";
-import { getAdminDoctors, type DoctorProfileRow } from "../../services/doctorService";
+import { getAdminDoctors, getMyDoctorProfile, type DoctorProfileRow } from "../../services/doctorService";
 import { getReservationsAdmin, type AppointmentReservationRow } from "../../services/reservationService";
 
 const days = [
@@ -104,6 +104,9 @@ export function AvailabilityAdminPage() {
   const [doctorPickerOpen, setDoctorPickerOpen] = useState(false);
   const [blockDoctorQuery, setBlockDoctorQuery] = useState("");
   const [blockDoctorPickerOpen, setBlockDoctorPickerOpen] = useState(false);
+  const [doctorProfileId, setDoctorProfileId] = useState<string | null>(null);
+  const [doctorProfileName, setDoctorProfileName] = useState("");
+  const [doctorProfileResolved, setDoctorProfileResolved] = useState(role !== "doctor");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -132,13 +135,25 @@ export function AvailabilityAdminPage() {
   );
 
   const load = () => {
+    if (role === "doctor" && !doctorProfileResolved) return;
+    if (role === "doctor" && !doctorProfileId) {
+      setRules([]);
+      setBlocks([]);
+      setReservations([]);
+      setDoctors([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(false);
     Promise.all([
-      getAvailabilityRules(role === "superadmin"),
-      getAvailabilityBlocks(role === "superadmin"),
-      getReservationsAdmin({}, role === "superadmin"),
-      getAdminDoctors(role === "superadmin"),
+      getAvailabilityRules(role === "superadmin", role === "doctor" ? doctorProfileId : null),
+      getAvailabilityBlocks(role === "superadmin", role === "doctor" ? doctorProfileId : null),
+      getReservationsAdmin(role === "doctor" ? { doctor_id: doctorProfileId } : {}, role === "superadmin"),
+      getAdminDoctors(role === "superadmin").then((rows) =>
+        role === "doctor" && doctorProfileId ? rows.filter((doctor) => doctor.id === doctorProfileId) : rows
+      ),
     ])
       .then(([nextRules, nextBlocks, nextReservations, nextDoctors]) => {
         setRules(nextRules);
@@ -150,7 +165,32 @@ export function AvailabilityAdminPage() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(load, [role]);
+  useEffect(() => {
+    if (role !== "doctor" || !profile?.id) {
+      setDoctorProfileId(null);
+      setDoctorProfileName("");
+      setDoctorProfileResolved(true);
+      return;
+    }
+
+    setDoctorProfileResolved(false);
+    getMyDoctorProfile(profile.id)
+      .then((doctor) => {
+        setDoctorProfileId(doctor?.id ?? null);
+        setDoctorProfileName(doctor?.full_name ?? "");
+      })
+      .catch(() => {
+        setDoctorProfileId(null);
+        setDoctorProfileName("");
+      })
+      .finally(() => setDoctorProfileResolved(true));
+  }, [profile?.id, role]);
+
+  useEffect(() => {
+    load();
+  }, [doctorProfileId, doctorProfileResolved, role]);
+
+  const doctorFieldLocked = role === "doctor" && Boolean(doctorProfileId);
 
   useEffect(() => {
     if (doctors.length === 0) return;
@@ -159,11 +199,38 @@ export function AvailabilityAdminPage() {
     const currentDoctorId = ruleForm.getValues("doctor_id");
     if (currentDoctorId && doctors.some((doctor) => doctor.id === currentDoctorId)) return;
 
-    const ownDoctor = doctors.find((doctor) => doctor.profile_id === profile?.id);
+    const ownDoctor = doctorFieldLocked
+      ? doctors.find((doctor) => doctor.id === doctorProfileId)
+      : doctors.find((doctor) => doctor.profile_id === profile?.id);
     const nextDoctor = ownDoctor ?? doctors[0];
     ruleForm.setValue("doctor_id", nextDoctor.id, { shouldValidate: true });
     setDoctorQuery(nextDoctor.full_name);
-  }, [doctors, editingRuleId, profile?.id, ruleForm]);
+  }, [doctorFieldLocked, doctorProfileId, doctors, editingRuleId, profile?.id, ruleForm]);
+
+  useEffect(() => {
+    if (doctors.length === 0) return;
+    if (editingBlockId) return;
+
+    const currentDoctorId = blockForm.getValues("doctor_id");
+    if (doctorFieldLocked) {
+      const ownDoctor = doctors.find((doctor) => doctor.id === doctorProfileId);
+      if (!ownDoctor) return;
+      if (currentDoctorId !== ownDoctor.id) {
+        blockForm.setValue("doctor_id", ownDoctor.id, { shouldValidate: false });
+      }
+      if (blockDoctorQuery !== ownDoctor.full_name) {
+        setBlockDoctorQuery(ownDoctor.full_name);
+      }
+      return;
+    }
+
+    if (currentDoctorId && doctors.some((doctor) => doctor.id === currentDoctorId)) return;
+
+    const ownDoctor = doctors.find((doctor) => doctor.profile_id === profile?.id);
+    if (!ownDoctor) return;
+    blockForm.setValue("doctor_id", ownDoctor.id, { shouldValidate: false });
+    setBlockDoctorQuery(ownDoctor.full_name);
+  }, [blockDoctorQuery, blockForm, doctorFieldLocked, doctorProfileId, doctors, editingBlockId, profile?.id]);
 
   const filteredDoctors = useMemo(() => {
     const normalizedQuery = normalizeSearchText(doctorQuery);
@@ -204,7 +271,7 @@ export function AvailabilityAdminPage() {
     setSuccess("");
     try {
       const common = {
-        doctor_id: values.doctor_id,
+        doctor_id: doctorFieldLocked ? doctorProfileId : values.doctor_id,
         created_by: profile?.id ?? null,
         city: values.city,
         location: values.location || null,
@@ -268,7 +335,7 @@ export function AvailabilityAdminPage() {
     try {
       const payload = {
         created_by: profile?.id ?? null,
-        doctor_id: values.doctor_id || null,
+        doctor_id: doctorFieldLocked ? doctorProfileId : values.doctor_id || null,
         city: values.city || null,
         block_date: values.block_date,
         start_time: values.full_day ? null : values.start_time,
@@ -337,7 +404,9 @@ export function AvailabilityAdminPage() {
   const cancelRuleEditing = () => {
     setEditingRuleId(null);
     ruleForm.reset(getDefaultRuleValues());
-    const ownDoctor = doctors.find((doctor) => doctor.profile_id === profile?.id);
+    const ownDoctor = doctorFieldLocked
+      ? doctors.find((doctor) => doctor.id === doctorProfileId)
+      : doctors.find((doctor) => doctor.profile_id === profile?.id);
     const nextDoctor = ownDoctor ?? doctors[0];
     if (nextDoctor) {
       ruleForm.setValue("doctor_id", nextDoctor.id, { shouldValidate: true });
@@ -350,6 +419,11 @@ export function AvailabilityAdminPage() {
   const cancelBlockEditing = () => {
     setEditingBlockId(null);
     blockForm.reset(getDefaultBlockValues());
+    if (doctorFieldLocked && doctorProfileId) {
+      blockForm.setValue("doctor_id", doctorProfileId, { shouldValidate: false });
+      setBlockDoctorQuery(doctorProfileName);
+      return;
+    }
     setBlockDoctorQuery("");
   };
 
@@ -436,6 +510,7 @@ export function AvailabilityAdminPage() {
                 open={doctorPickerOpen}
                 doctors={filteredDoctors}
                 error={ruleForm.formState.errors.doctor_id?.message}
+                disabled={doctorFieldLocked}
                 onFocus={() => setDoctorPickerOpen(true)}
                 onBlur={() => window.setTimeout(() => setDoctorPickerOpen(false), 120)}
                 onChange={(value) => {
@@ -660,6 +735,7 @@ export function AvailabilityAdminPage() {
                 query={blockDoctorQuery}
                 open={blockDoctorPickerOpen}
                 doctors={filteredBlockDoctors}
+                disabled={doctorFieldLocked}
                 onFocus={() => setBlockDoctorPickerOpen(true)}
                 onBlur={() => window.setTimeout(() => setBlockDoctorPickerOpen(false), 120)}
                 onChange={(value) => {
@@ -672,7 +748,7 @@ export function AvailabilityAdminPage() {
                   setBlockDoctorQuery(doctor.full_name);
                   setBlockDoctorPickerOpen(false);
                 }}
-                allowClear
+                allowClear={!doctorFieldLocked}
                 onClear={() => {
                   blockForm.setValue("doctor_id", "", { shouldValidate: false });
                   setBlockDoctorQuery("");
@@ -858,6 +934,7 @@ function DoctorCombobox({
   onBlur,
   onChange,
   onSelect,
+  disabled = false,
   allowClear = false,
   onClear,
 }: {
@@ -870,6 +947,7 @@ function DoctorCombobox({
   onBlur: () => void;
   onChange: (value: string) => void;
   onSelect: (doctor: DoctorProfileRow) => void;
+  disabled?: boolean;
   allowClear?: boolean;
   onClear?: () => void;
 }) {
@@ -885,9 +963,10 @@ function DoctorCombobox({
             onChange={(event) => onChange(event.target.value)}
             placeholder="Escribe para buscar doctora"
             className="premium-input !pl-12"
+            disabled={disabled}
           />
         </div>
-        {open ? (
+        {!disabled && open ? (
           <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-[24px] border border-[var(--color-border)] bg-white shadow-[0_18px_45px_rgba(62,42,31,0.12)]">
             <div className="max-h-72 overflow-y-auto p-2">
               {allowClear && onClear ? (
