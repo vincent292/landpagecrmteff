@@ -12,7 +12,7 @@ export function ReserveAppointmentPage({ publicView = false }: { publicView?: bo
           </p>
           <h1 className="font-display mt-3 text-5xl font-semibold">Agenda tu cita con pago y comprobante</h1>
           <p className="mt-4 max-w-3xl text-sm leading-7 text-[var(--color-copy)]">
-            Usa el mismo flujo del landing, pero ahora dentro de tu portal. Eliges horario real, pagas por QR, subes tu comprobante y luego revisas el estado desde Mis citas.
+            Usa el mismo flujo del landing, pero ahora dentro de tu portal. Eliges para que cita quieres agendarte, la doctora, el horario real, pagas por QR, subes tu comprobante y luego revisas el estado desde Mis citas.
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
             <Link to="/mi-panel/citas" className="rounded-full border border-[var(--color-border)] px-5 py-3 text-sm font-semibold">
@@ -27,6 +27,15 @@ export function ReserveAppointmentPage({ publicView = false }: { publicView?: bo
 
       <PublicAssessmentBookingFlow
         mode="page"
+        allowDoctorSelection
+        allowAppointmentTypeSelection
+        appointmentTypeOptions={[
+          "Valoracion estetica",
+          "Consulta general",
+          "Control",
+          "Procedimiento",
+          "Revision postratamiento",
+        ]}
         context={{
           type: "general",
           title: "Reserva tu cita privada con horario real, pago por QR y comprobante dentro del portal del paciente.",

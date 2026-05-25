@@ -6,6 +6,7 @@ import { CalendarDays, CheckCircle2, CreditCard, FileUp, MapPin, UserRound } fro
 import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
 import { getAvailableSlots, type AvailableSlot } from "../../services/availabilityService";
+import { getDoctors, type DoctorProfileRow } from "../../services/doctorService";
 import {
   createPublicAssessmentReservation,
   uploadPublicAssessmentReceipt,
@@ -33,16 +34,23 @@ export function PublicAssessmentBookingFlow({
   onClose,
   onSuccess,
   context,
+  allowDoctorSelection = false,
+  allowAppointmentTypeSelection = false,
+  appointmentTypeOptions = [],
 }: {
   mode: "page" | "modal";
   open?: boolean;
   onClose?: () => void;
   onSuccess?: () => void;
   context: AssessmentContext;
+  allowDoctorSelection?: boolean;
+  allowAppointmentTypeSelection?: boolean;
+  appointmentTypeOptions?: string[];
 }) {
   const { user, profile, refreshProfile } = useAuth();
   const [settings, setSettings] = useState<SiteSettingsRow | null>(null);
   const [loadingSettings, setLoadingSettings] = useState(true);
+  const [loadingDoctors, setLoadingDoctors] = useState(false);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [step, setStep] = useState<FlowStep>("datos");
@@ -53,6 +61,9 @@ export function PublicAssessmentBookingFlow({
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null);
   const [slots, setSlots] = useState<AvailableSlot[]>([]);
+  const [doctors, setDoctors] = useState<DoctorProfileRow[]>([]);
+  const [selectedDoctorId, setSelectedDoctorId] = useState(context.doctor_id ?? "");
+  const [selectedAppointmentType, setSelectedAppointmentType] = useState("");
   const [form, setForm] = useState({
     full_name: "",
     phone: "",
@@ -79,13 +90,62 @@ export function PublicAssessmentBookingFlow({
   }, [context.city, profile, user]);
 
   const assessmentTitle = settings?.assessment_label?.trim() || "Valoracion estetica";
-  const appointmentType = settings?.assessment_appointment_type?.trim() || context.appointment_type?.trim() || "Valoracion estetica";
+  const defaultAppointmentType =
+    context.appointment_type?.trim() || settings?.assessment_appointment_type?.trim() || "Valoracion estetica";
   const assessmentPrice = Number(context.assessment_price ?? settings?.assessment_price ?? 0);
   const paymentQrImage = settings?.payment_qr_image ?? settings?.appointment_qr_payment_image ?? null;
+  const normalizedAppointmentTypeOptions = useMemo(() => {
+    const baseOptions = appointmentTypeOptions.length > 0 ? appointmentTypeOptions : [defaultAppointmentType];
+    return [...new Set(baseOptions.map((item) => item.trim()).filter(Boolean))];
+  }, [appointmentTypeOptions, defaultAppointmentType]);
+  const resolvedAppointmentType = allowAppointmentTypeSelection
+    ? selectedAppointmentType || normalizedAppointmentTypeOptions[0] || defaultAppointmentType
+    : defaultAppointmentType;
+  const resolvedDoctorId = allowDoctorSelection ? selectedDoctorId || null : context.doctor_id ?? null;
+  const resolvedAssessmentLabel = allowAppointmentTypeSelection ? resolvedAppointmentType : assessmentTitle;
+  const headingTitle = allowAppointmentTypeSelection ? "Reserva tu cita" : assessmentTitle;
+  const doctorNameMap = useMemo(
+    () => new Map(doctors.map((doctor) => [doctor.id, doctor.full_name])),
+    [doctors]
+  );
+  const selectedDoctorName = resolvedDoctorId ? doctorNameMap.get(resolvedDoctorId) ?? "Doctora seleccionada" : null;
+
+  useEffect(() => {
+    if (!allowDoctorSelection) {
+      setDoctors([]);
+      setSelectedDoctorId(context.doctor_id ?? "");
+      return;
+    }
+
+    setLoadingDoctors(true);
+    getDoctors()
+      .then((rows) => {
+        setDoctors(rows);
+        setSelectedDoctorId((current) => {
+          if (current && rows.some((doctor) => doctor.id === current)) return current;
+          if (context.doctor_id && rows.some((doctor) => doctor.id === context.doctor_id)) return context.doctor_id;
+          return "";
+        });
+      })
+      .catch(() => setDoctors([]))
+      .finally(() => setLoadingDoctors(false));
+  }, [allowDoctorSelection, context.doctor_id]);
+
+  useEffect(() => {
+    if (!allowAppointmentTypeSelection) {
+      setSelectedAppointmentType("");
+      return;
+    }
+
+    setSelectedAppointmentType((current) => {
+      if (current && normalizedAppointmentTypeOptions.includes(current)) return current;
+      return normalizedAppointmentTypeOptions[0] ?? defaultAppointmentType;
+    });
+  }, [allowAppointmentTypeSelection, defaultAppointmentType, normalizedAppointmentTypeOptions]);
 
   useEffect(() => {
     const city = form.city.trim();
-    if (!city || !open) {
+    if (!city || !open || !resolvedAppointmentType.trim()) {
       setSlots([]);
       setSelectedDate(null);
       setSelectedSlot(null);
@@ -101,18 +161,19 @@ export function PublicAssessmentBookingFlow({
 
     const filters = {
       city,
-      appointment_type: appointmentType,
+      appointment_type: resolvedAppointmentType,
       agenda_tag: context.agenda_tag ?? null,
       date_from: from.toISOString().slice(0, 10),
       date_to: to.toISOString().slice(0, 10),
     };
+    const allowDoctorFallback = Boolean(context.doctor_id && !allowDoctorSelection);
 
     getAvailableSlots({
       ...filters,
-      doctor_id: context.doctor_id ?? null,
+      doctor_id: resolvedDoctorId,
     })
       .then((rows) => {
-        if (rows.length > 0 || !context.doctor_id) return rows;
+        if (rows.length > 0 || !allowDoctorFallback) return rows;
         return getAvailableSlots(filters);
       })
       .then((rows) => {
@@ -132,7 +193,7 @@ export function PublicAssessmentBookingFlow({
         setErrorMessage(error instanceof Error ? error.message : "No pudimos cargar horarios.");
       })
       .finally(() => setLoadingSlots(false));
-  }, [appointmentType, context.agenda_tag, context.doctor_id, form.city, open]);
+  }, [allowDoctorSelection, context.agenda_tag, context.doctor_id, form.city, open, resolvedAppointmentType, resolvedDoctorId]);
 
   const groupedSlots = useMemo(() => {
     const groups = new Map<string, AvailableSlot[]>();
@@ -152,7 +213,8 @@ export function PublicAssessmentBookingFlow({
     form.full_name.trim().length >= 3 &&
     form.phone.trim().length >= 7 &&
     form.city.trim().length >= 2 &&
-    normalizeDocumentNumber(form.document_number).length >= 5;
+    normalizeDocumentNumber(form.document_number).length >= 5 &&
+    resolvedAppointmentType.trim().length >= 2;
   const canSubmit = dataStepComplete && Boolean(selectedSlot) && Boolean(receiptFile) && Boolean(paymentQrImage);
 
   useEffect(() => {
@@ -205,8 +267,8 @@ export function PublicAssessmentBookingFlow({
         email: user?.email ?? profile?.email ?? null,
         city: form.city.trim(),
         document_number: normalizeDocumentNumber(form.document_number),
-        appointment_type: appointmentType,
-        assessment_label: assessmentTitle,
+        appointment_type: resolvedAppointmentType,
+        assessment_label: resolvedAssessmentLabel,
         payment_receipt_path,
         payment_amount: assessmentPrice,
         slot: {
@@ -239,7 +301,7 @@ export function PublicAssessmentBookingFlow({
       setReceiptFile(null);
       onSuccess?.();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "No pudimos registrar tu valoracion.");
+      setErrorMessage(error instanceof Error ? error.message : "No pudimos registrar tu cita.");
     } finally {
       setSubmitting(false);
     }
@@ -278,7 +340,7 @@ export function PublicAssessmentBookingFlow({
                 </p>
               </div>
               <p className="mt-5 text-xs leading-6 text-[var(--color-copy)]">
-                Guarda este codigo por si necesitas consultarnos el estado de la valoracion.
+                Guarda este codigo por si necesitas consultarnos el estado de la cita.
               </p>
               {mode === "modal" ? (
                 <button
@@ -297,13 +359,13 @@ export function PublicAssessmentBookingFlow({
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">
-            Valoracion
+            {allowAppointmentTypeSelection ? "Reserva privada" : "Valoracion"}
           </p>
           <h2 className="font-display mt-3 text-4xl font-semibold leading-[0.95] sm:text-5xl">
-            {assessmentTitle}
+            {headingTitle}
           </h2>
           <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--color-copy)]">
-            {context.title}. Elige tus datos, revisa la disponibilidad real de la doctora y sube tu comprobante con CI obligatorio.
+            {context.title}. Elige tus datos, define para que cita quieres agendarte, revisa la disponibilidad real y sube tu comprobante con CI obligatorio.
           </p>
         </div>
         <div className="rounded-[24px] border border-[var(--color-border)] bg-[rgba(247,242,236,0.78)] px-5 py-4">
@@ -353,6 +415,40 @@ export function PublicAssessmentBookingFlow({
                   ))}
                 </select>
               </Field>
+              {allowAppointmentTypeSelection ? (
+                <Field label="Tipo de cita">
+                  <select
+                    value={resolvedAppointmentType}
+                    onChange={(event) => setSelectedAppointmentType(event.target.value)}
+                    className="premium-input"
+                  >
+                    {normalizedAppointmentTypeOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              ) : null}
+              {allowDoctorSelection ? (
+                <Field label="Doctora">
+                  <select
+                    value={selectedDoctorId}
+                    onChange={(event) => setSelectedDoctorId(event.target.value)}
+                    className="premium-input"
+                    disabled={loadingDoctors}
+                  >
+                    <option value="">
+                      {loadingDoctors ? "Cargando doctoras..." : "Cualquier doctora disponible"}
+                    </option>
+                    {doctors.map((doctor) => (
+                      <option key={doctor.id} value={doctor.id}>
+                        {doctor.full_name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              ) : null}
               <Field label="Carnet de identidad / CI">
                 <input
                   value={form.document_number}
@@ -371,7 +467,7 @@ export function PublicAssessmentBookingFlow({
                     value={form.notes}
                     onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
                     className="premium-input min-h-28"
-                    placeholder="Si quieres, cuentanos que te interesa revisar en la valoracion."
+                    placeholder="Si quieres, cuentanos que te interesa revisar en la cita."
                   />
                 </Field>
               </div>
@@ -388,10 +484,15 @@ export function PublicAssessmentBookingFlow({
                 CI: {normalizeDocumentNumber(form.document_number)}
                 <br />
                 Ciudad: {form.city}
+                <br />
+                Tipo de cita: {resolvedAppointmentType}
+                <br />
+                Doctora: {selectedDoctorName ?? "Cualquier doctora disponible"}
               </p>
             </div>
             <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">
-              Te mostramos la disponibilidad real de la doctora para {appointmentType.toLowerCase()} en {form.city || "tu ciudad"}.
+              Te mostramos la disponibilidad real para {resolvedAppointmentType.toLowerCase()} en {form.city || "tu ciudad"}
+              {selectedDoctorName ? ` con ${selectedDoctorName}.` : "."}
             </p>
             <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
               {groupedSlots.map((group) => (
@@ -415,11 +516,12 @@ export function PublicAssessmentBookingFlow({
               ) : null}
               {!loadingSettings && !loadingSlots && groupedSlots.length === 0 ? (
                 <p className="text-sm leading-7 text-[var(--color-copy)]">
-                  Aun no encontramos horarios activos para esta valoracion. Revisa ciudad, disponibilidad o configuracion de agenda.
+                  Aun no encontramos horarios activos para esta cita. Revisa ciudad, doctora, tipo de cita o configuracion de agenda.
                 </p>
               ) : null}
               {visibleSlots.map((slot) => {
                 const selected = selectedSlot && getSlotKey(selectedSlot) === getSlotKey(slot);
+                const slotDoctorName = slot.doctor_id ? doctorNameMap.get(slot.doctor_id) : null;
 
                 return (
                   <button
@@ -440,6 +542,11 @@ export function PublicAssessmentBookingFlow({
                       <MapPin className="h-3.5 w-3.5" />
                       {slot.location ?? slot.city}
                     </span>
+                    {slotDoctorName ? (
+                      <span className="mt-2 block text-xs opacity-80">
+                        Doctora: {slotDoctorName}
+                      </span>
+                    ) : null}
                     <span className="mt-2 block text-xs opacity-80">
                       {slot.available_capacity} cupo(s) disponibles
                     </span>
@@ -460,11 +567,16 @@ export function PublicAssessmentBookingFlow({
               <br />
               Ciudad: {form.city || "Sin ciudad"}
               <br />
-              Valoracion: {appointmentType}
+              Tipo de cita: {resolvedAppointmentType}
+              <br />
+              Doctora: {selectedDoctorName ?? "Cualquier doctora disponible"}
             </p>
             {selectedSlot ? (
               <p className="mt-3">
-                Horario elegido: {formatDate(selectedSlot.date)} · {selectedSlot.start_time.slice(0, 5)} - {selectedSlot.end_time.slice(0, 5)}
+                Horario elegido: {formatDate(selectedSlot.date)} - {selectedSlot.start_time.slice(0, 5)} - {selectedSlot.end_time.slice(0, 5)}
+                {selectedSlot.doctor_id && doctorNameMap.get(selectedSlot.doctor_id)
+                  ? ` con ${doctorNameMap.get(selectedSlot.doctor_id)}`
+                  : ""}
               </p>
             ) : (
               <p className="mt-3">Aun no elegiste horario.</p>
@@ -475,7 +587,7 @@ export function PublicAssessmentBookingFlow({
             <div className="mt-5 rounded-[24px] bg-white/72 p-4">
               <img
                 src={paymentQrImage}
-                alt="QR para pagar valoracion"
+                alt="QR para pagar cita"
                 className="mx-auto h-48 w-48 rounded-[22px] object-contain sm:h-56 sm:w-56"
               />
               <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
@@ -484,7 +596,7 @@ export function PublicAssessmentBookingFlow({
             </div>
           ) : (
             <p className="mt-5 text-sm leading-7 text-[var(--color-copy)]">
-              Falta configurar el QR general de pagos en panel. Sin eso no podremos recibir la valoracion con comprobante.
+              Falta configurar el QR general de pagos en panel. Sin eso no podremos recibir la cita con comprobante.
             </p>
           )}
 
@@ -522,7 +634,7 @@ export function PublicAssessmentBookingFlow({
               disabled={!canSubmit || submitting}
               className="rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-60"
             >
-              {submitting ? "Enviando valoracion..." : "Enviar valoracion y pago"}
+              {submitting ? "Enviando cita..." : "Enviar cita y pago"}
             </button>
           </div>
         </div>
