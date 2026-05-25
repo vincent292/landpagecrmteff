@@ -165,6 +165,7 @@ export function PaymentsAndReservationsAdminPage() {
         item.email,
         item.city,
         item.sourceLabel,
+        item.kind === "book" ? item.row.document_number : "",
       ]).toLowerCase();
       const queryMatches = text.includes(query.trim().toLowerCase());
       return statusMatches && kindMatches && queryMatches;
@@ -461,7 +462,7 @@ export function PaymentsAndReservationsAdminPage() {
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Buscar paciente, contenido, correo o ciudad"
+            placeholder="Buscar paciente, contenido, carnet, correo o ciudad"
             className="premium-input md:col-span-2 xl:col-span-1"
           />
           <div className="grid gap-3 sm:grid-cols-2 md:col-span-2 xl:col-span-2">
@@ -767,7 +768,7 @@ function buildApprovedWhatsappMessage(
   }
 
   if (item.kind === "book") {
-    return `Hola ${patientName}, tu pago${paymentLabel} fue aprobado para el libro "${item.title}".${extraCode ? ` Tu codigo de referencia es ${extraCode}.` : ""} Te escribiremos por este medio para coordinar la entrega o el siguiente paso.`;
+    return `Hola ${patientName}, tu pago${paymentLabel} fue aprobado para el libro "${item.title}".${extraCode ? ` Tu token de descarga es ${extraCode}.` : ""} Puedes descargarlo desde tu panel en la seccion de descargas o desde la pagina publica del libro en la opcion de ingresar token. Si luego te registras con el mismo carnet, esta compra tambien quedara vinculada a tu cuenta.`;
   }
 
   return `Hola ${patientName}, tu pago${paymentLabel} fue aprobado para "${item.title}". Si elegiste horario o procedimiento, el equipo seguira el siguiente paso contigo por WhatsApp.`;

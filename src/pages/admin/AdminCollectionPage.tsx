@@ -108,14 +108,7 @@ export function AdminCollectionPage({ module }: Props) {
   const [error, setError] = useState(false);
   const [editing, setEditing] = useState<AdminRow | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [filters, setFilters] = useState<AdminListFilters>({
-    query: "",
-    status: "Nuevo",
-    city: "Todas",
-    date: "",
-    courseId: "Todos",
-    interestType: "Todos",
-  });
+  const [filters, setFilters] = useState<AdminListFilters>(() => getDefaultFilters(module));
   const [pendingRealtime, setPendingRealtime] = useState(false);
   const [paymentMethods, setPaymentMethods] = useState<CashPaymentMethodRow[]>([]);
   const [enrollmentApproval, setEnrollmentApproval] = useState<EnrollmentApprovalDraft | null>(null);
@@ -135,6 +128,10 @@ export function AdminCollectionPage({ module }: Props) {
   };
 
   useEffect(load, [module, role]);
+
+  useEffect(() => {
+    setFilters(getDefaultFilters(module));
+  }, [module]);
 
   useEffect(() => {
     if (module !== "inscripciones" && module !== "solicitudes") return;
@@ -1182,6 +1179,7 @@ function filterRows(module: Module, rows: AdminRow[], filters: AdminListFilters)
   return rows.filter((row) => {
     const text = JSON.stringify(row).toLowerCase();
     const statusOk =
+      (module !== "solicitudes" && module !== "inscripciones") ||
       filters.status === "Todos" ||
       ("status" in row &&
         (module === "solicitudes"
@@ -1199,6 +1197,17 @@ function filterRows(module: Module, rows: AdminRow[], filters: AdminListFilters)
       ("created_at" in row && toInputDate(row.created_at) === filters.date);
     return text.includes(query) && statusOk && cityOk && courseOk && interestTypeOk && dateOk;
   });
+}
+
+function getDefaultFilters(module: Module): AdminListFilters {
+  return {
+    query: "",
+    status: module === "solicitudes" ? "Nuevo" : "Todos",
+    city: "Todas",
+    date: "",
+    courseId: "Todos",
+    interestType: "Todos",
+  };
 }
 
 function getTitle(module: Module, row: AdminRow) {

@@ -43,9 +43,9 @@ export function BookDetailPage() {
             <p>Incluye material digital privado y descarga temporal protegida mediante token verificado.</p>
             <p className="mt-3">Pasos para comprar:</p>
             <ol className="mt-2 list-decimal space-y-2 pl-5">
-              <li>Ingresa a tu cuenta o crea una cuenta nueva.</li>
-              <li>Completa el formulario de compra y sube tu comprobante.</li>
-              <li>Cuando el pago sea validado, recibirás el token de descarga.</li>
+              <li>Completa tu nombre, carnet, WhatsApp y correo.</li>
+              <li>Sube tu comprobante de pago desde el formulario del libro.</li>
+              <li>Cuando el pago sea validado, recibiras tu token y tambien se enlazara a tu panel si usas ese mismo carnet.</li>
             </ol>
           </div>
           <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -56,17 +56,11 @@ export function BookDetailPage() {
                 onClick={() => setShowInfoModal(true)}
                 className="rounded-full border border-[var(--color-border)] px-6 py-3 text-sm font-semibold"
               >
-                Pedir información
+                Pedir informacion
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  if (!user) {
-                    navigate("/login", { state: { from: `/comprar-libro/${book.slug}` } });
-                    return;
-                  }
-                  navigate(`/comprar-libro/${book.slug}`);
-                }}
+                onClick={() => navigate(`/comprar-libro/${book.slug}`)}
                 className="rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white"
               >
                 Comprar libro
@@ -75,17 +69,21 @@ export function BookDetailPage() {
           </div>
           {!user ? (
             <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
-              Inicia sesión para guardar este libro en tu perfil y acceder a tus descargas cuando lo necesites.
+              No necesitas iniciar sesion para comprar. Si luego te registras con el mismo carnet, veras esta compra en tu panel y en tus descargas.
             </p>
-          ) : null}
+          ) : (
+            <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
+              Como ya tienes sesion iniciada, esta compra quedara ligada a tu cuenta y a tu carnet para que luego puedas descargarla desde tu panel.
+            </p>
+          )}
         </div>
       </div>
 
       <div className="mt-10 grid gap-6 lg:grid-cols-[1fr_0.9fr]">
         <div className="rounded-[28px] border border-[var(--color-border)] bg-white/70 p-6">
-          <h2 className="text-2xl font-semibold text-[var(--color-ink)]">¿Qué incluye?</h2>
+          <h2 className="text-2xl font-semibold text-[var(--color-ink)]">Que incluye</h2>
           <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
-            Acceso al material digital, validación mediante compra verificada y disponibilidad posterior en tu panel cuando el pedido haya sido aprobado.
+            Acceso al material digital, validacion mediante compra verificada y disponibilidad posterior en tu panel o con token cuando el pedido haya sido aprobado.
           </p>
           {book.public_info ? (
             <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
@@ -95,9 +93,9 @@ export function BookDetailPage() {
         </div>
 
         <div className="rounded-[28px] border border-[var(--color-border)] bg-white/70 p-6">
-          <h2 className="text-2xl font-semibold text-[var(--color-ink)]">¿Ya compraste este libro?</h2>
+          <h2 className="text-2xl font-semibold text-[var(--color-ink)]">Ya compraste este libro</h2>
           <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
-            Ingresa tu token para validar la descarga del archivo con una URL firmada temporal.
+            Ingresa tu token para validar la descarga del archivo con una URL firmada temporal. Si luego te registras con el mismo carnet, tambien podras verlo en tu panel.
           </p>
           <div className="mt-4 flex flex-col gap-3">
             <input
@@ -137,7 +135,7 @@ export function BookDetailPage() {
 
 async function handleTokenDownload(token: string, setMessage: (message: string) => void) {
   if (!token.trim()) {
-    setMessage("Ingresa un token válido.");
+    setMessage("Ingresa un token valido.");
     return;
   }
   try {
@@ -145,6 +143,6 @@ async function handleTokenDownload(token: string, setMessage: (message: string) 
     setMessage(`Descarga lista para ${result.title}.`);
     window.open(result.signedUrl, "_blank", "noopener,noreferrer");
   } catch (error) {
-    setMessage(error instanceof Error ? error.message : "Token inválido o agotado.");
+    setMessage(error instanceof Error ? error.message : "Token invalido o agotado.");
   }
 }

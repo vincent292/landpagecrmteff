@@ -6,7 +6,7 @@ export type BookTokenRow = DeletionMetadata & {
   id: string;
   book_id: string;
   order_id: string;
-  user_id: string;
+  user_id: string | null;
   token: string;
   max_uses: number;
   used_count: number;

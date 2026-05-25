@@ -8,23 +8,19 @@ import { PublicImageUpload } from "../../components/admin/PublicImageUpload";
 import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
 import { hardDeleteRecord, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
-import {
-  createDoctorWithUser,
-  getAdminDoctors,
-  updateDoctor,
-  type DoctorProfileRow,
-} from "../../services/doctorService";
+import { createDoctor, getAdminDoctors, updateDoctor, type DoctorProfileRow } from "../../services/doctorService";
+import { normalizeDocumentNumber } from "../../utils/documentNumber";
 
 const emptyDoctor = {
   profile_id: "",
   full_name: "",
+  document_number: "",
   specialty: "",
   bio: "",
   city: "Cochabamba",
   phone: "",
   whatsapp: "",
   email: "",
-  password: "",
   instagram_url: "",
   tiktok_url: "",
   photo_url: "",
@@ -52,14 +48,10 @@ export function DoctorsAdminPage() {
     <div className="space-y-8">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--color-accent-strong)]">
-            Equipo medico
-          </p>
-          <h1 className="font-display mt-3 text-4xl font-semibold leading-none sm:text-5xl">
-            Doctoras registradas
-          </h1>
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--color-accent-strong)]">Equipo medico</p>
+          <h1 className="font-display mt-3 text-4xl font-semibold leading-none sm:text-5xl">Doctoras registradas</h1>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--color-copy)]">
-            Aquí creas una cuenta real de doctora en Supabase Auth y, al mismo tiempo, su perfil público para que pueda mostrarse en la plataforma.
+            Aqui pre-registras a cada doctora con su carnet unico. Cuando ella cree su cuenta con ese mismo carnet, el sistema le dara acceso como doctora automaticamente.
           </p>
         </div>
         <button
@@ -89,8 +81,12 @@ export function DoctorsAdminPage() {
                 {doctor.specialty ?? "Doctora"} · {doctor.city ?? "Sin ciudad"}
               </p>
               <h2 className="mt-2 text-xl font-semibold">{doctor.full_name}</h2>
+              <p className="mt-2 text-sm text-[var(--color-copy)]">CI: {doctor.document_number ?? "Sin carnet"}</p>
               <p className="mt-2 line-clamp-3 text-sm leading-7 text-[var(--color-copy)]">{doctor.bio}</p>
               <DeletedStatusNote row={doctor} />
+              <div className="mt-4 inline-flex rounded-full bg-[rgba(216,194,174,0.24)] px-3 py-1 text-xs font-semibold text-[var(--color-mocha)]">
+                {doctor.profile_id ? "Cuenta reclamada" : "Pendiente de registro"}
+              </div>
               <div className="mt-5 flex flex-wrap gap-2">
                 <button
                   onClick={() => {
@@ -125,7 +121,7 @@ export function DoctorsAdminPage() {
         </div>
       </section>
 
-      {showForm && (
+      {showForm ? (
         <DoctorForm
           row={editing}
           onClose={() => setShowForm(false)}
@@ -134,7 +130,7 @@ export function DoctorsAdminPage() {
             load();
           }}
         />
-      )}
+      ) : null}
     </div>
   );
 }
@@ -144,6 +140,7 @@ function DoctorForm({ row, onClose, onSaved }: { row: DoctorProfileRow | null; o
     ...emptyDoctor,
     ...(row ?? {}),
     profile_id: row?.profile_id ?? "",
+    document_number: row?.document_number ?? "",
     specialty: row?.specialty ?? "",
     bio: row?.bio ?? "",
     city: row?.city ?? "Cochabamba",
@@ -155,29 +152,38 @@ function DoctorForm({ row, onClose, onSaved }: { row: DoctorProfileRow | null; o
     photo_url: row?.photo_url ?? "",
   }));
   const [error, setError] = useState("");
-  const [createdPassword, setCreatedPassword] = useState("");
 
   const setValue = (name: string, value: string | boolean | null) => setValues((current) => ({ ...current, [name]: value }));
 
   const submit = async () => {
     try {
       setError("");
-      const payload = Object.fromEntries(
-        Object.entries(values).map(([key, value]) => [key, value === "" ? null : value])
-      );
+
+      const fullName = String(values.full_name ?? "").trim();
+      const documentNumber = normalizeDocumentNumber(String(values.document_number ?? ""));
+
+      if (fullName.length < 3) {
+        setError("Escribe el nombre completo de la doctora.");
+        return;
+      }
+
+      if (documentNumber.length < 5) {
+        setError("Escribe un numero de carnet valido.");
+        return;
+      }
+
+      const payload = Object.fromEntries(Object.entries(values).map(([key, value]) => [key, value === "" ? null : value]));
+      payload.full_name = fullName;
+      payload.document_number = documentNumber;
+
       if (row) {
-        delete payload.password;
         await updateDoctor(row.id, payload);
-        onSaved();
       } else {
         delete payload.profile_id;
-        const result = await createDoctorWithUser(payload);
-        if (result.temporary_password) {
-          setCreatedPassword(result.temporary_password);
-          return;
-        }
-        onSaved();
+        await createDoctor(payload);
       }
+
+      onSaved();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "No se pudo guardar la doctora.");
     }
@@ -188,9 +194,7 @@ function DoctorForm({ row, onClose, onSaved }: { row: DoctorProfileRow | null; o
       <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-[32px] bg-[var(--color-surface)] p-6 shadow-[0_30px_90px_rgba(43,33,27,0.25)] md:p-8">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--color-accent-strong)]">
-              {row ? "Editar" : "Registrar"}
-            </p>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--color-accent-strong)]">{row ? "Editar" : "Registrar"}</p>
             <h2 className="font-display mt-2 text-4xl font-semibold">Doctora</h2>
           </div>
           <button onClick={onClose} className="rounded-full border border-[var(--color-border)] p-3">
@@ -201,6 +205,14 @@ function DoctorForm({ row, onClose, onSaved }: { row: DoctorProfileRow | null; o
         <div className="mt-8 grid gap-4 md:grid-cols-2">
           <Field label="Nombre completo">
             <input value={String(values.full_name)} onChange={(event) => setValue("full_name", event.target.value)} className="premium-input" />
+          </Field>
+          <Field label="Numero de carnet / CI">
+            <input
+              value={String(values.document_number)}
+              onChange={(event) => setValue("document_number", normalizeDocumentNumber(event.target.value))}
+              className="premium-input"
+              disabled={Boolean(row?.profile_id)}
+            />
           </Field>
           <Field label="Especialidad">
             <input value={String(values.specialty)} onChange={(event) => setValue("specialty", event.target.value)} className="premium-input" />
@@ -215,21 +227,13 @@ function DoctorForm({ row, onClose, onSaved }: { row: DoctorProfileRow | null; o
               ))}
             </select>
           </Field>
-          {row ? (
-            <Field label="Profile ID del usuario doctora">
-              <input value={String(values.profile_id)} onChange={(event) => setValue("profile_id", event.target.value)} className="premium-input" />
-            </Field>
-          ) : (
-            <Field label="Clave inicial">
-              <input
-                type="password"
-                value={String(values.password)}
-                onChange={(event) => setValue("password", event.target.value)}
-                className="premium-input"
-                placeholder="Opcional, si lo dejas vacio se genera una"
-              />
-            </Field>
-          )}
+          <Field label="Estado de vinculacion">
+            <input
+              value={row?.profile_id ? `Cuenta conectada: ${row.profile_id}` : "Aun no reclamada por la doctora"}
+              className="premium-input"
+              readOnly
+            />
+          </Field>
           <Field label="WhatsApp de la doctora">
             <input value={String(values.whatsapp)} onChange={(event) => setValue("whatsapp", event.target.value)} className="premium-input" placeholder="5917XXXXXXX" />
           </Field>
@@ -265,20 +269,12 @@ function DoctorForm({ row, onClose, onSaved }: { row: DoctorProfileRow | null; o
           </div>
         </div>
 
-        {createdPassword && (
-          <div className="mt-6 rounded-[20px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-7 text-emerald-900">
-            Doctora creada. Clave temporal: <strong>{createdPassword}</strong>
-            <button onClick={onSaved} className="ml-3 font-semibold underline">
-              Cerrar
-            </button>
-          </div>
-        )}
-        {!row && !createdPassword ? (
+        {!row ? (
           <div className="mt-6 rounded-[20px] border border-[var(--color-border)] bg-[rgba(247,242,236,0.78)] px-4 py-3 text-sm leading-7 text-[var(--color-copy)]">
-            Este formulario crea una nueva cuenta de acceso para la doctora y también su perfil visible en la landing y en las secciones públicas donde corresponda.
+            Este formulario solo reserva el carnet y deja listo el perfil publico. La contraseña la crea la misma doctora cuando se registre por su cuenta.
           </div>
         ) : null}
-        {error && <div className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">{error}</div>}
+        {error ? <div className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">{error}</div> : null}
         <button onClick={() => void submit()} className="mt-8 inline-flex items-center gap-2 rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white">
           <Save className="h-4 w-4" />
           Guardar

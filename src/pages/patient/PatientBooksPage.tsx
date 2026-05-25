@@ -21,7 +21,7 @@ export function PatientBooksPage() {
 
   if (loading) return <LoadingState label="Cargando tus pedidos..." />;
   if (error) return <ErrorState label="No pudimos cargar tus pedidos de libros." />;
-  if (items.length === 0) return <EmptyState label="Todavía no tienes compras registradas." />;
+  if (items.length === 0) return <EmptyState label="Todavia no tienes compras registradas." />;
 
   return (
     <div className="grid gap-4">
@@ -36,6 +36,11 @@ export function PatientBooksPage() {
           <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">
             Compra registrada el {formatDate(item.created_at)}.
           </p>
+          {item.document_number ? (
+            <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">
+              CI registrado: {item.document_number}
+            </p>
+          ) : null}
           {item.admin_notes ? <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">{item.admin_notes}</p> : null}
         </div>
       ))}

@@ -65,7 +65,7 @@ export function BookOrdersAdminPage() {
     () =>
       rows.filter((row) => {
         const statusOk = statusFilter === "Todos" || row.status === statusFilter;
-        const queryOk = JSON.stringify([row.full_name, row.email, row.phone, row.books?.title]).toLowerCase().includes(query.toLowerCase());
+        const queryOk = JSON.stringify([row.full_name, row.document_number, row.email, row.phone, row.books?.title]).toLowerCase().includes(query.toLowerCase());
         return statusOk && queryOk;
       }),
     [query, rows, statusFilter]
@@ -80,7 +80,7 @@ export function BookOrdersAdminPage() {
   const copyMessage = async (row: BookOrderRow) => {
     const orderTokens = await getTokensByOrder(row.id);
     const token = orderTokens[0]?.token ?? "TOKEN-PENDIENTE";
-    const message = `Hola ${row.full_name}, gracias por tu compra. Verificamos correctamente tu pago del libro "${row.books?.title ?? "Libro"}".\nTu token de descarga es: ${token}\nIngresa a tu panel en la seccion de descargas para obtener el libro.\nGracias por tu compra.`;
+    const message = `Hola ${row.full_name}, verificamos correctamente tu pago del libro "${row.books?.title ?? "Libro"}".\nTu token de descarga es: ${token}\nPuedes descargarlo desde tu panel en la seccion de descargas o desde la pagina publica del libro en la opcion de ingresar token.\nSi luego te registras con el mismo carnet, esta compra tambien quedara vinculada a tu cuenta.\nGracias por tu compra.`;
     await navigator.clipboard.writeText(message);
   };
 
@@ -121,7 +121,7 @@ export function BookOrdersAdminPage() {
           Cuando un pedido se aprueba, el pago queda ligado al libro, al metodo y a caja antes de generar el token.
         </p>
         <div className="mt-6 grid gap-3 md:grid-cols-[1fr_220px]">
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar comprador, libro o correo" className="premium-input" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar comprador, libro, carnet o correo" className="premium-input" />
           <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="premium-input">
             <option>Todos</option>
             <option>Pendiente</option>
@@ -154,6 +154,8 @@ export function BookOrdersAdminPage() {
                   </div>
                   <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">
                     {row.full_name} - {row.phone ?? "Sin celular"} - {row.email}
+                    <br />
+                    CI {row.document_number ?? "sin carnet"}
                     <br />
                     {row.city ?? "Sin ciudad"} - {formatDate(row.created_at)}
                     <br />

@@ -5,6 +5,7 @@ export type DoctorProfileRow = DeletionMetadata & {
   id: string;
   profile_id: string | null;
   full_name: string;
+  document_number: string | null;
   specialty: string | null;
   bio: string | null;
   city: string | null;
@@ -57,15 +58,6 @@ export async function createDoctor(data: Record<string, unknown>) {
   const { data: row, error } = await supabase.from("doctor_profiles").insert(data).select("*").single();
   if (error) throw error;
   return row as DoctorProfileRow;
-}
-
-export async function createDoctorWithUser(data: Record<string, unknown>) {
-  const { data: result, error } = await supabase.functions.invoke("create-doctor", {
-    body: data,
-  });
-  if (error) throw error;
-  if (result?.error) throw new Error(result.error);
-  return result as { doctor: DoctorProfileRow; temporary_password: string | null };
 }
 
 export async function updateDoctor(id: string, data: Record<string, unknown>) {

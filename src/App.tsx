@@ -76,8 +76,10 @@ const BuyBookPage = lazyPage(() => import("./pages/public/BuyBookPage"), "BuyBoo
 const PublicAssessmentPage = lazyPage(() => import("./pages/public/PublicAssessmentPage"), "PublicAssessmentPage");
 const PublicManualReservationPaymentPage = lazyPage(() => import("./pages/public/PublicManualReservationPaymentPage"), "PublicManualReservationPaymentPage");
 const AgendaPage = lazyPage(() => import("./pages/platform/AgendaPage"), "AgendaPage");
+const ForgotPasswordPage = lazyPage(loadAuthPages, "ForgotPasswordPage");
 const LoginPage = lazyPage(loadAuthPages, "LoginPage");
 const RegisterPage = lazyPage(loadAuthPages, "RegisterPage");
+const ResetPasswordPage = lazyPage(loadAuthPages, "ResetPasswordPage");
 const ContactPage = lazyPage(loadContactPage, "ContactPage");
 const CourseDetailPage = lazyPage(() => import("./pages/platform/CourseDetailPage"), "CourseDetailPage");
 const CoursesPage = lazyPage(loadCoursesPage, "CoursesPage");
@@ -138,6 +140,8 @@ export default function App() {
         <Route path="/contacto" element={<ContactPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/recuperar-contrasena" element={<ForgotPasswordPage />} />
+        <Route path="/restablecer-contrasena" element={<ResetPasswordPage />} />
       </Route>
 
       <Route element={<ProtectedRoute requireStaff />}>

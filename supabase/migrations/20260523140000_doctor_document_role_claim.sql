@@ -1,0 +1,230 @@
+alter table public.doctor_profiles
+  add column if not exists document_number text;
+
+update public.doctor_profiles
+set document_number = public.normalize_document_number(document_number)
+where document_number is not null;
+
+create unique index if not exists profiles_document_number_unique_idx
+on public.profiles ((public.normalize_document_number(document_number)))
+where document_number is not null
+  and coalesce(is_deleted, false) = false;
+
+create unique index if not exists doctor_profiles_document_number_unique_idx
+on public.doctor_profiles ((public.normalize_document_number(document_number)))
+where document_number is not null
+  and deleted_at is null;
+
+create unique index if not exists doctor_profiles_profile_id_unique_idx
+on public.doctor_profiles (profile_id)
+where profile_id is not null
+  and deleted_at is null;
+
+create or replace function public.validate_doctor_profile_document()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  normalized_document text := public.normalize_document_number(new.document_number);
+  linked_profile_document text;
+begin
+  new.document_number := normalized_document;
+
+  if normalized_document is null then
+    return new;
+  end if;
+
+  if exists (
+    select 1
+    from public.doctor_profiles doctor_profile
+    where doctor_profile.id <> coalesce(new.id, gen_random_uuid())
+      and doctor_profile.deleted_at is null
+      and public.normalize_document_number(doctor_profile.document_number) = normalized_document
+  ) then
+    raise exception 'El numero de carnet ya esta registrado para otra doctora.';
+  end if;
+
+  if exists (
+    select 1
+    from public.profiles profile
+    where coalesce(profile.is_deleted, false) = false
+      and public.normalize_document_number(profile.document_number) = normalized_document
+      and (new.profile_id is null or profile.id <> new.profile_id)
+  ) then
+    raise exception 'El numero de carnet ya esta vinculado a un usuario existente.';
+  end if;
+
+  if new.profile_id is not null then
+    select public.normalize_document_number(profile.document_number)
+    into linked_profile_document
+    from public.profiles profile
+    where profile.id = new.profile_id
+      and coalesce(profile.is_deleted, false) = false
+    limit 1;
+
+    if linked_profile_document is not null and linked_profile_document <> normalized_document then
+      raise exception 'La doctora ya esta vinculada a una cuenta con otro carnet.';
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists validate_doctor_profile_document on public.doctor_profiles;
+create trigger validate_doctor_profile_document
+before insert or update on public.doctor_profiles
+for each row execute procedure public.validate_doctor_profile_document();
+
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  normalized_document text := public.normalize_document_number(new.raw_user_meta_data->>'document_number');
+  requested_role text := coalesce(nullif(new.raw_user_meta_data->>'role', ''), 'patient');
+  resolved_role text := requested_role;
+  matching_doctor public.doctor_profiles%rowtype;
+begin
+  if normalized_document is not null then
+    select *
+    into matching_doctor
+    from public.doctor_profiles doctor_profile
+    where doctor_profile.deleted_at is null
+      and public.normalize_document_number(doctor_profile.document_number) = normalized_document
+    order by doctor_profile.created_at
+    limit 1;
+
+    if matching_doctor.id is not null then
+      if matching_doctor.profile_id is not null and matching_doctor.profile_id <> new.id then
+        raise exception 'Este numero de carnet ya fue reclamado por otra cuenta de doctora.';
+      end if;
+      resolved_role := 'doctor';
+    end if;
+  end if;
+
+  insert into public.profiles (id, full_name, email, phone, city, document_number, role)
+  values (
+    new.id,
+    coalesce(new.raw_user_meta_data->>'full_name', ''),
+    new.email,
+    nullif(new.raw_user_meta_data->>'phone', ''),
+    nullif(new.raw_user_meta_data->>'city', ''),
+    normalized_document,
+    resolved_role
+  )
+  on conflict (id) do update
+  set
+    full_name = excluded.full_name,
+    email = excluded.email,
+    phone = excluded.phone,
+    city = excluded.city,
+    document_number = coalesce(excluded.document_number, public.profiles.document_number),
+    role = excluded.role;
+
+  return new;
+end;
+$$;
+
+create or replace function public.sync_patient_from_profile()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  normalized_document text := public.normalize_document_number(new.document_number);
+  linked_patient public.patients%rowtype;
+  linked_doctor public.doctor_profiles%rowtype;
+begin
+  if new.role = 'doctor' then
+    if normalized_document is null then
+      return new;
+    end if;
+
+    select *
+    into linked_doctor
+    from public.doctor_profiles doctor_profile
+    where doctor_profile.deleted_at is null
+      and (
+        doctor_profile.profile_id = new.id
+        or public.normalize_document_number(doctor_profile.document_number) = normalized_document
+      )
+    order by case when doctor_profile.profile_id = new.id then 0 else 1 end, doctor_profile.created_at
+    limit 1;
+
+    if linked_doctor.id is null then
+      return new;
+    end if;
+
+    if linked_doctor.profile_id is not null and linked_doctor.profile_id <> new.id then
+      raise exception 'Este numero de carnet ya fue reclamado por otra cuenta de doctora.';
+    end if;
+
+    update public.doctor_profiles
+    set
+      profile_id = new.id,
+      full_name = coalesce(nullif(new.full_name, ''), public.doctor_profiles.full_name),
+      phone = coalesce(new.phone, public.doctor_profiles.phone),
+      email = coalesce(new.email, public.doctor_profiles.email),
+      city = coalesce(new.city, public.doctor_profiles.city),
+      document_number = normalized_document
+    where id = linked_doctor.id;
+
+    return new;
+  end if;
+
+  if new.role not in ('patient', 'student', 'user') then
+    return new;
+  end if;
+
+  select *
+  into linked_patient
+  from public.patients
+  where profile_id = new.id
+    and coalesce(is_deleted, false) = false
+  order by created_at
+  limit 1;
+
+  if linked_patient.id is null and normalized_document is not null then
+    select *
+    into linked_patient
+    from public.patients
+    where public.normalize_document_number(document_number) = normalized_document
+      and coalesce(is_deleted, false) = false
+    order by case when profile_id is null then 0 else 1 end, created_at
+    limit 1;
+  end if;
+
+  if linked_patient.id is not null and linked_patient.profile_id is not null and linked_patient.profile_id <> new.id then
+    raise exception 'El numero de carnet ya esta vinculado a otra cuenta.';
+  end if;
+
+  if linked_patient.id is null then
+    insert into public.patients (profile_id, full_name, phone, email, city, document_number)
+    values (
+      new.id,
+      coalesce(new.full_name, ''),
+      new.phone,
+      new.email,
+      new.city,
+      normalized_document
+    );
+  else
+    update public.patients
+    set
+      profile_id = coalesce(public.patients.profile_id, new.id),
+      full_name = coalesce(new.full_name, public.patients.full_name),
+      phone = coalesce(new.phone, public.patients.phone),
+      email = coalesce(new.email, public.patients.email),
+      city = coalesce(new.city, public.patients.city),
+      document_number = coalesce(normalized_document, public.patients.document_number)
+    where id = linked_patient.id;
+  end if;
+
+  return new;
+end;
+$$;

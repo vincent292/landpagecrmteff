@@ -14,6 +14,7 @@ import {
   uploadBookFile,
   type BookRow,
 } from "../../services/bookService";
+import { getSiteSettings, type SiteSettingsRow } from "../../services/siteSettingsService";
 import { formatMoney, slugify } from "../../utils/text";
 
 export function BooksAdminPage() {
@@ -24,6 +25,7 @@ export function BooksAdminPage() {
   const isForm = location.pathname.includes("/nuevo") || location.pathname.includes("/editar");
   const [rows, setRows] = useState<BookRow[]>([]);
   const [current, setCurrent] = useState<BookRow | null>(null);
+  const [siteSettings, setSiteSettings] = useState<SiteSettingsRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [form, setForm] = useState({
@@ -36,7 +38,6 @@ export function BooksAdminPage() {
     cover_image: "",
     file_path: "",
     price: 0,
-    qr_payment_image: "",
     download_token_mode: "single_use",
     default_token_max_uses: 1,
     is_active: true,
@@ -45,10 +46,15 @@ export function BooksAdminPage() {
 
   const load = () => {
     setLoading(true);
-    Promise.all([getBooksAdmin(role === "superadmin"), id ? getBookById(id) : Promise.resolve(null)])
-      .then(([books, selected]) => {
+    Promise.all([
+      getBooksAdmin(role === "superadmin"),
+      id ? getBookById(id) : Promise.resolve(null),
+      getSiteSettings().catch(() => null),
+    ])
+      .then(([books, selected, settings]) => {
         setRows(books);
         setCurrent(selected);
+        setSiteSettings(settings);
         if (selected) {
           setForm({
             title: selected.title ?? "",
@@ -60,10 +66,24 @@ export function BooksAdminPage() {
             cover_image: selected.cover_image ?? "",
             file_path: selected.file_path ?? "",
             price: selected.price ?? 0,
-            qr_payment_image: selected.qr_payment_image ?? "",
             download_token_mode: selected.download_token_mode ?? "single_use",
             default_token_max_uses: selected.default_token_max_uses ?? 1,
             is_active: selected.is_active ?? true,
+          });
+        } else {
+          setForm({
+            title: "",
+            slug: "",
+            author: "",
+            description: "",
+            public_info: "",
+            whatsapp_prefill_message: "",
+            cover_image: "",
+            file_path: "",
+            price: 0,
+            download_token_mode: "single_use",
+            default_token_max_uses: 1,
+            is_active: true,
           });
         }
       })
@@ -74,9 +94,7 @@ export function BooksAdminPage() {
   useEffect(load, [id, role]);
 
   const submit = async () => {
-    let coverImage = form.cover_image;
     let filePath = form.file_path;
-    let qrImage = form.qr_payment_image;
 
     if (bookFile) {
       filePath = await uploadBookFile(bookFile);
@@ -84,9 +102,7 @@ export function BooksAdminPage() {
 
     const payload = {
       ...form,
-      cover_image: coverImage,
       file_path: filePath,
-      qr_payment_image: qrImage,
     };
 
     if (current) {
@@ -98,7 +114,7 @@ export function BooksAdminPage() {
   };
 
   if (loading) return <LoadingState label="Cargando libros..." />;
-  if (error) return <ErrorState label="No pudimos cargar este módulo." />;
+  if (error) return <ErrorState label="No pudimos cargar este modulo." />;
 
   if (!isForm) {
     return (
@@ -106,7 +122,13 @@ export function BooksAdminPage() {
         <section className="flex flex-col gap-4 rounded-[32px] border border-[var(--color-border)] bg-white/75 p-6 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">Libros</p>
-            <h1 className="font-display mt-3 text-5xl font-semibold">Catálogo y activos digitales</h1>
+            <h1 className="font-display mt-3 text-5xl font-semibold">Catalogo y activos digitales</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--color-copy)]">
+              Todos los libros usan el QR general configurado en el sistema. Ya no se carga un QR por libro.
+            </p>
+            <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">
+              Estado del QR general: {siteSettings?.payment_qr_image ? "configurado" : "pendiente en Panel / Configuracion"}
+            </p>
           </div>
           <Link to="/panel/libros/nuevo" className="rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white">
             Nuevo libro
@@ -114,7 +136,7 @@ export function BooksAdminPage() {
         </section>
 
         {rows.length === 0 ? (
-          <EmptyState label="Todavía no hay libros creados." />
+          <EmptyState label="Todavia no hay libros creados." />
         ) : (
           <div className="grid gap-4">
             {rows.map((book) => (
@@ -123,7 +145,7 @@ export function BooksAdminPage() {
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-accent-strong)]">{book.author}</p>
                     <h2 className="mt-2 text-2xl font-semibold">{book.title}</h2>
-                    <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">{formatMoney(book.price)} · {book.is_active ? "Activo" : "Inactivo"}</p>
+                    <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">{formatMoney(book.price)} - {book.is_active ? "Activo" : "Inactivo"}</p>
                     <DeletedStatusNote row={book} />
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -162,17 +184,17 @@ export function BooksAdminPage() {
       <h1 className="font-display mt-3 text-5xl font-semibold">{current ? current.title : "Crear libro digital"}</h1>
 
       <div className="mt-8 grid gap-4 md:grid-cols-2">
-        <Field label="Título"><input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value, slug: current ? form.slug : slugify(event.target.value) })} className="premium-input mt-2" /></Field>
+        <Field label="Titulo"><input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value, slug: current ? form.slug : slugify(event.target.value) })} className="premium-input mt-2" /></Field>
         <Field label="Slug"><input value={form.slug} onChange={(event) => setForm({ ...form, slug: event.target.value })} className="premium-input mt-2" /></Field>
         <Field label="Autor"><input value={form.author} onChange={(event) => setForm({ ...form, author: event.target.value })} className="premium-input mt-2" /></Field>
         <Field label="Precio"><input type="number" value={String(form.price)} onChange={(event) => setForm({ ...form, price: Number(event.target.value) })} className="premium-input mt-2" /></Field>
         <Field label="Modo de token">
-          <select value={form.download_token_mode} onChange={(event) => setForm({ ...form, download_token_mode: event.target.value })} className="premium-input mt-2">
+          <select value={form.download_token_mode} onChange={(event) => setForm({ ...form, download_token_mode: event.target.value as "single_use" | "multiple_use" })} className="premium-input mt-2">
             <option value="single_use">single_use</option>
             <option value="multiple_use">multiple_use</option>
           </select>
         </Field>
-        <Field label="Máximo de usos"><input type="number" value={String(form.default_token_max_uses)} onChange={(event) => setForm({ ...form, default_token_max_uses: Number(event.target.value) })} className="premium-input mt-2" /></Field>
+        <Field label="Maximo de usos"><input type="number" value={String(form.default_token_max_uses)} onChange={(event) => setForm({ ...form, default_token_max_uses: Number(event.target.value) })} className="premium-input mt-2" /></Field>
         <div>
           <PublicImageUpload
             label="Portada"
@@ -184,25 +206,17 @@ export function BooksAdminPage() {
           />
         </div>
         <Field label="Archivo del libro"><input type="file" accept=".pdf,.epub" onChange={(event) => setBookFile(event.target.files?.[0] ?? null)} className="premium-input mt-2" /></Field>
-        <div>
-          <PublicImageUpload
-            label="QR de pago"
-            value={form.qr_payment_image}
-            folder="books/payments"
-            aspectRatio={1}
-            optimize={false}
-            helperText="El QR se sube como imagen original para mantener la lectura correcta."
-            onChange={(url) => setForm({ ...form, qr_payment_image: url })}
-          />
+        <div className="rounded-[24px] bg-[rgba(247,242,236,0.82)] p-4 text-sm leading-7 text-[var(--color-copy)]">
+          Este libro usara el QR general configurado en <strong className="text-[var(--color-ink)]">Panel / Configuracion</strong>. Ya no se maneja un QR individual por libro.
         </div>
         <label className="flex items-center gap-3 pt-7">
           <input type="checkbox" checked={form.is_active} onChange={(event) => setForm({ ...form, is_active: event.target.checked })} />
           <span className="text-sm font-semibold">Libro activo</span>
         </label>
-        <Field label="Descripción" className="md:col-span-2">
+        <Field label="Descripcion" className="md:col-span-2">
           <textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className="premium-input mt-2 min-h-28" />
         </Field>
-        <Field label="Información visible para solicitud" className="md:col-span-2">
+        <Field label="Informacion visible para solicitud" className="md:col-span-2">
           <textarea value={form.public_info} onChange={(event) => setForm({ ...form, public_info: event.target.value })} className="premium-input mt-2 min-h-24" />
         </Field>
         <Field label="Mensaje predeterminado WhatsApp" className="md:col-span-2">

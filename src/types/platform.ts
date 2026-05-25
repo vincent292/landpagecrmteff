@@ -241,8 +241,9 @@ export type BookOrderStatus = "Pendiente" | "En revision" | "Aprobado" | "Rechaz
 export type BookOrder = {
   id: string;
   book_id: string;
-  user_id: string;
+  user_id: string | null;
   full_name: string;
+  document_number: string | null;
   email: string;
   phone: string | null;
   city: string | null;
@@ -257,7 +258,7 @@ export type BookDownloadToken = {
   id: string;
   book_id: string;
   order_id: string;
-  user_id: string;
+  user_id: string | null;
   token: string;
   max_uses: number;
   used_count: number;

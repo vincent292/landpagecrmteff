@@ -43,12 +43,12 @@ export function PatientDownloadsPage() {
       <section className="rounded-[28px] border border-[var(--color-border)] bg-white/75 p-6">
         <h1 className="font-display text-5xl font-semibold">Descargas privadas</h1>
         <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
-          Tus libros se habilitan cuando administracion aprueba el pedido y genera un token activo.
+          Tus libros se habilitan cuando administracion aprueba el pedido y genera un token activo. Si compraste primero como invitado y luego te registraste con el mismo carnet, tambien apareceran aqui.
         </p>
         <div className="mt-5 flex flex-col gap-3 sm:flex-row">
           <input
             value={manualToken}
-            onChange={(event) => setManualToken(event.target.value)}
+            onChange={(event) => setManualToken(event.target.value.toUpperCase())}
             placeholder="Ingresa un token manual"
             className="premium-input"
           />
@@ -60,7 +60,7 @@ export function PatientDownloadsPage() {
       </section>
 
       {items.length === 0 ? (
-        <EmptyState label="Aún no tienes tokens activos de descarga." />
+        <EmptyState label="Aun no tienes tokens activos de descarga." />
       ) : (
         <div className="grid gap-4">
           {items.map((item) => (
@@ -75,7 +75,7 @@ export function PatientDownloadsPage() {
                 </button>
               </div>
               <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">
-                Usos: {item.used_count}/{item.max_uses} {item.expires_at ? `· Expira ${item.expires_at}` : ""}
+                Usos: {item.used_count}/{item.max_uses} {item.expires_at ? `- Expira ${item.expires_at}` : ""}
               </p>
             </div>
           ))}
