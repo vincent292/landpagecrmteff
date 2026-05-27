@@ -1,28 +1,42 @@
-import { supabase } from "../lib/supabaseClient";
+import { getPublicMediaUrl } from "./mediaStorageService";
+import { uploadPublicFileToR2 } from "./r2PublicUploadService";
+import {
+  deleteObjectFromR2,
+  getPrivateSignedUrlFromR2,
+  uploadPrivateFileToR2,
+} from "./r2PrivateStorageService";
+
+const publicBuckets = new Set(["public-media", "public-gallery", "book-covers-public"]);
+const privateBuckets = new Set([
+  "payment-receipts-private",
+  "patient-photos-private",
+  "book-files-private",
+  "medical-files-private",
+]);
+
+function isPublicBucket(bucket: string) {
+  return publicBuckets.has(bucket);
+}
+
+function isPrivateBucket(bucket: string) {
+  return privateBuckets.has(bucket);
+}
 
 export async function uploadPrivateFile(bucket: string, path: string, file: File) {
-  const { data, error } = await supabase.storage.from(bucket).upload(path, file, {
-    cacheControl: "3600",
-    upsert: false,
-  });
+  if (!isPrivateBucket(bucket)) {
+    throw new Error(`Bucket privado no soportado: ${bucket}`);
+  }
 
-  if (error) throw error;
-  return data.path;
+  const { key } = await uploadPrivateFileToR2(bucket, path, file);
+  return key;
 }
 
 export async function uploadPublicFile(bucket: string, path: string, file: File) {
-  const { data, error } = await supabase.storage.from(bucket).upload(path, file, {
-    cacheControl: "3600",
-    upsert: true,
-  });
+  if (!isPublicBucket(bucket)) {
+    throw new Error(`Bucket publico no soportado: ${bucket}`);
+  }
 
-  if (error) throw error;
-
-  const { data: publicData } = supabase.storage.from(bucket).getPublicUrl(data.path);
-  return {
-    path: data.path,
-    publicUrl: publicData.publicUrl,
-  };
+  return uploadPublicFileToR2(path, file);
 }
 
 export async function uploadPublicFileWithFallback(
@@ -33,6 +47,7 @@ export async function uploadPublicFileWithFallback(
   let lastError: unknown = null;
 
   for (const bucket of buckets) {
+    if (!isPublicBucket(bucket)) continue;
     try {
       const uploaded = await uploadPublicFile(bucket, path, file);
       return { bucket, ...uploaded };
@@ -47,17 +62,27 @@ export async function uploadPublicFileWithFallback(
 }
 
 export async function getSignedUrl(bucket: string, path: string, expiresIn = 60 * 10) {
-  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, expiresIn);
-  if (error) throw error;
-  return data.signedUrl;
+  if (isPublicBucket(bucket)) {
+    return getPublicMediaUrl(path) ?? path;
+  }
+
+  if (!isPrivateBucket(bucket)) {
+    throw new Error(`Bucket privado no soportado: ${bucket}`);
+  }
+
+  const { signedUrl } = await getPrivateSignedUrlFromR2(bucket, path, expiresIn);
+  return signedUrl;
 }
 
 export async function deleteFile(bucket: string, path: string) {
-  const { error } = await supabase.storage.from(bucket).remove([path]);
-  if (error) throw error;
+  if (!isPublicBucket(bucket) && !isPrivateBucket(bucket)) {
+    throw new Error(`Bucket no soportado: ${bucket}`);
+  }
+
+  await deleteObjectFromR2(bucket, path);
 }
 
 export async function uploadImage(bucket: string, path: string, file: File) {
-  const { publicUrl } = await uploadPublicFile(bucket, path, file);
-  return publicUrl;
+  const { path: uploadedPath } = await uploadPublicFile(bucket, path, file);
+  return uploadedPath;
 }

@@ -2,6 +2,7 @@ import { slugify } from "../utils/text";
 import { supabase } from "../lib/supabaseClient";
 import { uploadPrivateFile, uploadPublicFile } from "./storageService";
 import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
+import { resolvePublicMediaFields } from "./publicMediaResolver";
 
 const coversBucket = "book-covers-public";
 const filesBucket = "book-files-private";
@@ -31,6 +32,15 @@ export type BookRow = DeletionMetadata & {
   created_at: string;
 };
 
+function resolveBook(row: BookRow) {
+  return {
+    ...resolvePublicMediaFields(row, ["cover_image", "qr_payment_image"]),
+    doctor_profiles: row.doctor_profiles
+      ? resolvePublicMediaFields(row.doctor_profiles, ["photo_url"])
+      : null,
+  } satisfies BookRow;
+}
+
 export async function getActiveBooks() {
   const { data, error } = await supabase
     .from("books")
@@ -39,7 +49,7 @@ export async function getActiveBooks() {
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return (data ?? []) as BookRow[];
+  return ((data ?? []) as BookRow[]).map(resolveBook);
 }
 
 export async function getBookBySlug(slug: string) {
@@ -50,7 +60,7 @@ export async function getBookBySlug(slug: string) {
     .is("deleted_at", null)
     .maybeSingle();
   if (error) throw error;
-  return data as BookRow | null;
+  return data ? resolveBook(data as BookRow) : null;
 }
 
 export async function getBookById(id: string) {
@@ -60,7 +70,7 @@ export async function getBookById(id: string) {
     .eq("id", id)
     .maybeSingle();
   if (error) throw error;
-  return data as BookRow | null;
+  return data ? resolveBook(data as BookRow) : null;
 }
 
 export async function getBooksAdmin(includeDeleted = false, doctorId?: string | null) {
@@ -73,19 +83,19 @@ export async function getBooksAdmin(includeDeleted = false, doctorId?: string | 
   if (doctorId) query = query.eq("doctor_id", doctorId);
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []) as BookRow[];
+  return ((data ?? []) as BookRow[]).map(resolveBook);
 }
 
 export async function createBook(data: Record<string, unknown>) {
   const { data: row, error } = await supabase.from("books").insert(data).select("*").single();
   if (error) throw error;
-  return row as BookRow;
+  return resolveBook(row as BookRow);
 }
 
 export async function updateBook(id: string, data: Record<string, unknown>) {
   const { data: row, error } = await supabase.from("books").update(data).eq("id", id).select("*").single();
   if (error) throw error;
-  return row as BookRow;
+  return resolveBook(row as BookRow);
 }
 
 export async function deleteBook(id: string) {

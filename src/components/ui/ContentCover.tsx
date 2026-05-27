@@ -1,6 +1,6 @@
 import { useEffect, useState, type ImgHTMLAttributes } from "react";
 
-import { supabase } from "../../lib/supabaseClient";
+import { getPublicMediaUrl } from "../../services/mediaStorageService";
 import { ImageWithSkeleton } from "./ImageWithSkeleton";
 
 type ContentCoverProps = Omit<ImgHTMLAttributes<HTMLImageElement>, "src"> & {
@@ -59,12 +59,11 @@ export function ContentCover({
 
     const storageRef = getStorageRef(src);
     if (storageRef) {
-      const { data } = supabase.storage.from(storageRef.bucket).getPublicUrl(storageRef.path);
-      setResolvedSrc(data.publicUrl);
+      setResolvedSrc(getPublicMediaUrl(storageRef.path) ?? src ?? undefined);
       return;
     }
 
-    setResolvedSrc(src ?? undefined);
+    setResolvedSrc(getPublicMediaUrl(src) ?? src ?? undefined);
   }, [src]);
 
   if (!src || hasError) {
@@ -96,23 +95,8 @@ export function ContentCover({
       wrapperClassName={wrapperClassName}
       className={className}
       onError={() => {
-        const storageRef = getStorageRef(src);
-        if (storageRef && !signedAttempted) {
-          setSignedAttempted(true);
-          void supabase.storage
-            .from(storageRef.bucket)
-            .createSignedUrl(storageRef.path, 60 * 60)
-            .then(({ data, error }) => {
-              if (error || !data?.signedUrl) {
-                setHasError(true);
-                return;
-              }
-              setResolvedSrc(data.signedUrl);
-            })
-            .catch(() => setHasError(true));
-          return;
-        }
-
+        if (signedAttempted) return;
+        setSignedAttempted(true);
         setHasError(true);
       }}
       {...props}

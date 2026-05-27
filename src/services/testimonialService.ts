@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabaseClient";
+import { resolvePublicMediaFields } from "./publicMediaResolver";
 
 export type TestimonialRow = {
   id: string;
@@ -21,5 +22,7 @@ export async function getTestimonials() {
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return (data ?? []) as TestimonialRow[];
+  return ((data ?? []) as TestimonialRow[]).map((row) =>
+    resolvePublicMediaFields(row, ["image_url", "video_url"])
+  );
 }

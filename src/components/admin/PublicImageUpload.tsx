@@ -103,8 +103,8 @@ export function PublicImageUpload({
     setError("");
     try {
       const path = convertToWebp ? toWebpPath(folder) : toOriginalPath(folder, file);
-      const { publicUrl } = await uploadPublicFileToR2(path, file);
-      onChange(publicUrl);
+      const uploaded = await uploadPublicFileToR2(path, file);
+      onChange(uploaded.path);
       setSelectedFile(null);
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "No se pudo subir la imagen.");
@@ -129,8 +129,8 @@ export function PublicImageUpload({
         maxHeight: aspectRatio && aspectRatio < 1 ? 1800 : 1400,
       });
       setSummary(optimized);
-      const { publicUrl } = await uploadPublicFileToR2(toWebpPath(folder), optimized.file);
-      onChange(publicUrl);
+      const uploaded = await uploadPublicFileToR2(toWebpPath(folder), optimized.file);
+      onChange(uploaded.path);
       setSelectedFile(null);
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "No se pudo optimizar y subir la imagen.");

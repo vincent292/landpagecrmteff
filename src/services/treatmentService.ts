@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabaseClient";
 import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
 import { attachDoctorProfile, attachDoctorProfiles } from "./contentDoctorService";
+import { resolvePublicMediaFields } from "./publicMediaResolver";
 
 const table = "treatments";
 
@@ -34,32 +35,64 @@ export type TreatmentRow = DeletionMetadata & {
   created_at: string;
 };
 
+function resolveTreatment(row: TreatmentRow) {
+  return resolvePublicMediaFields(row, ["cover_image"]);
+}
+
 export async function getTreatments() {
-  const { data, error } = await supabase.from(table).select("*, doctor_profiles(full_name, specialty, photo_url)").eq("is_active", true).is("deleted_at", null).order("created_at", { ascending: false });
+  const { data, error } = await supabase
+    .from(table)
+    .select("*, doctor_profiles(full_name, specialty, photo_url)")
+    .eq("is_active", true)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false });
   if (error) throw error;
-  return attachDoctorProfiles((data ?? []) as TreatmentRow[]);
+  return attachDoctorProfiles(((data ?? []) as TreatmentRow[]).map(resolveTreatment));
 }
 
 export async function getFeaturedTreatments() {
-  const { data, error } = await supabase.from(table).select("*, doctor_profiles(full_name, specialty, photo_url)").eq("is_active", true).eq("is_featured", true).is("deleted_at", null).order("created_at", { ascending: false });
+  const { data, error } = await supabase
+    .from(table)
+    .select("*, doctor_profiles(full_name, specialty, photo_url)")
+    .eq("is_active", true)
+    .eq("is_featured", true)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false });
   if (error) throw error;
-  return attachDoctorProfiles((data ?? []) as TreatmentRow[]);
+  return attachDoctorProfiles(((data ?? []) as TreatmentRow[]).map(resolveTreatment));
 }
 
 export async function getTreatmentBySlug(slug: string) {
-  const { data, error } = await supabase.from(table).select("*, treatment_images(*), doctor_profiles(full_name, specialty, photo_url)").eq("slug", slug).is("deleted_at", null).maybeSingle();
+  const { data, error } = await supabase
+    .from(table)
+    .select("*, treatment_images(*), doctor_profiles(full_name, specialty, photo_url)")
+    .eq("slug", slug)
+    .is("deleted_at", null)
+    .maybeSingle();
   if (error) throw error;
-  return attachDoctorProfile(data as (TreatmentRow & { treatment_images?: { image_url: string; alt_text?: string | null }[] }) | null);
+  return attachDoctorProfile(
+    data
+      ? {
+          ...resolveTreatment(data as TreatmentRow),
+          treatment_images: ((data as { treatment_images?: { image_url: string; alt_text?: string | null }[] }).treatment_images ?? []).map((image) =>
+            resolvePublicMediaFields(image, ["image_url"])
+          ),
+        }
+      : null
+  );
 }
 
 export async function getAdminTreatments(includeDeleted = false, doctorId?: string | null) {
-  let query = supabase.from(table).select("*, doctor_profiles(full_name, specialty, photo_url)").order("created_at", { ascending: false });
+  let query = supabase
+    .from(table)
+    .select("*, doctor_profiles(full_name, specialty, photo_url)")
+    .order("created_at", { ascending: false });
   const filter = getVisibleDeletionFilter("treatments", includeDeleted);
   if (filter.column) query = query.is(filter.column, filter.value);
   if (doctorId) query = query.eq("doctor_id", doctorId);
   const { data, error } = await query;
   if (error) throw error;
-  return attachDoctorProfiles((data ?? []) as TreatmentRow[]);
+  return attachDoctorProfiles(((data ?? []) as TreatmentRow[]).map(resolveTreatment));
 }
 
 export async function createTreatment(data: Record<string, unknown>) {

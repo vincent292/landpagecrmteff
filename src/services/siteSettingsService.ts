@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabaseClient";
+import { resolvePublicMediaValue } from "./publicMediaResolver";
 
 export type SiteSettingsRow = {
   id: boolean;
@@ -128,6 +129,15 @@ async function getSimpleQrSecurityRow() {
   return data as PaymentQrSimpleSecurityRow | null;
 }
 
+function resolveSiteSettingsMedia(row: SiteSettingsRow) {
+  return {
+    ...row,
+    payment_qr_image: resolvePublicMediaValue(row.payment_qr_image),
+    appointment_qr_payment_image: resolvePublicMediaValue(row.appointment_qr_payment_image),
+    course_qr_payment_image: resolvePublicMediaValue(row.course_qr_payment_image),
+  } satisfies SiteSettingsRow;
+}
+
 export async function getSiteSettings() {
   let lastError: unknown = null;
 
@@ -135,7 +145,7 @@ export async function getSiteSettings() {
     const { data, error } = await supabase.from("site_settings").select("*").eq("id", true).maybeSingle();
 
     if (!error) {
-      return (data ?? fallbackSettings) as SiteSettingsRow;
+      return resolveSiteSettingsMedia((data ?? fallbackSettings) as SiteSettingsRow);
     }
 
     if (error.code === "42P01") return fallbackSettings;
@@ -160,7 +170,7 @@ export async function updateSiteSettings(data: Partial<SiteSettingsRow>) {
     .select("*")
     .single();
   if (error) throw error;
-  return row as SiteSettingsRow;
+  return resolveSiteSettingsMedia(row as SiteSettingsRow);
 }
 
 export async function updateGeneralPaymentQr(data: {

@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabaseClient";
 import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
 import { attachDoctorProfile, attachDoctorProfiles } from "./contentDoctorService";
+import { resolvePublicMediaFields } from "./publicMediaResolver";
 
 export type CourseRow = DeletionMetadata & {
   id: string;
@@ -30,26 +31,45 @@ export type CourseRow = DeletionMetadata & {
   created_at: string;
 };
 
+function resolveCourse(row: CourseRow) {
+  return resolvePublicMediaFields(row, ["cover_image"]);
+}
+
 export async function getCourses() {
-  const { data, error } = await supabase.from("courses").select("*, doctor_profiles(full_name, specialty, photo_url)").eq("is_active", true).is("deleted_at", null).order("start_date", { ascending: true });
+  const { data, error } = await supabase
+    .from("courses")
+    .select("*, doctor_profiles(full_name, specialty, photo_url)")
+    .eq("is_active", true)
+    .is("deleted_at", null)
+    .order("start_date", { ascending: true });
   if (error) throw error;
-  return attachDoctorProfiles((data ?? []) as CourseRow[]);
+  return attachDoctorProfiles(((data ?? []) as CourseRow[]).map(resolveCourse));
 }
 
 export async function getCourseBySlug(slug: string) {
-  const { data, error } = await supabase.from("courses").select("*, doctor_profiles(full_name, specialty, photo_url)").eq("slug", slug).is("deleted_at", null).maybeSingle();
+  const { data, error } = await supabase
+    .from("courses")
+    .select("*, doctor_profiles(full_name, specialty, photo_url)")
+    .eq("slug", slug)
+    .is("deleted_at", null)
+    .maybeSingle();
   if (error) throw error;
-  return attachDoctorProfile(data as CourseRow | null);
+  return attachDoctorProfile(data ? resolveCourse(data as CourseRow) : null);
 }
 
 export async function getAdminCourses(includeDeleted = false, doctorId?: string | null) {
-  let query = supabase.from("courses").select("*, doctor_profiles(full_name, specialty, photo_url), course_enrollments(id)").order("created_at", { ascending: false });
+  let query = supabase
+    .from("courses")
+    .select("*, doctor_profiles(full_name, specialty, photo_url), course_enrollments(id)")
+    .order("created_at", { ascending: false });
   const filter = getVisibleDeletionFilter("courses", includeDeleted);
   if (filter.column) query = query.is(filter.column, filter.value);
   if (doctorId) query = query.eq("doctor_id", doctorId);
   const { data, error } = await query;
   if (error) throw error;
-  return attachDoctorProfiles((data ?? []) as (CourseRow & { course_enrollments?: { id: string }[] })[]);
+  return attachDoctorProfiles(
+    ((data ?? []) as (CourseRow & { course_enrollments?: { id: string }[] })[]).map(resolveCourse)
+  );
 }
 
 export async function createCourse(data: Record<string, unknown>) {

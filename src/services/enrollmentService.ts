@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabaseClient";
 import { getSignedUrl, uploadPrivateFile } from "./storageService";
 import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
+import { resolvePublicMediaFields } from "./publicMediaResolver";
 
 const receiptsBucket = "payment-receipts-private";
 
@@ -37,7 +38,27 @@ export type EnrollmentRow = DeletionMetadata & {
   } | null;
 };
 
-export async function saveCourseEnrollment(data: Omit<EnrollmentRow, "id" | "status" | "payment_receipt_url" | "payment_receipt_path" | "payment_submitted_at" | "payment_verified_at" | "admin_notes" | "created_at" | "courses">) {
+function resolveEnrollment(row: EnrollmentRow) {
+  return {
+    ...row,
+    courses: row.courses ? resolvePublicMediaFields(row.courses, ["cover_image"]) : null,
+  } satisfies EnrollmentRow;
+}
+
+export async function saveCourseEnrollment(
+  data: Omit<
+    EnrollmentRow,
+    | "id"
+    | "status"
+    | "payment_receipt_url"
+    | "payment_receipt_path"
+    | "payment_submitted_at"
+    | "payment_verified_at"
+    | "admin_notes"
+    | "created_at"
+    | "courses"
+  >
+) {
   const { data: existing, error: existingError } = await supabase
     .from("course_enrollments")
     .select("*")
@@ -61,7 +82,7 @@ export async function saveCourseEnrollment(data: Omit<EnrollmentRow, "id" | "sta
       .select("*, courses(title, slug, cover_image, start_date, start_time, city, modality, price)")
       .single();
     if (error) throw error;
-    return row as EnrollmentRow;
+    return resolveEnrollment(row as EnrollmentRow);
   }
 
   const { data: row, error } = await supabase
@@ -73,22 +94,29 @@ export async function saveCourseEnrollment(data: Omit<EnrollmentRow, "id" | "sta
     .select("*, courses(title, slug, cover_image, start_date, start_time, city, modality, price)")
     .single();
   if (error) throw error;
-  return row as EnrollmentRow;
+  return resolveEnrollment(row as EnrollmentRow);
 }
 
 export async function getCourseEnrollments(includeDeleted = false) {
-  let query = supabase.from("course_enrollments").select("*, courses(title, slug, cover_image, start_date, start_time, city, modality, price)").order("created_at", { ascending: false });
+  let query = supabase
+    .from("course_enrollments")
+    .select("*, courses(title, slug, cover_image, start_date, start_time, city, modality, price)")
+    .order("created_at", { ascending: false });
   const filter = getVisibleDeletionFilter("course_enrollments", includeDeleted);
   if (filter.column) query = query.eq(filter.column, filter.value);
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []) as EnrollmentRow[];
+  return ((data ?? []) as EnrollmentRow[]).map(resolveEnrollment);
 }
 
 export async function getEnrollmentsByCourse(courseId: string) {
-  const { data, error } = await supabase.from("course_enrollments").select("*, courses(title, slug, cover_image, start_date, start_time, city, modality, price)").eq("course_id", courseId).order("created_at", { ascending: false });
+  const { data, error } = await supabase
+    .from("course_enrollments")
+    .select("*, courses(title, slug, cover_image, start_date, start_time, city, modality, price)")
+    .eq("course_id", courseId)
+    .order("created_at", { ascending: false });
   if (error) throw error;
-  return (data ?? []) as EnrollmentRow[];
+  return ((data ?? []) as EnrollmentRow[]).map(resolveEnrollment);
 }
 
 export async function getEnrollmentById(id: string) {
@@ -98,7 +126,7 @@ export async function getEnrollmentById(id: string) {
     .eq("id", id)
     .maybeSingle();
   if (error) throw error;
-  return data as EnrollmentRow | null;
+  return data ? resolveEnrollment(data as EnrollmentRow) : null;
 }
 
 export async function getMyCourseEnrollments(userId: string) {
@@ -108,7 +136,7 @@ export async function getMyCourseEnrollments(userId: string) {
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return (data ?? []) as EnrollmentRow[];
+  return ((data ?? []) as EnrollmentRow[]).map(resolveEnrollment);
 }
 
 export async function getMyCourseEnrollmentForCourse(userId: string, courseId: string) {
@@ -119,7 +147,7 @@ export async function getMyCourseEnrollmentForCourse(userId: string, courseId: s
     .eq("course_id", courseId)
     .maybeSingle();
   if (error) throw error;
-  return data as EnrollmentRow | null;
+  return data ? resolveEnrollment(data as EnrollmentRow) : null;
 }
 
 export async function uploadCourseEnrollmentPaymentReceipt(file: File, enrollmentId: string) {
@@ -147,7 +175,11 @@ export async function getCourseEnrollmentReceiptUrl(path?: string | null) {
 }
 
 export async function updateEnrollmentStatus(id: string, status: string) {
-  const adminNotesResult = await supabase.from("course_enrollments").select("admin_notes").eq("id", id).maybeSingle();
+  const adminNotesResult = await supabase
+    .from("course_enrollments")
+    .select("admin_notes")
+    .eq("id", id)
+    .maybeSingle();
   if (adminNotesResult.error) throw adminNotesResult.error;
   const { data, error } = await supabase.rpc("set_course_enrollment_status", {
     p_enrollment_id: id,

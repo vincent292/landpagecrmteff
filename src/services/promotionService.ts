@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabaseClient";
 import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
 import { attachDoctorProfile, attachDoctorProfiles } from "./contentDoctorService";
+import { resolvePublicMediaFields } from "./publicMediaResolver";
 
 export type PromotionVariantRow = {
   id: string;
@@ -65,7 +66,7 @@ const promotionSelect = "*, doctor_profiles(full_name, specialty, photo_url), pr
 function normalizePromotionRows(rows: PromotionRow[]) {
   return attachDoctorProfiles(
     rows.map((row) => ({
-      ...row,
+      ...resolvePublicMediaFields(row, ["cover_image"]),
       promotion_variants: (row.promotion_variants ?? [])
         .filter((variant) => variant.is_active)
         .sort((a, b) => a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at)),
@@ -76,7 +77,7 @@ function normalizePromotionRows(rows: PromotionRow[]) {
 function normalizePromotionRow(row: PromotionRow | null) {
   if (!row) return null;
   return attachDoctorProfile({
-    ...row,
+    ...resolvePublicMediaFields(row, ["cover_image"]),
     promotion_variants: (row.promotion_variants ?? [])
       .filter((variant) => variant.is_active)
       .sort((a, b) => a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at)),

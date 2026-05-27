@@ -1,5 +1,6 @@
 import { supabase } from "../lib/supabaseClient";
 import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
+import { resolvePublicMediaFields } from "./publicMediaResolver";
 
 export type GalleryAlbumRow = DeletionMetadata & {
   id: string;
@@ -33,6 +34,18 @@ export type GalleryAlbumRow = DeletionMetadata & {
   }[];
 };
 
+function resolveGalleryAlbum(row: GalleryAlbumRow) {
+  return {
+    ...resolvePublicMediaFields(row, ["cover_image", "video_url"]),
+    doctor_profiles: row.doctor_profiles
+      ? resolvePublicMediaFields(row.doctor_profiles, ["photo_url"])
+      : null,
+    gallery_images: row.gallery_images?.map((image) =>
+      resolvePublicMediaFields(image, ["image_url", "thumbnail_url"])
+    ),
+  } satisfies GalleryAlbumRow;
+}
+
 export async function getGalleryAlbums() {
   const { data, error } = await supabase
     .from("gallery_albums")
@@ -41,7 +54,7 @@ export async function getGalleryAlbums() {
     .is("deleted_at", null)
     .order("event_date", { ascending: false });
   if (error) throw error;
-  return (data ?? []) as GalleryAlbumRow[];
+  return ((data ?? []) as GalleryAlbumRow[]).map(resolveGalleryAlbum);
 }
 
 export async function getGalleryAlbumBySlug(slug: string) {
@@ -52,7 +65,7 @@ export async function getGalleryAlbumBySlug(slug: string) {
     .is("deleted_at", null)
     .maybeSingle();
   if (error) throw error;
-  return data as GalleryAlbumRow | null;
+  return data ? resolveGalleryAlbum(data as GalleryAlbumRow) : null;
 }
 
 export async function getAdminGalleryAlbums(includeDeleted = false, doctorId?: string | null) {
@@ -65,7 +78,7 @@ export async function getAdminGalleryAlbums(includeDeleted = false, doctorId?: s
   if (doctorId) query = query.eq("doctor_id", doctorId);
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []) as GalleryAlbumRow[];
+  return ((data ?? []) as GalleryAlbumRow[]).map(resolveGalleryAlbum);
 }
 
 export async function createGalleryAlbum(data: Record<string, unknown>) {

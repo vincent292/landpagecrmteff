@@ -1,5 +1,6 @@
 import { supabase } from "../lib/supabaseClient";
 import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
+import { resolvePublicMediaFields } from "./publicMediaResolver";
 
 export type DoctorProfileRow = DeletionMetadata & {
   id: string;
@@ -30,7 +31,9 @@ export async function getDoctors() {
     .order("is_featured", { ascending: false })
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return (data ?? []) as DoctorProfileRow[];
+  return ((data ?? []) as DoctorProfileRow[]).map((row) =>
+    resolvePublicMediaFields(row, ["photo_url"])
+  );
 }
 
 export async function getAdminDoctors(includeDeleted = false) {
@@ -39,7 +42,9 @@ export async function getAdminDoctors(includeDeleted = false) {
   if (filter.column) query = query.is(filter.column, filter.value);
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []) as DoctorProfileRow[];
+  return ((data ?? []) as DoctorProfileRow[]).map((row) =>
+    resolvePublicMediaFields(row, ["photo_url"])
+  );
 }
 
 export async function getMyDoctorProfile(profileId: string) {
@@ -51,19 +56,19 @@ export async function getMyDoctorProfile(profileId: string) {
     .is("deleted_at", null)
     .maybeSingle();
   if (error) throw error;
-  return data as DoctorProfileRow | null;
+  return data ? resolvePublicMediaFields(data as DoctorProfileRow, ["photo_url"]) : null;
 }
 
 export async function createDoctor(data: Record<string, unknown>) {
   const { data: row, error } = await supabase.from("doctor_profiles").insert(data).select("*").single();
   if (error) throw error;
-  return row as DoctorProfileRow;
+  return resolvePublicMediaFields(row as DoctorProfileRow, ["photo_url"]);
 }
 
 export async function updateDoctor(id: string, data: Record<string, unknown>) {
   const { data: row, error } = await supabase.from("doctor_profiles").update(data).eq("id", id).select("*").single();
   if (error) throw error;
-  return row as DoctorProfileRow;
+  return resolvePublicMediaFields(row as DoctorProfileRow, ["photo_url"]);
 }
 
 export async function deleteDoctor(id: string) {

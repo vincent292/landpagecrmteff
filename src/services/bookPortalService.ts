@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabaseClient";
+import { resolvePublicMediaFields } from "./publicMediaResolver";
 
 export async function getMyActiveBooks(userId: string) {
   const { data, error } = await supabase
@@ -8,5 +9,8 @@ export async function getMyActiveBooks(userId: string) {
     .eq("is_active", true)
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []).map((row) => ({
+    ...row,
+    books: row.books ? resolvePublicMediaFields(row.books, ["cover_image"]) : null,
+  }));
 }

@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabaseClient";
+import { resolvePublicMediaFields } from "./publicMediaResolver";
 
 export type PublicDoctorProfile = {
   id?: string;
@@ -27,7 +28,9 @@ export async function attachDoctorProfiles<T extends RowWithDoctor>(rows: T[]): 
 
   if (error) throw error;
 
-  const doctorMap = new Map((data ?? []).map((doctor) => [doctor.id, doctor]));
+  const doctorMap = new Map(
+    (data ?? []).map((doctor) => [doctor.id, resolvePublicMediaFields(doctor, ["photo_url"])])
+  );
 
   return rows.map((row) => ({
     ...row,

@@ -1,5 +1,5 @@
 import { supabase } from "../lib/supabaseClient";
-import { getSignedUrl } from "./storageService";
+import { downloadBookFileWithTokenFromR2 } from "./r2PrivateStorageService";
 import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
 
 export type BookTokenRow = DeletionMetadata & {
@@ -16,8 +16,6 @@ export type BookTokenRow = DeletionMetadata & {
   books?: { file_path: string | null; title?: string | null } | null;
   book_orders?: { full_name?: string | null } | null;
 };
-
-const filesBucket = "book-files-private";
 
 export async function generateBookToken(orderId: string, options?: { maxUses?: number; expiresAt?: string | null }) {
   const { data: order, error: orderError } = await supabase
@@ -100,21 +98,8 @@ export async function validateToken(token: string) {
 }
 
 export async function downloadBookWithToken(token: string) {
-  const { data, error } = await supabase.rpc("public_download_book_with_token", {
-    p_token: token,
-  });
-  if (error) throw new Error(error.message || "Token invalido o agotado.");
-
-  const row = Array.isArray(data) ? data[0] : data;
-  if (!row?.signed_file_path) throw new Error("Token invalido o agotado.");
-
-  const signedUrl = await getSignedUrl(filesBucket, row.signed_file_path, 60 * 5);
-  const { error: consumeError } = await supabase.rpc("public_consume_book_token", {
-    p_token: token,
-  });
-  if (consumeError) throw new Error(consumeError.message || "Token invalido o agotado.");
-
-  return { signedUrl, token: row.token_value, title: row.book_title ?? "Libro" };
+  const result = await downloadBookFileWithTokenFromR2(token, 60 * 5);
+  return { signedUrl: result.signedUrl, token: result.token, title: result.title };
 }
 
 export async function deactivateToken(tokenId: string) {
