@@ -49,6 +49,13 @@ function dedupeGalleryMedia(items: GalleryMediaRow[]) {
 }
 
 export function getGalleryMediaItems(row: GalleryAlbumRow) {
+  if (row.display_mode === "comparison") {
+    const comparisonItems = (row.gallery_images ?? []).filter((item) => item.media_type !== "video");
+    if (comparisonItems.length > 0) {
+      return dedupeGalleryMedia(comparisonItems).sort(compareDisplayOrder);
+    }
+  }
+
   const items = [
     ...(row.gallery_images ?? []),
     row.video_url

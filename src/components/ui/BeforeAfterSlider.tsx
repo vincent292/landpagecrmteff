@@ -1,7 +1,5 @@
 import { useId, useState } from "react";
 
-import { ImageWithSkeleton } from "./ImageWithSkeleton";
-
 type BeforeAfterSliderProps = {
   beforeSrc: string;
   afterSrc: string;
@@ -27,21 +25,21 @@ export function BeforeAfterSlider({
   return (
     <div className={`relative overflow-hidden ${className}`}>
       <div className="relative h-full w-full overflow-hidden rounded-[inherit] bg-[rgba(247,242,236,0.72)]">
-        <ImageWithSkeleton
+        <img
           src={beforeSrc}
           alt={`${alt} - antes`}
           loading="lazy"
-          className={`h-full w-full object-cover ${imageClassName}`}
+          className={`absolute inset-0 h-full w-full object-cover ${imageClassName}`}
         />
         <div
           className="pointer-events-none absolute inset-0 overflow-hidden"
           style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
         >
-          <ImageWithSkeleton
+          <img
             src={afterSrc}
             alt={`${alt} - despues`}
             loading="lazy"
-            className={`h-full w-full object-cover ${imageClassName}`}
+            className={`absolute inset-0 h-full w-full object-cover ${imageClassName}`}
           />
         </div>
 
