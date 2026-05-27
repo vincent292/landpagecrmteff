@@ -143,6 +143,11 @@ create table if not exists public.gallery_albums (
   event_date date,
   description text,
   cover_image text,
+  category text,
+  video_url text,
+  treatment_name text,
+  is_public boolean default true,
+  display_mode text default 'carousel',
   is_featured boolean default false,
   is_active boolean default true,
   created_at timestamp default now()
@@ -153,6 +158,10 @@ create table if not exists public.gallery_images (
   album_id uuid references public.gallery_albums(id) on delete cascade,
   image_url text,
   alt_text text,
+  media_type text default 'image',
+  caption text,
+  thumbnail_url text,
+  display_order int default 0,
   created_at timestamp default now()
 );
 

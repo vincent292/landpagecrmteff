@@ -4,6 +4,7 @@ import { MessageCircleMore, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteActions";
+import { GalleryMediaEditor } from "../../components/admin/GalleryMediaEditor";
 import { PublicImageUpload } from "../../components/admin/PublicImageUpload";
 import {
   createCalendarEvent,
@@ -23,8 +24,11 @@ import {
 import {
   createGalleryAlbum,
   getAdminGalleryAlbums,
+  getGalleryMediaItems,
   updateGalleryAlbum,
+  type GalleryDisplayMode,
   type GalleryAlbumRow,
+  type GalleryMediaRow,
 } from "../../services/galleryService";
 import { getAdminDoctors, getMyDoctorProfile, type DoctorProfileRow } from "../../services/doctorService";
 import { getProfiles, updateProfileRole, updateUserAccess, type ProfileRow } from "../../services/profileService";
@@ -100,6 +104,7 @@ const requestStatuses = ["Nuevo", "Enviado", "Cerrado"];
 const enrollmentStatuses = ["Pendiente", "En revision", "Confirmado", "Rechazado", "Cancelado", "Asistió"];
 const eventTypes = ["Curso", "Procedimiento", "Cirugía", "Presentación", "Jornada", "Valoración"];
 const appointmentTypeOptions = ["Valoracion estetica", "Control", "Procedimiento", "Promocion directa", "Revision postratamiento", "Consulta general"];
+const galleryCategories = ["Eventos", "Tratamientos", "Cursos", "Testimonios", "Antes y despues autorizados", "Videos"];
 const userRoles = ["superadmin", "doctor", "admin", "assistant", "patient", "student", "user"] as const;
 
 export function AdminCollectionPage({ module }: Props) {
@@ -1053,11 +1058,20 @@ function AdminEntityForm({
   const { role, profile } = useAuth();
   const [values, setValues] = useState<Record<string, string | boolean | number>>(() => getInitialValues(module, row));
   const [promotionVariants, setPromotionVariants] = useState<PromotionVariantInput[]>(() => getInitialPromotionVariants(module, row));
+  const [galleryItems, setGalleryItems] = useState<GalleryMediaRow[]>(() => getInitialGalleryItems(module, row));
   const [error, setError] = useState("");
   const [doctorProfileId, setDoctorProfileId] = useState<string | null>(null);
   const [doctors, setDoctors] = useState<DoctorProfileRow[]>([]);
   const fields = getFields(module);
   const needsDoctor = requiresDoctorAssignment(module);
+  const galleryMode = module === "galeria"
+    ? ((values.display_mode as GalleryDisplayMode | undefined) ?? "carousel")
+    : "carousel";
+  const galleryFolder = useMemo(() => {
+    if (module !== "galeria") return "";
+    const slug = String(values.slug ?? "").trim() || slugify(String(values.title ?? "")) || "galeria";
+    return `gallery/${slug}`;
+  }, [module, values.slug, values.title]);
 
   useEffect(() => {
     if (role !== "doctor" || !profile?.id) return;
@@ -1103,12 +1117,22 @@ function AdminEntityForm({
     }
   }, [doctorProfileId, doctors, needsDoctor, role, row, values.doctor_id]);
 
+  useEffect(() => {
+    setValues(getInitialValues(module, row));
+    setPromotionVariants(getInitialPromotionVariants(module, row));
+    setGalleryItems(getInitialGalleryItems(module, row));
+    setError("");
+  }, [module, row]);
+
   const setValue = (name: string, value: string | boolean | number) => {
     const next = { ...values, [name]: value };
     if (name === "requires_assessment" && value === false) {
       next.assessment_price = 0;
     }
     if (name === "title" && !row) next.slug = slugify(String(value));
+    if (module === "galeria" && name === "display_mode" && value === "comparison") {
+      next.category = "Antes y despues autorizados";
+    }
     setValues(next);
   };
 
@@ -1128,6 +1152,30 @@ function AdminEntityForm({
       }
 
       const payload = normalizePayload(module, values, selectedDoctorId);
+      if (module === "galeria") {
+        const publicGalleryItems = galleryItems.filter((item) => item.image_url?.trim());
+        if (galleryMode === "comparison" && publicGalleryItems.length < 2) {
+          setError("La comparacion necesita dos imagenes publicas: antes y despues.");
+          return;
+        }
+        if (galleryMode === "carousel" && publicGalleryItems.length === 0) {
+          setError("El carrusel necesita al menos una imagen o video.");
+          return;
+        }
+
+        const firstImage = publicGalleryItems.find((item) => item.media_type !== "video") ?? null;
+        const firstVideo = publicGalleryItems.find((item) => item.media_type === "video") ?? null;
+
+        payload.display_mode = galleryMode;
+        payload.category =
+          galleryMode === "comparison"
+            ? "Antes y despues autorizados"
+            : payload.category ?? "Eventos";
+        payload.cover_image = firstImage?.image_url ?? null;
+        payload.video_url = galleryMode === "carousel" ? firstVideo?.image_url ?? null : null;
+        payload.gallery_images = publicGalleryItems;
+      }
+
       const cleanPromotionVariants =
         module === "promociones"
           ? promotionVariants
@@ -1203,6 +1251,15 @@ function AdminEntityForm({
                 <select value={String(values[field.name] ?? "")} onChange={(event) => setValue(field.name, event.target.value)} className="premium-input mt-2">
                   {eventTypes.map((type) => <option key={type}>{type}</option>)}
                 </select>
+              ) : field.type === "select-gallery-category" ? (
+                <select value={String(values[field.name] ?? "")} onChange={(event) => setValue(field.name, event.target.value)} className="premium-input mt-2">
+                  {galleryCategories.map((type) => <option key={type}>{type}</option>)}
+                </select>
+              ) : field.type === "select-gallery-display" ? (
+                <select value={String(values[field.name] ?? "")} onChange={(event) => setValue(field.name, event.target.value)} className="premium-input mt-2">
+                  <option value="carousel">Carrusel publico</option>
+                  <option value="comparison">Comparacion antes y despues</option>
+                </select>
               ) : field.type === "select-agenda-mode" ? (
                 <select value={String(values[field.name] ?? "")} onChange={(event) => setValue(field.name, event.target.value)} className="premium-input mt-2">
                   <option value="none">No agenda cita</option>
@@ -1226,6 +1283,14 @@ function AdminEntityForm({
         </div>
         {module === "promociones" ? (
           <PromotionVariantsEditor variants={promotionVariants} onChange={setPromotionVariants} />
+        ) : null}
+        {module === "galeria" ? (
+          <GalleryMediaEditor
+            mode={galleryMode}
+            baseFolder={galleryFolder}
+            items={galleryItems}
+            onChange={setGalleryItems}
+          />
         ) : null}
         {error && (
           <div className="mt-6 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
@@ -1579,8 +1644,10 @@ function getFields(module: Exclude<Module, "inscripciones" | "solicitudes" | "us
     { name: "doctor_id", label: "Doctora", type: "select-doctor" },
     { name: "city", label: "Ciudad", type: "text" },
     { name: "event_date", label: "Fecha", type: "date" },
+    { name: "category", label: "Categoria", type: "select-gallery-category" },
+    { name: "display_mode", label: "Modo visual", type: "select-gallery-display" },
+    { name: "treatment_name", label: "Tratamiento relacionado", type: "text" },
     { name: "description", label: "Descripción", type: "textarea" },
-    { name: "cover_image", label: "Imagen principal", type: "image" },
     { name: "is_featured", label: "Destacado", type: "checkbox" },
     { name: "is_active", label: "Activo", type: "checkbox" },
   ];
@@ -1603,6 +1670,16 @@ function getInitialValues(module: Exclude<Module, "inscripciones" | "solicitudes
 
     if (field.name === "event_type") {
       defaults[field.name] = "Jornada";
+      return;
+    }
+
+    if (field.name === "category") {
+      defaults[field.name] = "Eventos";
+      return;
+    }
+
+    if (field.name === "display_mode") {
+      defaults[field.name] = "carousel";
       return;
     }
 
@@ -1634,6 +1711,14 @@ function getInitialValues(module: Exclude<Module, "inscripciones" | "solicitudes
   });
 
   return next;
+}
+
+function getInitialGalleryItems(
+  module: Exclude<Module, "inscripciones" | "solicitudes" | "usuarios">,
+  row: AdminRow | null
+) {
+  if (module !== "galeria" || !row) return [];
+  return "gallery_images" in row ? getGalleryMediaItems(row as GalleryAlbumRow) : [];
 }
 
 function getInitialPromotionVariants(
