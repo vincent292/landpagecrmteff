@@ -1758,7 +1758,7 @@ function normalizePayload(
     payload.doctor_id = doctorProfileId;
   }
 
-  if (!values.requires_assessment) {
+  if ((module === "tratamientos" || module === "promociones") && !values.requires_assessment) {
     payload.assessment_price = null;
   }
 
