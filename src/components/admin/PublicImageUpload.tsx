@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { Check, ImageUp, RotateCcw, Upload, X } from "lucide-react";
 
-import { uploadPublicFileWithFallback } from "../../services/storageService";
+import { getPublicMediaUrl } from "../../services/mediaStorageService";
+import { uploadPublicFileToR2 } from "../../services/r2PublicUploadService";
 import {
   canOptimizeImage,
   formatFileSize,
@@ -19,8 +20,6 @@ type PublicImageUploadProps = {
   optimize?: boolean;
   onChange: (url: string) => void;
 };
-
-const publicBuckets = ["public-media", "public-gallery"];
 
 function isExternalInstagramCdn(url?: string | null) {
   if (!url) return false;
@@ -59,6 +58,7 @@ export function PublicImageUpload({
   const [crop, setCrop] = useState({ positionX: 50, positionY: 50, zoom: 1 });
   const showExternalWarning = isExternalInstagramCdn(value);
   const canUseEditor = Boolean(selectedFile && optimize && canOptimizeImage(selectedFile));
+  const resolvedValue = getPublicMediaUrl(value) ?? value ?? "";
 
   useEffect(() => {
     if (!selectedFile) {
@@ -103,7 +103,7 @@ export function PublicImageUpload({
     setError("");
     try {
       const path = convertToWebp ? toWebpPath(folder) : toOriginalPath(folder, file);
-      const { publicUrl } = await uploadPublicFileWithFallback(publicBuckets, path, file);
+      const { publicUrl } = await uploadPublicFileToR2(path, file);
       onChange(publicUrl);
       setSelectedFile(null);
     } catch (uploadError) {
@@ -129,7 +129,7 @@ export function PublicImageUpload({
         maxHeight: aspectRatio && aspectRatio < 1 ? 1800 : 1400,
       });
       setSummary(optimized);
-      const { publicUrl } = await uploadPublicFileWithFallback(publicBuckets, toWebpPath(folder), optimized.file);
+      const { publicUrl } = await uploadPublicFileToR2(toWebpPath(folder), optimized.file);
       onChange(publicUrl);
       setSelectedFile(null);
     } catch (uploadError) {
@@ -154,7 +154,7 @@ export function PublicImageUpload({
           Optimizada: {formatFileSize(summary.originalBytes)} a {formatFileSize(summary.optimizedBytes)}
         </span>
       ) : null}
-      {value && !showExternalWarning ? <img src={value} alt={label} className="h-44 w-full rounded-[18px] object-cover" /> : null}
+      {resolvedValue && !showExternalWarning ? <img src={resolvedValue} alt={label} className="h-44 w-full rounded-[18px] object-cover" /> : null}
       {value && showExternalWarning ? (
         <div className="flex h-44 w-full items-center justify-center rounded-[18px] border border-dashed border-amber-300 bg-amber-50 px-4 text-center text-sm text-amber-800">
           La URL actual de Instagram no permite previsualizacion estable. Vuelve a subir la imagen al almacenamiento del sitio.
