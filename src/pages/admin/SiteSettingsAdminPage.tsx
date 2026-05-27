@@ -186,6 +186,21 @@ export function SiteSettingsAdminPage() {
           <Field label="WhatsApp principal">
             <input value={values.whatsapp ?? ""} onChange={(event) => setValue("whatsapp", event.target.value)} className="premium-input" placeholder="5917XXXXXXX" />
           </Field>
+          <Field label="Boton flotante de WhatsApp">
+            <label className="mt-1 inline-flex items-center gap-3 rounded-[18px] border border-[var(--color-border)] bg-[rgba(247,242,236,0.72)] px-4 py-3 text-sm font-semibold text-[var(--color-ink)]">
+              <input
+                type="checkbox"
+                checked={Boolean(values.show_whatsapp_button)}
+                onChange={(event) =>
+                  setValues((current) => ({
+                    ...current,
+                    show_whatsapp_button: event.target.checked,
+                  }))
+                }
+              />
+              Mostrar boton flotante en paginas publicas
+            </label>
+          </Field>
           <Field label="Correo">
             <input value={values.email ?? ""} onChange={(event) => setValue("email", event.target.value)} className="premium-input" />
           </Field>

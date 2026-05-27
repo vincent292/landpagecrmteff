@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
+import { Seo } from "../../components/common/Seo";
 import { BeforeAfterSlider } from "../../components/ui/BeforeAfterSlider";
 import { GalleryCarousel } from "../../components/ui/GalleryCarousel";
 import { ImageWithSkeleton } from "../../components/ui/ImageWithSkeleton";
@@ -40,6 +41,13 @@ export function GalleryPage() {
 
   return (
     <section className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24">
+      <Seo
+        title="Galería estética y antes y después | Dra. Estefany Ballesteros"
+        description="Explora la galeria publica con jornadas, tratamientos, cursos, videos y comparaciones antes y despues autorizadas."
+        path="/galeria"
+        image="/doctora/dra5.jpg"
+        keywords={["galeria estetica", "antes y despues autorizados", "casos esteticos Bolivia"]}
+      />
       <PageIntro
         eyebrow="Galeria"
         title="Contenido publico organizado por categorias, ciudades y material autorizado."

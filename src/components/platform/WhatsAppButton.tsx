@@ -1,14 +1,38 @@
 import { MessageCircleMore } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 
-const phone = "59170000000";
+import { getSiteSettings, type SiteSettingsRow } from "../../services/siteSettingsService";
+import { buildWhatsAppHref } from "../../utils/whatsapp";
+
+type FloatingWhatsappSettings = Pick<SiteSettingsRow, "whatsapp" | "show_whatsapp_button">;
 
 export function WhatsAppButton() {
   const { pathname } = useLocation();
+  const [settings, setSettings] = useState<FloatingWhatsappSettings | null>(null);
+
+  useEffect(() => {
+    getSiteSettings()
+      .then((row) =>
+        setSettings({
+          whatsapp: row.whatsapp,
+          show_whatsapp_button: row.show_whatsapp_button ?? false,
+        })
+      )
+      .catch(() => setSettings(null));
+  }, []);
+
+  if (!settings?.show_whatsapp_button || !settings.whatsapp) {
+    return null;
+  }
 
   const message = getMessage(pathname);
-  const href = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+  const href = buildWhatsAppHref(settings.whatsapp, message);
   const floatingPosition = pathname.startsWith("/cursos/") ? "bottom-24 md:bottom-5" : "bottom-5";
+
+  if (!href) {
+    return null;
+  }
 
   return (
     <a
@@ -26,13 +50,13 @@ export function WhatsAppButton() {
 
 function getMessage(pathname: string) {
   if (pathname.startsWith("/tratamientos/")) {
-    return "Hola, quiero más información sobre este tratamiento de la Dra. Estefany.";
+    return "Hola, quiero mas informacion sobre este tratamiento de la Dra. Estefany.";
   }
   if (pathname.startsWith("/cursos/")) {
-    return "Hola, quiero más información sobre este curso de la Dra. Estefany.";
+    return "Hola, quiero mas informacion sobre este curso de la Dra. Estefany.";
   }
   if (pathname.startsWith("/agenda")) {
-    return "Hola, quiero más información sobre una actividad de la agenda.";
+    return "Hola, quiero mas informacion sobre una actividad de la agenda.";
   }
-  return "Hola, quiero más información sobre la atención de la Dra. Estefany Ballesteros.";
+  return "Hola, quiero mas informacion sobre la atencion de la Dra. Estefany Ballesteros.";
 }

@@ -71,12 +71,36 @@ const blockSchema = z
   .object({
     doctor_id: z.string().optional(),
     city: z.string().optional(),
-    block_date: z.string().min(1, "La fecha es obligatoria."),
+    block_mode: z.enum(["specific", "recurring"]).default("specific"),
+    specific_date: z.string().optional(),
+    start_date: z.string().optional(),
+    end_date: z.string().optional(),
+    days: z.array(z.number()).default([]),
     full_day: z.boolean().default(true),
     start_time: z.string().optional(),
     end_time: z.string().optional(),
     reason: z.string().optional(),
     is_active: z.boolean().default(true),
+  })
+  .refine((value) => value.block_mode !== "specific" || Boolean(value.specific_date), {
+    message: "Elige la fecha del bloqueo.",
+    path: ["specific_date"],
+  })
+  .refine((value) => value.block_mode !== "recurring" || Boolean(value.start_date), {
+    message: "Elige la fecha de inicio.",
+    path: ["start_date"],
+  })
+  .refine((value) => value.block_mode !== "recurring" || Boolean(value.end_date), {
+    message: "Elige la fecha de fin.",
+    path: ["end_date"],
+  })
+  .refine((value) => value.block_mode !== "recurring" || (value.start_date ?? "") <= (value.end_date ?? ""), {
+    message: "La fecha de inicio debe ser menor o igual a la fecha de fin.",
+    path: ["end_date"],
+  })
+  .refine((value) => value.block_mode !== "recurring" || value.days.length > 0, {
+    message: "Elige al menos un dia para repetir el bloqueo.",
+    path: ["days"],
   })
   .refine((value) => value.full_day || (Boolean(value.start_time) && Boolean(value.end_time)), {
     message: "Indica hora inicio y fin o marca dia completo.",
@@ -123,6 +147,7 @@ export function AvailabilityAdminPage() {
   });
 
   const watchedRule = ruleForm.watch();
+  const watchedBlock = blockForm.watch();
   const previewSlots = useMemo(
     () =>
       generatePreviewSlots(
@@ -132,6 +157,15 @@ export function AvailabilityAdminPage() {
         Number(watchedRule.break_minutes)
       ),
     [watchedRule.break_minutes, watchedRule.end_time, watchedRule.slot_duration_minutes, watchedRule.start_time]
+  );
+  const previewBlockDates = useMemo(
+    () =>
+      watchedBlock.block_mode === "recurring"
+        ? generateRecurringBlockDates(watchedBlock.start_date, watchedBlock.end_date, watchedBlock.days ?? [])
+        : watchedBlock.specific_date
+          ? [watchedBlock.specific_date]
+          : [],
+    [watchedBlock.block_mode, watchedBlock.days, watchedBlock.end_date, watchedBlock.specific_date, watchedBlock.start_date]
   );
 
   const load = () => {
@@ -333,23 +367,43 @@ export function AvailabilityAdminPage() {
     setSaving(true);
     setSuccess("");
     try {
-      const payload = {
+      const basePayload = {
         created_by: profile?.id ?? null,
         doctor_id: doctorFieldLocked ? doctorProfileId : values.doctor_id || null,
         city: values.city || null,
-        block_date: values.block_date,
         start_time: values.full_day ? null : values.start_time,
         end_time: values.full_day ? null : values.end_time,
-        reason: values.reason || null,
+        reason: values.reason?.trim() || null,
         is_active: values.is_active,
       };
 
       if (editingBlockId) {
-        await updateAvailabilityBlock(editingBlockId, payload);
+        await updateAvailabilityBlock(editingBlockId, {
+          ...basePayload,
+          block_date: values.specific_date,
+        });
         setSuccess("Bloqueo actualizado correctamente.");
-      } else {
-        await createAvailabilityBlock(payload);
+      } else if (values.block_mode === "specific") {
+        await createAvailabilityBlock({
+          ...basePayload,
+          block_date: values.specific_date,
+        });
         setSuccess("Bloqueo guardado.");
+      } else {
+        const dates = generateRecurringBlockDates(values.start_date, values.end_date, values.days);
+        if (dates.length === 0) {
+          throw new Error("No se generaron fechas para el bloqueo.");
+        }
+
+        await Promise.all(
+          dates.map((date) =>
+            createAvailabilityBlock({
+              ...basePayload,
+              block_date: date,
+            })
+          )
+        );
+        setSuccess(dates.length === 1 ? "Bloqueo recurrente guardado." : `Se guardaron ${dates.length} bloqueos.`);
       }
 
       cancelBlockEditing();
@@ -390,7 +444,11 @@ export function AvailabilityAdminPage() {
     blockForm.reset({
       doctor_id: block.doctor_id ?? "",
       city: block.city ?? "",
-      block_date: block.block_date,
+      block_mode: "specific",
+      specific_date: block.block_date,
+      start_date: "",
+      end_date: "",
+      days: [],
       full_day: !block.start_time,
       start_time: normalizeTime(block.start_time),
       end_time: normalizeTime(block.end_time),
@@ -469,7 +527,7 @@ export function AvailabilityAdminPage() {
           />
           <ViewCard
             label="Nuevo bloqueo"
-            description="Bloquea dias completos u horarios puntuales."
+            description="Bloquea dias completos, tramos puntuales o repeticiones por rango."
             value={editingBlockId ? "Editando" : "Formulario"}
             active={view === "new-block"}
             onClick={() => setView("new-block")}
@@ -755,9 +813,6 @@ export function AvailabilityAdminPage() {
                   setBlockDoctorPickerOpen(false);
                 }}
               />
-              <Field label="Fecha" error={blockForm.formState.errors.block_date?.message}>
-                <input type="date" {...blockForm.register("block_date")} className="premium-input" />
-              </Field>
               <Field label="Ciudad opcional">
                 <select {...blockForm.register("city")} className="premium-input">
                   <option value="">Todas las ciudades</option>
@@ -768,11 +823,62 @@ export function AvailabilityAdminPage() {
                   ))}
                 </select>
               </Field>
+              <Field label="Modalidad de bloqueo">
+                <select {...blockForm.register("block_mode")} className="premium-input" disabled={Boolean(editingBlockId)}>
+                  <option value="specific">Fecha especifica</option>
+                  <option value="recurring">Repetir por rango y dias</option>
+                </select>
+              </Field>
+              {watchedBlock.block_mode === "specific" ? (
+                <Field label="Fecha" error={blockForm.formState.errors.specific_date?.message}>
+                  <input type="date" {...blockForm.register("specific_date")} className="premium-input" />
+                </Field>
+              ) : (
+                <>
+                  <Field label="Fecha inicio" error={blockForm.formState.errors.start_date?.message}>
+                    <input type="date" {...blockForm.register("start_date")} className="premium-input" disabled={Boolean(editingBlockId)} />
+                  </Field>
+                  <Field label="Fecha fin" error={blockForm.formState.errors.end_date?.message}>
+                    <input type="date" {...blockForm.register("end_date")} className="premium-input" disabled={Boolean(editingBlockId)} />
+                  </Field>
+                  <div>
+                    <p className="text-sm font-semibold">Dias a bloquear</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {days.map((day) => {
+                        const selected = watchedBlock.days?.includes(day.value);
+                        return (
+                          <button
+                            key={day.value}
+                            type="button"
+                            disabled={Boolean(editingBlockId)}
+                            onClick={() => {
+                              const current = blockForm.getValues("days") ?? [];
+                              blockForm.setValue(
+                                "days",
+                                selected ? current.filter((item) => item !== day.value) : [...current, day.value],
+                                { shouldValidate: true }
+                              );
+                            }}
+                            className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                              selected ? "border-[var(--color-mocha)] bg-[var(--color-mocha)] text-white" : "border-[var(--color-border)] bg-white/70"
+                            } disabled:cursor-not-allowed disabled:opacity-60`}
+                          >
+                            {day.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {blockForm.formState.errors.days?.message ? (
+                      <p className="mt-2 text-xs text-red-700">{blockForm.formState.errors.days.message}</p>
+                    ) : null}
+                  </div>
+                </>
+              )}
               <label className="flex items-center gap-3 text-sm font-semibold">
                 <input type="checkbox" {...blockForm.register("full_day")} />
                 Bloquear dia completo
               </label>
-              {!blockForm.watch("full_day") ? (
+              {!watchedBlock.full_day ? (
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Field label="Hora inicio" error={blockForm.formState.errors.start_time?.message}>
                     <input type="time" {...blockForm.register("start_time")} className="premium-input" />
@@ -806,14 +912,21 @@ export function AvailabilityAdminPage() {
             </p>
             <h2 className="mt-2 text-2xl font-semibold">Bloqueos mas claros</h2>
             <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
-              Si el bloqueo es general, dejas doctora vacia. Si es solo para una doctora o una media jornada, aqui puedes limitarlo sin ensuciar toda la agenda.
+              Si el bloqueo es general, dejas doctora vacia. Si es puntual, marcas una fecha. Si se repite, eliges rango, dias y horario.
             </p>
             <div className="mt-5 grid gap-3">
               <div className="rounded-[22px] bg-white/72 px-4 py-4 text-sm leading-7 text-[var(--color-copy)]">
                 <strong className="text-[var(--color-ink)]">Desde hoy en adelante:</strong> los bloqueos historicos ya no se muestran en la vista operativa.
               </div>
               <div className="rounded-[22px] bg-white/72 px-4 py-4 text-sm leading-7 text-[var(--color-copy)]">
-                <strong className="text-[var(--color-ink)]">Con lapiz:</strong> puedes volver a abrir un bloqueo para ajustar horario, motivo o ciudad cuando cambie la jornada.
+                <strong className="text-[var(--color-ink)]">Edicion:</strong> cuando crees un bloqueo recurrente se guardara como varias fechas para que luego puedas corregir cada una por separado.
+              </div>
+              <div className="rounded-[22px] bg-white/72 px-4 py-4 text-sm leading-7 text-[var(--color-copy)]">
+                <strong className="text-[var(--color-ink)]">Vista previa:</strong> {previewBlockDates.length === 0
+                  ? "elige modalidad y fechas para ver lo que se bloqueara."
+                  : previewBlockDates.length === 1
+                    ? `se bloqueara ${previewBlockDates[0]}.`
+                    : `se bloquearan ${previewBlockDates.length} fechas entre ${previewBlockDates[0]} y ${previewBlockDates[previewBlockDates.length - 1]}.`}
               </div>
             </div>
           </aside>
@@ -1038,7 +1151,11 @@ function getDefaultBlockValues(): BlockForm {
   return {
     doctor_id: "",
     city: "",
-    block_date: "",
+    block_mode: "specific",
+    specific_date: "",
+    start_date: "",
+    end_date: "",
+    days: [1],
     full_day: true,
     start_time: "",
     end_time: "",
@@ -1097,4 +1214,22 @@ function getRuleSortDate(rule: AvailabilityRuleRow) {
   if (rule.availability_type === "specific") return rule.specific_date ?? today;
   if (rule.start_date && rule.start_date > today) return rule.start_date;
   return today;
+}
+
+function generateRecurringBlockDates(startDate?: string, endDate?: string, selectedDays: number[] = []) {
+  if (!startDate || !endDate || startDate > endDate || selectedDays.length === 0) return [];
+
+  const allowedDays = new Set(selectedDays);
+  const cursor = new Date(`${startDate}T00:00:00`);
+  const end = new Date(`${endDate}T00:00:00`);
+  const dates: string[] = [];
+
+  while (cursor <= end && dates.length < 366) {
+    if (allowedDays.has(cursor.getDay())) {
+      dates.push(cursor.toISOString().slice(0, 10));
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return dates;
 }

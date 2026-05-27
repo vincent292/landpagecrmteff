@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { EmptyState, ErrorState } from "../../components/common/AsyncState";
+import { Seo } from "../../components/common/Seo";
 import { DoctorByline } from "../../components/platform/DoctorByline";
 import { InfoRequestModal } from "../../components/platform/InfoRequestModal";
 import { AnimatedCard } from "../../components/ui/AnimatedCard";
@@ -47,6 +48,13 @@ export function PromotionsPage() {
 
   return (
     <section className="mx-auto w-full max-w-7xl overflow-x-clip px-4 py-14 sm:px-6 md:px-8 md:py-24">
+      <Seo
+        title="Promociones estéticas activas | Dra. Estefany Ballesteros"
+        description="Consulta promociones esteticas activas, cupos disponibles y opciones para reservar o solicitar informacion directamente."
+        path="/promociones"
+        image="/doctora/dra5.jpg"
+        keywords={["promociones esteticas", "promociones medicas", "reserva estetica Bolivia"]}
+      />
       <PageIntro
         eyebrow="Promociones"
         title="Promociones activas con variantes, cupos y posibilidad de reservar directo."

@@ -397,7 +397,7 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
       }
       icon={isLogin ? <LockKeyhole className="h-4 w-4" /> : <UserRoundPlus className="h-4 w-4" />}
       sideTitle="Clinica Dra. Estefany"
-      sideCopy="Un acceso privado, sobrio y protegido para que cada paciente y cada doctora entren a su plataforma con contexto y continuidad."
+      sideCopy="Un acceso privado y protegido para que cada paciente y cada doctora entren a su plataforma con contexto y continuidad."
       footer={
         <>
           <p className="mt-5 text-center text-sm text-[var(--color-copy)]">

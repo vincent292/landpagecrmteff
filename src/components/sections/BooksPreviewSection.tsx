@@ -45,7 +45,7 @@ export function BooksPreviewSection() {
       <SectionHeading
         eyebrow="Libros"
         title="Recursos digitales curados con el mismo criterio de la consulta."
-        description="Material pensado para pacientes y estudiantes: claro, elegante y protegido con acceso privado."
+        description="Material pensado para pacientes y estudiantes: claro, util y protegido con acceso privado."
         align="center"
       />
 

@@ -152,7 +152,7 @@ const steps: StepMeta[] = [
     eyebrow: "Paso 4",
     title: "Comparte tus datos para que el equipo pueda ubicarte y darte seguimiento.",
     description:
-      "Solo pedimos lo necesario para confirmar la valoración y contactarte con una experiencia simple y elegante.",
+      "Solo pedimos lo necesario para confirmar la valoración y contactarte con una experiencia simple y clara.",
   },
   {
     id: "payment",
@@ -397,7 +397,7 @@ export function BookingPage() {
               to="/"
               className="inline-flex items-center justify-center rounded-full border border-[rgba(184,138,90,0.30)] bg-[var(--color-caramel)] px-6 py-3.5 text-sm font-semibold text-[var(--color-surface)] shadow-[0_18px_40px_rgba(110,74,47,0.18)] transition duration-500 hover:-translate-y-1 hover:bg-[var(--color-mocha)]"
             >
-              Volver a la landing
+              Volver al inicio
             </Link>
 
             <button
@@ -858,7 +858,7 @@ export function BookingPage() {
               className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-[rgba(255,249,244,0.62)] px-4 py-2 text-sm text-[var(--color-copy)] backdrop-blur-xl transition duration-300 hover:text-[var(--color-ink)]"
             >
               <ArrowLeft className="h-4 w-4" />
-              Volver a la landing
+              Volver al inicio
             </Link>
 
             <div className="hidden items-center gap-2 rounded-full border border-[var(--color-border)] bg-[rgba(255,249,244,0.48)] px-4 py-2 text-xs uppercase tracking-[0.28em] text-[var(--color-accent-strong)] backdrop-blur-xl md:inline-flex">

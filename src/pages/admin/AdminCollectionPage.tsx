@@ -255,7 +255,7 @@ export function AdminCollectionPage({ module }: Props) {
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--color-accent-strong)]">Administración</p>
           <h1 className="font-display mt-3 text-5xl font-semibold capitalize">{module}</h1>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--color-copy)]">
-            Gestión conectada a Supabase con estados, filtros y formularios base.
+            Gestion centralizada con estados, filtros y formularios listos para operar.
           </p>
         </div>
         {isCrudModule(module) && (

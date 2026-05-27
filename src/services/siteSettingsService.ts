@@ -5,6 +5,7 @@ export type SiteSettingsRow = {
   id: boolean;
   phone: string | null;
   whatsapp: string | null;
+  show_whatsapp_button?: boolean | null;
   email: string | null;
   instagram_url: string | null;
   tiktok_url: string | null;
@@ -54,6 +55,7 @@ const fallbackSettings: SiteSettingsRow = {
   id: true,
   phone: null,
   whatsapp: null,
+  show_whatsapp_button: false,
   email: null,
   instagram_url: null,
   tiktok_url: null,

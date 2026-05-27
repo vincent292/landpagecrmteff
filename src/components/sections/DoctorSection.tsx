@@ -105,7 +105,7 @@ export function DoctorSection() {
               <img
                 data-gsap="doctor-main-photo"
                 src={placeholder.doctorAlt}
-                alt="Retrato editorial de la doctora"
+                alt="Retrato de la doctora"
                 loading="lazy"
                 decoding="async"
                 className="h-[560px] w-full object-cover object-[50%_18%] md:h-[650px]"
@@ -133,7 +133,7 @@ export function DoctorSection() {
             <Quote className="h-5 w-5 text-[var(--color-accent-strong)]" />
             <p className="mt-3 font-display text-2xl font-semibold leading-7 text-[var(--color-ink)]">
               Belleza natural con criterio médico, escucha real y una mirada
-              profundamente humana.
+              cercana.
             </p>
           </div>
         </div>
@@ -150,7 +150,7 @@ export function DoctorSection() {
             data-gsap="doctor-copy"
             className="font-display text-5xl font-semibold leading-[0.94] text-[var(--color-ink)] md:text-6xl"
           >
-            Un enfoque médico refinado al servicio de tu bienestar y tu imagen.
+            Un enfoque médico al servicio de tu bienestar y tu imagen.
           </h2>
 
           <p

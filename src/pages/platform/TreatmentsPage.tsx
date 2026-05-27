@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { EmptyState, ErrorState } from "../../components/common/AsyncState";
+import { Seo } from "../../components/common/Seo";
 import { DoctorByline } from "../../components/platform/DoctorByline";
 import { InfoRequestModal } from "../../components/platform/InfoRequestModal";
 import { AnimatedCard } from "../../components/ui/AnimatedCard";
@@ -32,7 +33,14 @@ export function TreatmentsPage() {
 
   return (
     <section className="mx-auto w-full max-w-7xl overflow-x-clip px-4 py-14 sm:px-6 md:px-8 md:py-24">
-      <PageIntro eyebrow="Tratamientos" title="Protocolos médicos diseñados para una belleza natural, elegante y segura." />
+      <Seo
+        title="Tratamientos esteticos y medicina ortomolecular | Dra. Estefany Ballesteros"
+        description="Explora tratamientos esteticos y protocolos de medicina ortomolecular con enfoque medico, informacion clara y opciones de reserva."
+        path="/tratamientos"
+        image="/doctora/dra2.jpg"
+        keywords={["tratamientos esteticos", "medicina ortomolecular", "armonizacion facial", "tratamientos faciales Bolivia"]}
+      />
+      <PageIntro eyebrow="Tratamientos" title="Protocolos médicos personalizados para resultados naturales y seguros." />
       <div className="mt-8 w-full max-w-xs min-w-0">
         <select value={city} onChange={(event) => setCity(event.target.value)} className="premium-input">
           <option>Todas</option>

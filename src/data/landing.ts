@@ -50,21 +50,18 @@ export const placeholder = {
 
 export const services: ServiceItem[] = [
   {
-    title: "Armonización estética integral",
-    description:
-      "Protocolos personalizados para realzar la belleza natural del rostro y cuerpo con un enfoque elegante, equilibrado y profundamente sobrio.",
+    title: "Armonizacion estetica integral",
+    description: "Protocolos personalizados para trabajar rostro y cuerpo con criterio medico, plan claro y resultados naturales.",
     icon: Sparkles,
   },
   {
     title: "Medicina ortomolecular personalizada",
-    description:
-      "Estrategias orientadas al bienestar, la vitalidad y la optimización del equilibrio interno desde una mirada médica refinada.",
+    description: "Estrategias orientadas al bienestar, la vitalidad y el equilibrio interno desde una mirada medica integral.",
     icon: Leaf,
   },
   {
-    title: "Evaluación clínica de precisión",
-    description:
-      "Atención individualizada con valoración detallada, escucha activa y planificación terapéutica según tus objetivos.",
+    title: "Evaluacion clinica de precision",
+    description: "Atencion individualizada con valoracion detallada, escucha activa y planificacion terapeutica segun tus objetivos.",
     icon: Stethoscope,
   },
 ];
@@ -72,62 +69,59 @@ export const services: ServiceItem[] = [
 export const processSteps: ProcessStep[] = [
   {
     step: "01",
-    title: "Valoración clínica inicial",
-    description:
-      "Comenzamos con una conversación íntima y precisa para comprender tu historia, tus objetivos y la manera en que quieres sentirte.",
+    title: "Valoracion clinica inicial",
+    description: "Comenzamos con una conversacion clara para comprender tu historia, tus objetivos y la manera en que quieres sentirte.",
   },
   {
     step: "02",
-    title: "Diseño del protocolo",
-    description:
-      "Se traza una ruta terapéutica sobria y personalizada, alineada con tu anatomía, estilo de vida y expectativas reales.",
+    title: "Diseno del protocolo",
+    description: "Se define un plan terapeutico personalizado, alineado con tu anatomia, estilo de vida y expectativas reales.",
   },
   {
     step: "03",
-    title: "Aplicación y seguimiento",
-    description:
-      "El proceso se ejecuta con control evolutivo, acompañamiento cercano y ajustes medidos para sostener resultados elegantes.",
+    title: "Aplicacion y seguimiento",
+    description: "El proceso se ejecuta con seguimiento cercano y ajustes medidos para sostener resultados naturales y seguros.",
   },
 ];
 
 export const stats: StatItem[] = [
-  { value: "100%", label: "Atención personalizada" },
-  { value: "1:1", label: "Acompañamiento cercano" },
-  { value: "360°", label: "Visión integral" },
+  { value: "100%", label: "Atencion personalizada" },
+  { value: "1:1", label: "Acompanamiento cercano" },
+  { value: "360", label: "Vision integral" },
 ];
 
 export const philosophyPoints: PhilosophyPoint[] = [
   {
     icon: ShieldCheck,
     title: "Profesionalismo sereno",
-    text: "Criterio médico, precisión clínica y trato humano en cada etapa del proceso.",
+    text: "Criterio medico, precision clinica y trato humano en cada etapa del proceso.",
   },
   {
     icon: HeartHandshake,
-    title: "Atención íntima",
-    text: "Escucha real, privacidad y acompañamiento pensado para cada paciente.",
+    title: "Atencion intima",
+    text: "Escucha real, privacidad y acompanamiento pensado para cada paciente.",
   },
   {
     icon: Sparkles,
     title: "Belleza natural",
-    text: "Resultados elegantes que respetan tu identidad, rasgos y expresión.",
+    text: "Resultados naturales que respetan tu identidad, rasgos y expresion.",
   },
   {
     icon: Leaf,
     title: "Bienestar integral",
-    text: "La estética se integra con vitalidad, equilibrio y cuidado profundo.",
+    text: "La estetica se integra con vitalidad, equilibrio y cuidado profundo.",
   },
 ];
 
 export const doctorHighlights: DoctorHighlight[] = [
   { icon: Clock3, text: "Experiencia cuidadosa" },
   { icon: ShieldCheck, text: "Rigor profesional" },
-  { icon: Sparkles, text: "Estética natural" },
+  { icon: Sparkles, text: "Estetica natural" },
   { icon: HeartHandshake, text: "Trato cercano" },
 ];
 
 export const navLinks: NavLink[] = [
-  { label: "Filosofía", href: "#filosofia" },
+  { label: "Filosofia", href: "#filosofia" },
   { label: "Servicios", href: "#servicios" },
   { label: "Proceso", href: "#proceso" },
   { label: "Doctora", href: "#doctora" },

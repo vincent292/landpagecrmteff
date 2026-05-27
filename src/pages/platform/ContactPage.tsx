@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Clock3, Mail, MapPin, MessageCircleMore, Phone } from "lucide-react";
 
+import { Seo } from "../../components/common/Seo";
 import { InfoRequestModal } from "../../components/platform/InfoRequestModal";
 import { getSiteSettings, type SiteSettingsRow } from "../../services/siteSettingsService";
 import { getDisplayCity, getMapEmbedUrl } from "../../utils/publicContent";
@@ -18,6 +19,13 @@ export function ContactPage() {
 
   return (
     <section className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24">
+      <Seo
+        title="Contacto y ubicación | Dra. Estefany Ballesteros"
+        description="Encuentra ubicacion, WhatsApp, telefono, correo y horarios de atencion para coordinar tu consulta con Dra. Estefany Ballesteros."
+        path="/contacto"
+        image="/doctora/dra1.jpg"
+        keywords={["contacto doctora estetica", "WhatsApp Dra. Estefany", "ubicacion consultorio estetica"]}
+      />
       <PageIntro
         eyebrow="Contacto"
         title="Un punto de contacto claro para resolver dudas, ubicar el consultorio y coordinar tu atención."

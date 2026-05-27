@@ -161,7 +161,7 @@ export function Process() {
                   <img
                     data-gsap="process-photo"
                     src={placeholder.process}
-                    alt="Escena clínica editorial"
+                    alt="Escena clinica"
                     loading="lazy"
                     decoding="async"
                     className="h-full min-h-[390px] w-full object-cover object-[50%_16%] lg:min-h-[600px]"
@@ -176,7 +176,7 @@ export function Process() {
               </p>
               <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">
                 Cada decisión estética se construye con criterio médico, escucha
-                real y una intención elegante.
+                real y una intencion clara.
               </p>
               <div className="mt-4 flex gap-2">
                 {["01", "02", "03"].map((item) => (
@@ -203,16 +203,15 @@ export function Process() {
               data-gsap="process-title"
               className="font-display mt-6 max-w-3xl text-5xl font-semibold leading-[0.92] text-[var(--color-ink)] md:text-6xl"
             >
-              Una experiencia guiada con calidez, precisión y elegancia serena.
+              Una experiencia guiada con calidez, precision y criterio medico.
             </h2>
 
             <p
               data-gsap="process-body"
               className="mt-6 max-w-2xl text-base leading-8 text-[var(--color-copy)] md:text-lg"
             >
-              La consulta se vive como un proceso editorial y clínico a la vez:
-              sobrio, claro y cuidadosamente diseñado para que cada decisión tenga
-              intención, armonía y seguimiento real.
+              La consulta se vive como un proceso claro y bien acompanado para que
+              cada decision tenga contexto, seguimiento real y pasos entendibles.
             </p>
 
             <div className="mt-10 space-y-4">
@@ -244,8 +243,8 @@ export function Process() {
             >
               <SoftButton href="/contacto">Agendar valoración</SoftButton>
               <p className="text-sm leading-7 text-[var(--color-copy)]">
-                Una primera cita bien guiada crea mejores decisiones y resultados
-                más elegantes.
+                Una primera cita bien guiada ayuda a tomar mejores decisiones y a
+                sostener mejores resultados.
               </p>
             </div>
           </div>

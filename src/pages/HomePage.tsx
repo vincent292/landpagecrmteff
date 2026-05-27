@@ -5,8 +5,8 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 
 import { Footer } from "../components/layout/Footer";
 import { PremiumNavbar } from "../components/layout/PremiumNavbar";
+import { Seo } from "../components/common/Seo";
 import { InfoRequestModal } from "../components/platform/InfoRequestModal";
-import { WhatsAppButton } from "../components/platform/WhatsAppButton";
 import { Hero } from "../components/sections/Hero";
 import { Services } from "../components/sections/Services";
 import { StickyLeadCTA } from "../components/sections/StickyLeadCTA";
@@ -107,6 +107,29 @@ export function HomePage() {
       ref={mainRef}
       className="relative min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,var(--color-base)_0%,#f6efe7_18%,var(--color-surface)_44%,#f2e7dc_72%,var(--color-surface-soft)_100%)] pb-28 text-[var(--color-ink)]"
     >
+      <Seo
+        title="Dra. Estefany Ballesteros | Medicina estetica ortomolecular en Bolivia"
+        description="Tratamientos esteticos, promociones, cursos, agenda y galeria de Dra. Estefany Ballesteros. Medicina estetica ortomolecular con atencion clara y cercana."
+        path="/"
+        image="/doctora/dra1.jpg"
+        keywords={["tratamientos esteticos Bolivia", "armonizacion facial", "agenda medica estetica", "doctora estetica Cochabamba"]}
+        jsonLd={[
+          {
+            "@context": "https://schema.org",
+            "@type": "Physician",
+            name: "Dra. Estefany Ballesteros",
+            medicalSpecialty: "Aesthetic Medicine",
+            areaServed: "Bolivia",
+            url: typeof window !== "undefined" ? `${window.location.origin}/` : "/",
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            name: "Dra. Estefany Ballesteros",
+            url: typeof window !== "undefined" ? window.location.origin : "/",
+          },
+        ]}
+      />
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 overflow-hidden"
@@ -138,7 +161,6 @@ export function HomePage() {
         interest="Consulta general"
         onClose={() => setInfoOpen(false)}
       />
-      <WhatsAppButton />
     </main>
   );
 }

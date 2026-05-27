@@ -108,7 +108,7 @@ export const coursesMock: Course[] = [
     modality: "Presencial",
     price: "Bs. 1.200",
     spots: 20,
-    shortDescription: "Entrenamiento clínico para protocolos elegantes y seguros.",
+    shortDescription: "Entrenamiento clínico para protocolos precisos y seguros.",
     description:
       "Curso intensivo para profesionales que buscan elevar criterio estético, planificación y experiencia del paciente.",
     imageUrl: trainingImage,

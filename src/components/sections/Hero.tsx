@@ -180,7 +180,7 @@ export function Hero({ onRequestInfo }: HeroProps) {
               className="mt-7 max-w-2xl text-lg leading-8 text-[var(--color-copy)] md:text-xl"
             >
               Encuentra rapido tratamientos, promociones y cursos con una atencion
-              medica cercana, elegante y pensada para ayudarte a decidir sin vueltas.
+              medica cercana, clara y pensada para ayudarte a decidir sin vueltas.
             </p>
 
             <div

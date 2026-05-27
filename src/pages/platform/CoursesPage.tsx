@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
+import { Seo } from "../../components/common/Seo";
 import { DoctorByline } from "../../components/platform/DoctorByline";
 import { InfoRequestModal } from "../../components/platform/InfoRequestModal";
 import { ContentCover } from "../../components/ui/ContentCover";
@@ -32,6 +33,13 @@ export function CoursesPage() {
 
   return (
     <section className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24">
+      <Seo
+        title="Cursos de estética y formación clínica | Dra. Estefany Ballesteros"
+        description="Revisa cursos, workshops y programas de formacion para profesionales y estudiantes del area estetica."
+        path="/cursos"
+        image="/doctora/dra3.jpg"
+        keywords={["cursos estetica Bolivia", "formacion clinica estetica", "workshop medicina estetica"]}
+      />
       <PageIntro
         eyebrow="Cursos"
         title="Programas de formación para profesionales y estudiantes del área estética."
