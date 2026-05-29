@@ -80,11 +80,13 @@ const emptyItemForm = {
   sku: "",
   barcode: "",
   unit_id: "",
+  presentation_unit_id: "",
   city: "",
   location_id: "",
   supplier_id: "",
   current_stock: 0,
   minimum_stock: 0,
+  units_per_presentation: 1,
   reference_cost: 0,
   sale_price: 0,
   lot_number: "",
@@ -123,10 +125,12 @@ const emptyLotForm = {
   lot_number: "",
   supplier_id: "",
   location_id: "",
+  presentation_unit_id: "",
   received_date: new Date().toISOString().slice(0, 10),
   expiration_date: "",
   initial_quantity: 0,
   current_quantity: 0,
+  units_per_presentation: 1,
   unit_cost: 0,
   notes: "",
   is_active: true,
@@ -245,6 +249,7 @@ export function InventoryAdminPage() {
         item.category,
         categoryMap.get(item.category_id ?? "")?.name,
         unitMap.get(item.unit_id ?? "")?.name,
+        unitMap.get(item.presentation_unit_id ?? "")?.name,
         supplierMap.get(item.supplier_id ?? "")?.name,
         locationMap.get(item.location_id ?? "")?.name,
       ])
@@ -301,6 +306,7 @@ export function InventoryAdminPage() {
       city: normalizeText(itemForm.city),
       category_id: normalizeText(itemForm.category_id),
       unit_id: normalizeText(itemForm.unit_id),
+      presentation_unit_id: normalizeText(itemForm.presentation_unit_id),
       supplier_id: normalizeText(itemForm.supplier_id),
       location_id: normalizeText(itemForm.location_id),
       lot_number: normalizeText(itemForm.lot_number),
@@ -308,6 +314,7 @@ export function InventoryAdminPage() {
       notes: normalizeText(itemForm.notes),
       current_stock: Number(itemForm.current_stock),
       minimum_stock: Number(itemForm.minimum_stock),
+      units_per_presentation: Math.max(Number(itemForm.units_per_presentation) || 1, 1),
       reference_cost: itemForm.reference_cost > 0 ? Number(itemForm.reference_cost) : null,
       sale_price: itemForm.sale_price > 0 ? Number(itemForm.sale_price) : null,
       alert_days_before_expiration: Number(itemForm.alert_days_before_expiration),
@@ -319,15 +326,18 @@ export function InventoryAdminPage() {
   };
 
   const saveLot = async () => {
+    const selectedItem = itemMap.get(lotForm.item_id);
     const payload = {
       ...lotForm,
       item_id: lotForm.item_id || activeItems[0]?.id,
       supplier_id: normalizeText(lotForm.supplier_id),
       location_id: normalizeText(lotForm.location_id),
+      presentation_unit_id: normalizeText(lotForm.presentation_unit_id) ?? selectedItem?.presentation_unit_id ?? null,
       received_date: normalizeText(lotForm.received_date),
       expiration_date: normalizeText(lotForm.expiration_date),
       initial_quantity: Number(lotForm.initial_quantity),
       current_quantity: Number(lotForm.current_quantity),
+      units_per_presentation: Math.max(Number(lotForm.units_per_presentation) || Number(selectedItem?.units_per_presentation ?? 1), 1),
       unit_cost: lotForm.unit_cost > 0 ? Number(lotForm.unit_cost) : null,
       notes: normalizeText(lotForm.notes),
       updated_by: actorId,
@@ -384,7 +394,7 @@ export function InventoryAdminPage() {
       downloadCsv(`inventario-items-${today}.csv`, filteredItems.map((item) => itemReport(item, categoryMap, unitMap, supplierMap, locationMap)));
     }
     if (kind === "lots") {
-      downloadCsv(`inventario-lotes-${today}.csv`, lots.map((lot) => lotReport(lot, itemMap, supplierMap, locationMap)));
+      downloadCsv(`inventario-lotes-${today}.csv`, lots.map((lot) => lotReport(lot, itemMap, supplierMap, locationMap, unitMap)));
     }
     if (kind === "movements") {
       downloadCsv(`inventario-kardex-${today}.csv`, movements.map((movement) => ({ ...movement })));
@@ -478,9 +488,12 @@ export function InventoryAdminPage() {
               tags={[
                 categoryMap.get(item.category_id ?? "")?.name ?? item.category,
                 unitMap.get(item.unit_id ?? "")?.abbreviation ?? item.unit,
+                unitMap.get(item.presentation_unit_id ?? "")?.abbreviation
+                  ? `${unitMap.get(item.presentation_unit_id ?? "")?.abbreviation} x ${formatInventoryNumber(item.units_per_presentation)}`
+                  : "",
                 locationMap.get(item.location_id ?? "")?.name ?? "Sin lugar",
               ]}
-              detail={`Stock ${item.current_stock} · minimo ${item.minimum_stock} · costo ${formatMoney(item.reference_cost)}`}
+              detail={`Stock ${formatStockSummary(item.current_stock, getUnitLabel(item.unit_id, item.unit, unitMap), item.presentation_unit_id, item.units_per_presentation, unitMap)} · minimo ${formatInventoryNumber(item.minimum_stock)} ${getUnitLabel(item.unit_id, item.unit, unitMap)} · costo ${formatMoney(item.reference_cost)}`}
               deletedRow={item}
               actions={<CrudActions role={role} row={item} table="inventory_items" onEdit={() => openModal("item", item)} onArchive={() => void archive("inventory_items", item.id)} onRestore={() => void restoreRecord("inventory_items", item.id).then(load)} onHardDelete={() => void hardDeleteRecord("inventory_items", item.id).then(load)} />}
             />
@@ -506,7 +519,20 @@ export function InventoryAdminPage() {
       {activeTab === "lotes" ? (
         <Panel eyebrow="Trazabilidad" title="Lotes y vencimientos" action={<CommandButton icon={<Plus className="h-4 w-4" />} label="Lote" onClick={() => openModal("lot")} primary />}>
           <RowsEmpty rows={lots} empty="Sin lotes." render={(lot) => (
-            <RowCard key={lot.id} title={`${itemMap.get(lot.item_id)?.name ?? "Item"} · ${lot.lot_number}`} tags={[locationMap.get(lot.location_id ?? "")?.name ?? "Sin lugar", supplierMap.get(lot.supplier_id ?? "")?.name ?? "Sin proveedor"]} detail={`Cantidad ${lot.current_quantity} / ${lot.initial_quantity} · vence ${formatDate(lot.expiration_date) || "sin fecha"} · costo ${formatMoney(lot.unit_cost)}`} deletedRow={lot} actions={<CrudActions role={role} row={lot} table="inventory_lots" onEdit={() => openModal("lot", lot)} onArchive={() => void archive("inventory_lots", lot.id)} onRestore={() => void restoreRecord("inventory_lots", lot.id).then(load)} onHardDelete={() => void hardDeleteRecord("inventory_lots", lot.id).then(load)} />} />
+            <RowCard
+              key={lot.id}
+              title={`${itemMap.get(lot.item_id)?.name ?? "Item"} · ${lot.lot_number}`}
+              tags={[
+                locationMap.get(lot.location_id ?? "")?.name ?? "Sin lugar",
+                supplierMap.get(lot.supplier_id ?? "")?.name ?? "Sin proveedor",
+                unitMap.get(lot.presentation_unit_id ?? itemMap.get(lot.item_id)?.presentation_unit_id ?? "")?.abbreviation
+                  ? `${unitMap.get(lot.presentation_unit_id ?? itemMap.get(lot.item_id)?.presentation_unit_id ?? "")?.abbreviation} x ${formatInventoryNumber(lot.units_per_presentation ?? itemMap.get(lot.item_id)?.units_per_presentation ?? 1)}`
+                  : "",
+              ]}
+              detail={`Cantidad ${formatStockSummary(lot.current_quantity, getUnitLabel(itemMap.get(lot.item_id)?.unit_id ?? null, itemMap.get(lot.item_id)?.unit ?? "u", unitMap), lot.presentation_unit_id ?? itemMap.get(lot.item_id)?.presentation_unit_id ?? null, lot.units_per_presentation ?? itemMap.get(lot.item_id)?.units_per_presentation ?? 1, unitMap)} / ${formatStockSummary(lot.initial_quantity, getUnitLabel(itemMap.get(lot.item_id)?.unit_id ?? null, itemMap.get(lot.item_id)?.unit ?? "u", unitMap), lot.presentation_unit_id ?? itemMap.get(lot.item_id)?.presentation_unit_id ?? null, lot.units_per_presentation ?? itemMap.get(lot.item_id)?.units_per_presentation ?? 1, unitMap)} · vence ${formatDate(lot.expiration_date) || "sin fecha"} · costo ${formatMoney(lot.unit_cost)}`}
+              deletedRow={lot}
+              actions={<CrudActions role={role} row={lot} table="inventory_lots" onEdit={() => openModal("lot", lot)} onArchive={() => void archive("inventory_lots", lot.id)} onRestore={() => void restoreRecord("inventory_lots", lot.id).then(load)} onHardDelete={() => void hardDeleteRecord("inventory_lots", lot.id).then(load)} />}
+            />
           )} />
         </Panel>
       ) : null}
@@ -817,12 +843,14 @@ function renderModalFields(props: {
         <SelectField label="Categoria" value={f.category_id} onChange={(category_id) => set({ ...f, category_id })} options={props.categories.map((c) => ({ value: c.id, label: c.name }))} />
         <TextField label="SKU" value={f.sku} onChange={(sku) => set({ ...f, sku })} />
         <TextField label="Codigo de barras" value={f.barcode} onChange={(barcode) => set({ ...f, barcode })} />
-        <SelectField label="Unidad / medida" value={f.unit_id} onChange={(unit_id) => set({ ...f, unit_id })} options={props.units.map((u) => ({ value: u.id, label: `${u.name} (${u.abbreviation})` }))} />
+        <SelectField label="Unidad interna de consumo" value={f.unit_id} onChange={(unit_id) => set({ ...f, unit_id })} options={props.units.map((u) => ({ value: u.id, label: `${u.name} (${u.abbreviation})` }))} />
+        <SelectField label="Presentacion de compra" value={f.presentation_unit_id} onChange={(presentation_unit_id) => set({ ...f, presentation_unit_id })} options={props.units.map((u) => ({ value: u.id, label: `${u.name} (${u.abbreviation})` }))} />
+        <NumberField label="Unidades internas por presentacion" value={f.units_per_presentation} onChange={(units_per_presentation) => set({ ...f, units_per_presentation })} />
         <CityField label="Ciudad" value={f.city} onChange={(city) => set({ ...f, city })} />
         <SelectField label="Ubicacion" value={f.location_id} onChange={(location_id) => set({ ...f, location_id })} options={props.locations.map((l) => ({ value: l.id, label: l.name }))} />
         <SelectField label="Proveedor principal" value={f.supplier_id} onChange={(supplier_id) => set({ ...f, supplier_id })} options={props.suppliers.map((s) => ({ value: s.id, label: s.name }))} />
-        <NumberField label="Stock actual" value={f.current_stock} onChange={(current_stock) => set({ ...f, current_stock })} />
-        <NumberField label="Stock minimo" value={f.minimum_stock} onChange={(minimum_stock) => set({ ...f, minimum_stock })} />
+        <NumberField label="Stock actual (unidades internas)" value={f.current_stock} onChange={(current_stock) => set({ ...f, current_stock })} />
+        <NumberField label="Stock minimo (unidades internas)" value={f.minimum_stock} onChange={(minimum_stock) => set({ ...f, minimum_stock })} />
         <NumberField label="Costo unitario" value={f.reference_cost} onChange={(reference_cost) => set({ ...f, reference_cost })} />
         <NumberField label="Precio referencial" value={f.sale_price} onChange={(sale_price) => set({ ...f, sale_price })} />
         <TextField label="Lote actual" value={f.lot_number} onChange={(lot_number) => set({ ...f, lot_number })} />
@@ -843,14 +871,24 @@ function renderModalFields(props: {
     const set = props.setLotForm;
     return (
       <div className="grid gap-4 md:grid-cols-2">
-        <SelectField label="Item" value={f.item_id} onChange={(item_id) => set({ ...f, item_id })} options={props.items.map((i) => ({ value: i.id, label: i.name }))} />
+        <SelectField label="Item" value={f.item_id} onChange={(item_id) => {
+          const item = props.itemMap.get(item_id);
+          set({
+            ...f,
+            item_id,
+            presentation_unit_id: item?.presentation_unit_id ?? "",
+            units_per_presentation: Number(item?.units_per_presentation ?? 1),
+          });
+        }} options={props.items.map((i) => ({ value: i.id, label: i.name }))} />
         <TextField label="Numero de lote" value={f.lot_number} onChange={(lot_number) => set({ ...f, lot_number })} />
         <SelectField label="Proveedor" value={f.supplier_id} onChange={(supplier_id) => set({ ...f, supplier_id })} options={props.suppliers.map((s) => ({ value: s.id, label: s.name }))} />
         <SelectField label="Ubicacion" value={f.location_id} onChange={(location_id) => set({ ...f, location_id })} options={props.locations.map((l) => ({ value: l.id, label: l.name }))} />
+        <SelectField label="Presentacion del lote" value={f.presentation_unit_id} onChange={(presentation_unit_id) => set({ ...f, presentation_unit_id })} options={props.units.map((u) => ({ value: u.id, label: `${u.name} (${u.abbreviation})` }))} />
+        <NumberField label="Unidades internas por presentacion" value={f.units_per_presentation} onChange={(units_per_presentation) => set({ ...f, units_per_presentation })} />
         <Field label="Fecha de recepcion"><input type="date" value={f.received_date} onChange={(event) => set({ ...f, received_date: event.target.value })} className="premium-input" /></Field>
         <Field label="Vencimiento"><input type="date" value={f.expiration_date} onChange={(event) => set({ ...f, expiration_date: event.target.value })} className="premium-input" /></Field>
-        <NumberField label="Cantidad inicial" value={f.initial_quantity} onChange={(initial_quantity) => set({ ...f, initial_quantity })} />
-        <NumberField label="Cantidad actual" value={f.current_quantity} onChange={(current_quantity) => set({ ...f, current_quantity })} />
+        <NumberField label="Cantidad inicial (unidades internas)" value={f.initial_quantity} onChange={(initial_quantity) => set({ ...f, initial_quantity })} />
+        <NumberField label="Cantidad actual (unidades internas)" value={f.current_quantity} onChange={(current_quantity) => set({ ...f, current_quantity })} />
         <NumberField label="Costo unitario" value={f.unit_cost} onChange={(unit_cost) => set({ ...f, unit_cost })} />
         <TextareaField label="Notas" value={f.notes} onChange={(notes) => set({ ...f, notes })} />
       </div>
@@ -865,7 +903,7 @@ function renderModalFields(props: {
       <div className="grid gap-4 md:grid-cols-2">
         <SelectField label="Item" value={f.item_id} onChange={(item_id) => set({ ...f, item_id, lot_id: "" })} options={props.items.map((i) => ({ value: i.id, label: i.name }))} />
         <SelectField label="Tipo de movimiento" value={f.movement_type} onChange={(movement_type) => set({ ...f, movement_type: movement_type as InventoryMovementRow["movement_type"] })} options={["entrada", "salida", "merma", "transferencia", "ajuste"].map((v) => ({ value: v, label: v }))} />
-        <NumberField label="Cantidad" value={f.quantity} onChange={(quantity) => set({ ...f, quantity })} />
+        <NumberField label="Cantidad (unidades internas)" value={f.quantity} onChange={(quantity) => set({ ...f, quantity })} />
         <NumberField label="Costo unitario" value={f.unit_cost} onChange={(unit_cost) => set({ ...f, unit_cost })} />
         <SelectField label="Lote" value={f.lot_id} onChange={(lot_id) => set({ ...f, lot_id })} options={itemLots.map((l) => ({ value: l.id, label: l.lot_number }))} />
         <SelectField label="Proveedor" value={f.supplier_id} onChange={(supplier_id) => set({ ...f, supplier_id })} options={props.suppliers.map((s) => ({ value: s.id, label: s.name }))} />
@@ -886,7 +924,7 @@ function renderModalFields(props: {
         const item = props.itemMap.get(item_id);
         set({ ...f, item_id, counted_stock: Number(item?.current_stock ?? 0) });
       }} options={props.items.map((i) => ({ value: i.id, label: i.name }))} />
-      <NumberField label="Stock contado" value={f.counted_stock} onChange={(counted_stock) => set({ ...f, counted_stock })} />
+      <NumberField label="Stock contado (unidades internas)" value={f.counted_stock} onChange={(counted_stock) => set({ ...f, counted_stock })} />
       <SelectField label="Ubicacion" value={f.location_id} onChange={(location_id) => set({ ...f, location_id })} options={props.locations.map((l) => ({ value: l.id, label: l.name }))} />
       <Field label="Fecha"><input type="date" value={f.count_date} onChange={(event) => set({ ...f, count_date: event.target.value })} className="premium-input" /></Field>
       <TextareaField label="Notas" value={f.notes} onChange={(notes) => set({ ...f, notes })} />
@@ -995,11 +1033,13 @@ function itemToForm(item: InventoryItemRow) {
     sku: item.sku ?? "",
     barcode: item.barcode ?? "",
     unit_id: item.unit_id ?? "",
+    presentation_unit_id: item.presentation_unit_id ?? "",
     city: item.city ?? "",
     location_id: item.location_id ?? "",
     supplier_id: item.supplier_id ?? "",
     current_stock: Number(item.current_stock ?? 0),
     minimum_stock: Number(item.minimum_stock ?? 0),
+    units_per_presentation: Number(item.units_per_presentation ?? 1),
     reference_cost: Number(item.reference_cost ?? 0),
     sale_price: Number(item.sale_price ?? 0),
     lot_number: item.lot_number ?? "",
@@ -1016,10 +1056,12 @@ function lotToForm(lot: InventoryLotRow) {
     lot_number: lot.lot_number,
     supplier_id: lot.supplier_id ?? "",
     location_id: lot.location_id ?? "",
+    presentation_unit_id: lot.presentation_unit_id ?? "",
     received_date: lot.received_date ?? "",
     expiration_date: lot.expiration_date ?? "",
     initial_quantity: Number(lot.initial_quantity ?? 0),
     current_quantity: Number(lot.current_quantity ?? 0),
+    units_per_presentation: Number(lot.units_per_presentation ?? 1),
     unit_cost: Number(lot.unit_cost ?? 0),
     notes: lot.notes ?? "",
     is_active: lot.is_active,
@@ -1066,6 +1108,30 @@ function unitPayload(form: typeof emptyUnitForm) {
   return { ...form, base_unit_id: normalizeText(form.base_unit_id), conversion_factor: Number(form.conversion_factor) };
 }
 
+function formatInventoryNumber(value?: number | string | null) {
+  const parsed = Number(value ?? 0);
+  if (!Number.isFinite(parsed)) return "0";
+  return Number.isInteger(parsed) ? String(parsed) : parsed.toLocaleString("es-BO", { maximumFractionDigits: 2 });
+}
+
+function getUnitLabel(unitId: string | null | undefined, fallback: string | null | undefined, unitMap: Map<string, InventoryUnitRow>) {
+  return unitMap.get(unitId ?? "")?.abbreviation ?? fallback ?? "u";
+}
+
+function formatStockSummary(
+  quantity: number,
+  unitLabel: string,
+  presentationUnitId: string | null | undefined,
+  unitsPerPresentation: number,
+  unitMap: Map<string, InventoryUnitRow>
+) {
+  const base = `${formatInventoryNumber(quantity)} ${unitLabel}`;
+  const presentationLabel = unitMap.get(presentationUnitId ?? "")?.abbreviation ?? unitMap.get(presentationUnitId ?? "")?.name ?? "";
+  const presentationSize = Number(unitsPerPresentation ?? 0);
+  if (!presentationLabel || presentationSize <= 1) return base;
+  return `${base} (equiv. ${formatInventoryNumber(quantity / presentationSize)} ${presentationLabel})`;
+}
+
 function itemReport(
   item: InventoryItemRow,
   categoryMap: Map<string, InventoryCategoryRow>,
@@ -1079,7 +1145,9 @@ function itemReport(
     categoria: categoryMap.get(item.category_id ?? "")?.name ?? item.category,
     sku: item.sku,
     codigo_barras: item.barcode,
-    unidad: unitMap.get(item.unit_id ?? "")?.abbreviation ?? item.unit,
+    unidad_consumo: getUnitLabel(item.unit_id, item.unit, unitMap),
+    presentacion_compra: unitMap.get(item.presentation_unit_id ?? "")?.abbreviation ?? unitMap.get(item.presentation_unit_id ?? "")?.name,
+    unidades_por_presentacion: item.units_per_presentation,
     proveedor: supplierMap.get(item.supplier_id ?? "")?.name,
     ubicacion: locationMap.get(item.location_id ?? "")?.name,
     stock_actual: item.current_stock,
@@ -1096,13 +1164,16 @@ function lotReport(
   lot: InventoryLotRow,
   itemMap: Map<string, InventoryItemRow>,
   supplierMap: Map<string, InventorySupplierRow>,
-  locationMap: Map<string, InventoryLocationRow>
+  locationMap: Map<string, InventoryLocationRow>,
+  unitMap: Map<string, InventoryUnitRow>
 ) {
   return {
     item: itemMap.get(lot.item_id)?.name,
     lote: lot.lot_number,
     proveedor: supplierMap.get(lot.supplier_id ?? "")?.name,
     ubicacion: locationMap.get(lot.location_id ?? "")?.name,
+    presentacion_lote: unitMap.get(lot.presentation_unit_id ?? itemMap.get(lot.item_id)?.presentation_unit_id ?? "")?.abbreviation ?? unitMap.get(lot.presentation_unit_id ?? itemMap.get(lot.item_id)?.presentation_unit_id ?? "")?.name,
+    unidades_por_presentacion: lot.units_per_presentation ?? itemMap.get(lot.item_id)?.units_per_presentation,
     recibido: lot.received_date,
     vencimiento: lot.expiration_date,
     cantidad_inicial: lot.initial_quantity,

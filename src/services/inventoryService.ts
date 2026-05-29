@@ -7,6 +7,7 @@ export type InventoryItemRow = DeletionMetadata & {
   category: string;
   category_id: string | null;
   unit_id: string | null;
+  presentation_unit_id: string | null;
   supplier_id: string | null;
   sku: string | null;
   barcode: string | null;
@@ -15,6 +16,7 @@ export type InventoryItemRow = DeletionMetadata & {
   city: string | null;
   current_stock: number;
   minimum_stock: number;
+  units_per_presentation: number;
   reference_cost: number | null;
   sale_price: number | null;
   lot_number: string | null;
@@ -108,10 +110,12 @@ export type InventoryLotRow = DeletionMetadata & {
   lot_number: string;
   supplier_id: string | null;
   location_id: string | null;
+  presentation_unit_id: string | null;
   received_date: string | null;
   expiration_date: string | null;
   initial_quantity: number;
   current_quantity: number;
+  units_per_presentation: number;
   unit_cost: number | null;
   notes: string | null;
   is_active: boolean;

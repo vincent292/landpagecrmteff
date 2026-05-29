@@ -96,6 +96,19 @@ function formatClinicalTime(value?: string | null, fallbackDateTime?: string | n
   return new Date(fallbackDateTime).toLocaleTimeString("es-BO", { hour: "2-digit", minute: "2-digit" });
 }
 
+function formatInventoryNumber(value?: number | string | null) {
+  const parsed = Number(value ?? 0);
+  if (!Number.isFinite(parsed)) return "0";
+  return Number.isInteger(parsed) ? String(parsed) : parsed.toLocaleString("es-BO", { maximumFractionDigits: 2 });
+}
+
+function formatPresentationHint(item?: InventoryItemRow | null, lot?: InventoryLotRow | null) {
+  const unitsPerPresentation = Number(lot?.units_per_presentation ?? item?.units_per_presentation ?? 0);
+  const hasPresentation = Boolean(lot?.presentation_unit_id ?? item?.presentation_unit_id);
+  if (!item || !hasPresentation || unitsPerPresentation <= 1) return null;
+  return `Cada presentacion equivale a ${formatInventoryNumber(unitsPerPresentation)} ${item.unit}.`;
+}
+
 function emptyNote(doctorId = "", noteType: ClinicalNoteType = "procedimiento"): NoteValues {
   return {
     note_type: noteType,
@@ -607,7 +620,7 @@ export function PatientClinicalHistoryPage() {
                   <option value="">Selecciona item</option>
                   {inventoryItems.filter((item) => !item.is_deleted && item.is_active).map((item) => (
                     <option key={item.id} value={item.id}>
-                      {item.name} - stock {item.current_stock} {item.unit}
+                      {item.name} - stock {formatInventoryNumber(item.current_stock)} {item.unit}{Number(item.units_per_presentation ?? 1) > 1 ? ` - x ${formatInventoryNumber(item.units_per_presentation)}` : ""}
                     </option>
                   ))}
                 </select>
@@ -617,7 +630,7 @@ export function PatientClinicalHistoryPage() {
                   <option value="">Sin lote</option>
                   {filteredLots.map((lot) => (
                     <option key={lot.id} value={lot.id}>
-                      {lot.lot_number} - {lot.current_quantity} disponibles
+                      {lot.lot_number} - {formatInventoryNumber(lot.current_quantity)} disponibles{Number(lot.units_per_presentation ?? selectedItem?.units_per_presentation ?? 1) > 1 ? ` - x ${formatInventoryNumber(lot.units_per_presentation ?? selectedItem?.units_per_presentation ?? 1)}` : ""}
                     </option>
                   ))}
                 </select>
@@ -625,6 +638,11 @@ export function PatientClinicalHistoryPage() {
               <Field label={`Cantidad usada${selectedItem ? ` (${selectedItem.unit})` : ""}`}>
                 <input type="number" min="0.01" step="0.01" value={inventoryForm.quantity} onChange={(event) => setInventoryForm({ ...inventoryForm, quantity: Number(event.target.value) })} className="premium-input" />
               </Field>
+              {selectedItem ? (
+                <p className="text-xs text-[var(--color-copy)]">
+                  Se descuenta del stock global compartido entre todas las doctoras. {formatPresentationHint(selectedItem, filteredLots.find((lot) => lot.id === inventoryForm.lot_id) ?? null) ?? "Registra siempre la cantidad real usada en la unidad interna del item."}
+                </p>
+              ) : null}
               <Field label="Notas">
                 <textarea value={inventoryForm.notes} onChange={(event) => setInventoryForm({ ...inventoryForm, notes: event.target.value })} className="premium-input min-h-24" placeholder="Ej. Toxina botulinica aplicada en zona frontal" />
               </Field>
