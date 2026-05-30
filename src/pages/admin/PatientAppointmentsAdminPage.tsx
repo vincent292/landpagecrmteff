@@ -246,6 +246,7 @@ export function PatientAppointmentsAdminPage() {
           end_time: selectedSlot.end_time,
           city: values.city,
           appointment_type: selectedSlot.appointment_type,
+          care_mode: selectedSlot.care_mode,
           notes: values.notes,
         });
         if (values.register_payment_now && values.payment_amount > 0) {

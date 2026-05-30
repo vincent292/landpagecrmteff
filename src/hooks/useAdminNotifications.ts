@@ -5,6 +5,7 @@ import type { UserRole } from "../types/platform";
 import { getVisibleDeletionFilter } from "../services/adminDeletionService";
 import { getBookOrdersAdmin } from "../services/bookOrderService";
 import { getEnrollmentById } from "../services/enrollmentService";
+import { getInventoryItems, getInventoryLots } from "../services/inventoryService";
 import { isPaymentManagedReservation } from "../services/paymentsAndReservationsService";
 import { getPromotionOrderById } from "../services/promotionOrderService";
 import { getInformationRequestById } from "../services/requestService";
@@ -13,11 +14,11 @@ import { getReservationById } from "../services/reservationService";
 export type AdminNotification = {
   id: string;
   entityId: string;
-  type: "request" | "enrollment" | "reservation" | "promotion_order" | "book_order" | "appointment";
+  type: "request" | "enrollment" | "reservation" | "promotion_order" | "book_order" | "appointment" | "inventory";
   title: string;
   detail: string;
   href: string;
-  module: "solicitudes" | "pagos-reservas" | "citas";
+  module: "dashboard" | "solicitudes" | "pagos-reservas" | "citas";
   createdAt: string;
 };
 
@@ -125,6 +126,45 @@ function buildDoctorConfirmedReservationNotification(row: {
   };
 }
 
+async function getInventoryAlertNotification() {
+  const [itemRows, lotRows] = await Promise.all([getInventoryItems(), getInventoryLots()]);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const nextThirtyDays = new Date(today);
+  nextThirtyDays.setDate(nextThirtyDays.getDate() + 30);
+
+  const lowStockItems = itemRows.filter(
+    (item) =>
+      item.is_active &&
+      !item.is_deleted &&
+      Number(item.current_stock ?? 0) <= Number(item.minimum_stock ?? 0)
+  );
+
+  const expiringLots = lotRows.filter((lot) => {
+    if (!lot.is_active || lot.is_deleted || !lot.expiration_date || Number(lot.current_quantity ?? 0) <= 0) return false;
+    const expiration = new Date(`${lot.expiration_date}T00:00:00`);
+    return expiration >= today && expiration <= nextThirtyDays;
+  });
+
+  if (lowStockItems.length === 0 && expiringLots.length === 0) return null;
+
+  const timestamps = [
+    ...lowStockItems.map((item) => item.updated_at ?? item.created_at),
+    ...expiringLots.map((lot) => lot.updated_at ?? lot.created_at),
+  ].filter(Boolean);
+
+  return {
+    id: "inventory-low-stock",
+    entityId: "inventory-low-stock",
+    type: "inventory" as const,
+    title: "Alerta de inventario",
+    detail: `${lowStockItems.length} items con stock bajo y ${expiringLots.length} lotes por vencer.`,
+    href: "/panel/inventario",
+    module: "dashboard" as const,
+    createdAt: timestamps.sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] ?? new Date().toISOString(),
+  };
+}
+
 export function useAdminNotifications(userId?: string | null, role?: UserRole) {
   const [items, setItems] = useState<AdminNotification[]>([]);
   const [lastSeenAt, setLastSeenAt] = useState<string>(new Date(0).toISOString());
@@ -169,7 +209,7 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
       const enrollmentsFilter = getVisibleDeletionFilter("course_enrollments", false);
       const promotionOrdersFilter = getVisibleDeletionFilter("promotion_orders", false);
 
-      const [requestsResult, enrollmentsResult, promotionOrdersResult, reservationsResult, bookOrders, doctorAppointmentsResult] = await Promise.all([
+      const [requestsResult, enrollmentsResult, promotionOrdersResult, reservationsResult, bookOrders, doctorAppointmentsResult, inventoryNotification] = await Promise.all([
         supabase
           .from("information_requests")
           .select("id, full_name, interest_title, interest_type, created_at")
@@ -214,6 +254,7 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
               .eq("doctor_id", doctorProfileId)
               .order("created_at", { ascending: false })
               .limit(6),
+        role === "doctor" ? Promise.resolve(null) : getInventoryAlertNotification().catch(() => null),
       ]);
 
       if (!active) return;
@@ -294,6 +335,7 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
                 if (confirmedNotification) doctorNotifications.push(confirmedNotification);
                 return doctorNotifications;
               })),
+        ...(inventoryNotification ? [inventoryNotification] : []),
       ];
 
       setItems(sortNotifications(notifications));
@@ -315,6 +357,16 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
       setItems((current) => {
         const next = [notification, ...current.filter((item) => item.id !== notification.id)];
         return sortNotifications(next);
+      });
+    };
+
+    const syncInventoryNotification = async () => {
+      if (!active) return;
+      const notification = await getInventoryAlertNotification().catch(() => null);
+      setItems((current) => {
+        const withoutInventory = current.filter((item) => item.type !== "inventory");
+        if (!notification) return withoutInventory;
+        return sortNotifications([notification, ...withoutInventory]);
       });
     };
 
@@ -414,6 +466,20 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
             module: "pagos-reservas",
             createdAt: row.created_at,
           });
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "inventory_items" },
+        async () => {
+          await syncInventoryNotification();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "inventory_lots" },
+        async () => {
+          await syncInventoryNotification();
         }
       )
       .subscribe();

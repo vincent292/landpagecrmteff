@@ -19,7 +19,10 @@ export type TreatmentRow = DeletionMetadata & {
   expected_results: string | null;
   cover_image: string | null;
   city: string | null;
+  assessment_mode?: "presencial" | "virtual" | "ambas" | null;
   assessment_price?: number | null;
+  assessment_price_presencial?: number | null;
+  assessment_price_virtual?: number | null;
   is_featured: boolean | null;
   is_active: boolean | null;
   doctor_id: string | null;

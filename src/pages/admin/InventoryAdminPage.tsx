@@ -87,6 +87,8 @@ const emptyItemForm = {
   current_stock: 0,
   minimum_stock: 0,
   units_per_presentation: 1,
+  current_stock_presentations: 0,
+  minimum_stock_presentations: 0,
   reference_cost: 0,
   sale_price: 0,
   lot_number: "",
@@ -131,6 +133,8 @@ const emptyLotForm = {
   initial_quantity: 0,
   current_quantity: 0,
   units_per_presentation: 1,
+  initial_quantity_presentations: 0,
+  current_quantity_presentations: 0,
   unit_cost: 0,
   notes: "",
   is_active: true,
@@ -173,6 +177,7 @@ export function InventoryAdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<{ type: "error"; text: string } | null>(null);
   const [itemForm, setItemForm] = useState(emptyItemForm);
   const [categoryForm, setCategoryForm] = useState(emptyCategoryForm);
   const [unitForm, setUnitForm] = useState(emptyUnitForm);
@@ -260,6 +265,7 @@ export function InventoryAdminPage() {
 
   const openModal = (nextModal: Exclude<ModalKey, null>, row?: unknown) => {
     setEditing(row ?? null);
+    setSaveStatus(null);
     if (nextModal === "item") setItemForm(row ? itemToForm(row as InventoryItemRow) : emptyItemForm);
     if (nextModal === "category") setCategoryForm(row ? pickCategory(row as InventoryCategoryRow) : emptyCategoryForm);
     if (nextModal === "unit") setUnitForm(row ? pickUnit(row as InventoryUnitRow) : emptyUnitForm);
@@ -274,10 +280,12 @@ export function InventoryAdminPage() {
   const closeModal = () => {
     setModal(null);
     setEditing(null);
+    setSaveStatus(null);
   };
 
   const submit = async () => {
     setSaving(true);
+    setSaveStatus(null);
     try {
       if (modal === "item") await saveItem();
       if (modal === "category") await saveSimple("inventory_categories", editing as InventoryCategoryRow | null, categoryForm, createInventoryCategory, updateInventoryCategory);
@@ -289,6 +297,9 @@ export function InventoryAdminPage() {
       if (modal === "count") await saveCount();
       closeModal();
       load();
+    } catch (submitError) {
+      console.error("Error guardando inventario", submitError);
+      setSaveStatus({ type: "error", text: getInventorySubmitErrorMessage(submitError) });
     } finally {
       setSaving(false);
     }
@@ -297,27 +308,36 @@ export function InventoryAdminPage() {
   const saveItem = async () => {
     const category = categoryMap.get(itemForm.category_id);
     const unit = unitMap.get(itemForm.unit_id);
+    const presentationUnitId = normalizeText(itemForm.presentation_unit_id);
+    const unitsPerPresentation = Math.max(Number(itemForm.units_per_presentation) || 1, 1);
+    const usesPresentation = hasPresentationConfig(presentationUnitId, unitsPerPresentation);
     const payload = {
-      ...itemForm,
       category: category?.name ?? "General",
       unit: unit?.abbreviation ?? "u",
+      name: itemForm.name,
+      item_type: itemForm.item_type,
       sku: normalizeText(itemForm.sku),
       barcode: normalizeText(itemForm.barcode),
       city: normalizeText(itemForm.city),
       category_id: normalizeText(itemForm.category_id),
       unit_id: normalizeText(itemForm.unit_id),
-      presentation_unit_id: normalizeText(itemForm.presentation_unit_id),
+      presentation_unit_id: presentationUnitId,
       supplier_id: normalizeText(itemForm.supplier_id),
       location_id: normalizeText(itemForm.location_id),
       lot_number: normalizeText(itemForm.lot_number),
       expiration_date: normalizeText(itemForm.expiration_date),
       notes: normalizeText(itemForm.notes),
-      current_stock: Number(itemForm.current_stock),
-      minimum_stock: Number(itemForm.minimum_stock),
-      units_per_presentation: Math.max(Number(itemForm.units_per_presentation) || 1, 1),
+      current_stock: usesPresentation
+        ? toInternalQuantity(Number(itemForm.current_stock_presentations), unitsPerPresentation)
+        : Number(itemForm.current_stock),
+      minimum_stock: usesPresentation
+        ? toInternalQuantity(Number(itemForm.minimum_stock_presentations), unitsPerPresentation)
+        : Number(itemForm.minimum_stock),
+      units_per_presentation: unitsPerPresentation,
       reference_cost: itemForm.reference_cost > 0 ? Number(itemForm.reference_cost) : null,
       sale_price: itemForm.sale_price > 0 ? Number(itemForm.sale_price) : null,
       alert_days_before_expiration: Number(itemForm.alert_days_before_expiration),
+      is_active: itemForm.is_active,
       updated_by: actorId,
     };
     const current = editing as InventoryItemRow | null;
@@ -327,19 +347,27 @@ export function InventoryAdminPage() {
 
   const saveLot = async () => {
     const selectedItem = itemMap.get(lotForm.item_id);
+    const presentationUnitId = normalizeText(lotForm.presentation_unit_id) ?? selectedItem?.presentation_unit_id ?? null;
+    const unitsPerPresentation = Math.max(Number(lotForm.units_per_presentation) || Number(selectedItem?.units_per_presentation ?? 1), 1);
+    const usesPresentation = hasPresentationConfig(presentationUnitId, unitsPerPresentation);
     const payload = {
-      ...lotForm,
       item_id: lotForm.item_id || activeItems[0]?.id,
+      lot_number: lotForm.lot_number,
       supplier_id: normalizeText(lotForm.supplier_id),
       location_id: normalizeText(lotForm.location_id),
-      presentation_unit_id: normalizeText(lotForm.presentation_unit_id) ?? selectedItem?.presentation_unit_id ?? null,
+      presentation_unit_id: presentationUnitId,
       received_date: normalizeText(lotForm.received_date),
       expiration_date: normalizeText(lotForm.expiration_date),
-      initial_quantity: Number(lotForm.initial_quantity),
-      current_quantity: Number(lotForm.current_quantity),
-      units_per_presentation: Math.max(Number(lotForm.units_per_presentation) || Number(selectedItem?.units_per_presentation ?? 1), 1),
+      initial_quantity: usesPresentation
+        ? toInternalQuantity(Number(lotForm.initial_quantity_presentations), unitsPerPresentation)
+        : Number(lotForm.initial_quantity),
+      current_quantity: usesPresentation
+        ? toInternalQuantity(Number(lotForm.current_quantity_presentations), unitsPerPresentation)
+        : Number(lotForm.current_quantity),
+      units_per_presentation: unitsPerPresentation,
       unit_cost: lotForm.unit_cost > 0 ? Number(lotForm.unit_cost) : null,
       notes: normalizeText(lotForm.notes),
+      is_active: lotForm.is_active,
       updated_by: actorId,
     };
     const current = editing as InventoryLotRow | null;
@@ -493,7 +521,7 @@ export function InventoryAdminPage() {
                   : "",
                 locationMap.get(item.location_id ?? "")?.name ?? "Sin lugar",
               ]}
-              detail={`Stock ${formatStockSummary(item.current_stock, getUnitLabel(item.unit_id, item.unit, unitMap), item.presentation_unit_id, item.units_per_presentation, unitMap)} · minimo ${formatInventoryNumber(item.minimum_stock)} ${getUnitLabel(item.unit_id, item.unit, unitMap)} · costo ${formatMoney(item.reference_cost)}`}
+              detail={`Stock ${formatStockSummary(item.current_stock, getUnitLabel(item.unit_id, item.unit, unitMap), item.presentation_unit_id, item.units_per_presentation, unitMap)} · minimo ${formatStockSummary(item.minimum_stock, getUnitLabel(item.unit_id, item.unit, unitMap), item.presentation_unit_id, item.units_per_presentation, unitMap)} · costo ${formatMoney(item.reference_cost)}`}
               deletedRow={item}
               actions={<CrudActions role={role} row={item} table="inventory_items" onEdit={() => openModal("item", item)} onArchive={() => void archive("inventory_items", item.id)} onRestore={() => void restoreRecord("inventory_items", item.id).then(load)} onHardDelete={() => void hardDeleteRecord("inventory_items", item.id).then(load)} />}
             />
@@ -630,9 +658,14 @@ export function InventoryAdminPage() {
             units,
             suppliers,
             locations,
-            lots,
-            itemMap,
-          })}
+          lots,
+          itemMap,
+        })}
+          {saveStatus ? (
+            <div className="mt-6 rounded-[22px] border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
+              {saveStatus.text}
+            </div>
+          ) : null}
           <div className="mt-6 flex flex-wrap gap-3">
             <button onClick={() => void submit()} disabled={saving} className="rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-60">
               {saving ? "Guardando..." : "Guardar"}
@@ -836,6 +869,15 @@ function renderModalFields(props: {
   if (props.modal === "item") {
     const f = props.itemForm;
     const set = props.setItemForm;
+    const consumptionUnit = props.units.find((unit) => unit.id === f.unit_id)?.abbreviation ?? "u";
+    const presentationUnit = props.units.find((unit) => unit.id === f.presentation_unit_id)?.abbreviation ?? "presentacion";
+    const usesPresentation = hasPresentationConfig(f.presentation_unit_id, f.units_per_presentation);
+    const projectedCurrentStock = usesPresentation
+      ? toInternalQuantity(Number(f.current_stock_presentations), Number(f.units_per_presentation))
+      : Number(f.current_stock);
+    const projectedMinimumStock = usesPresentation
+      ? toInternalQuantity(Number(f.minimum_stock_presentations), Number(f.units_per_presentation))
+      : Number(f.minimum_stock);
     return (
       <div className="grid gap-4 md:grid-cols-2">
         <TextField label="Nombre" value={f.name} onChange={(name) => set({ ...f, name })} />
@@ -843,14 +885,31 @@ function renderModalFields(props: {
         <SelectField label="Categoria" value={f.category_id} onChange={(category_id) => set({ ...f, category_id })} options={props.categories.map((c) => ({ value: c.id, label: c.name }))} />
         <TextField label="SKU" value={f.sku} onChange={(sku) => set({ ...f, sku })} />
         <TextField label="Codigo de barras" value={f.barcode} onChange={(barcode) => set({ ...f, barcode })} />
-        <SelectField label="Unidad interna de consumo" value={f.unit_id} onChange={(unit_id) => set({ ...f, unit_id })} options={props.units.map((u) => ({ value: u.id, label: `${u.name} (${u.abbreviation})` }))} />
-        <SelectField label="Presentacion de compra" value={f.presentation_unit_id} onChange={(presentation_unit_id) => set({ ...f, presentation_unit_id })} options={props.units.map((u) => ({ value: u.id, label: `${u.name} (${u.abbreviation})` }))} />
-        <NumberField label="Unidades internas por presentacion" value={f.units_per_presentation} onChange={(units_per_presentation) => set({ ...f, units_per_presentation })} />
+        <SelectField label="Unidad que se usa en consulta" value={f.unit_id} onChange={(unit_id) => set({ ...f, unit_id })} options={props.units.map((u) => ({ value: u.id, label: `${u.name} (${u.abbreviation})` }))} />
+        <SelectField label="Se compra en" value={f.presentation_unit_id} onChange={(presentation_unit_id) => set({ ...f, presentation_unit_id })} options={props.units.map((u) => ({ value: u.id, label: `${u.name} (${u.abbreviation})` }))} />
+        <NumberField label="Cuantas unidades de uso trae cada presentacion" value={f.units_per_presentation} onChange={(units_per_presentation) => set({ ...f, units_per_presentation })} />
+        <InlineHint
+          text={
+            usesPresentation
+              ? `Configuracion activa: 1 ${presentationUnit} = ${formatInventoryNumber(Number(f.units_per_presentation))} ${consumptionUnit}. Escribe abajo el stock en ${presentationUnit} y el sistema lo convertira solo.`
+              : "Usa estos campos solo si el insumo se compra por caja, frasco o ampolla, pero en consulta se descuenta por unidades internas."
+          }
+        />
         <CityField label="Ciudad" value={f.city} onChange={(city) => set({ ...f, city })} />
         <SelectField label="Ubicacion" value={f.location_id} onChange={(location_id) => set({ ...f, location_id })} options={props.locations.map((l) => ({ value: l.id, label: l.name }))} />
         <SelectField label="Proveedor principal" value={f.supplier_id} onChange={(supplier_id) => set({ ...f, supplier_id })} options={props.suppliers.map((s) => ({ value: s.id, label: s.name }))} />
-        <NumberField label="Stock actual (unidades internas)" value={f.current_stock} onChange={(current_stock) => set({ ...f, current_stock })} />
-        <NumberField label="Stock minimo (unidades internas)" value={f.minimum_stock} onChange={(minimum_stock) => set({ ...f, minimum_stock })} />
+        {usesPresentation ? (
+          <>
+            <NumberField label={`Stock actual en ${presentationUnit}`} value={f.current_stock_presentations} onChange={(current_stock_presentations) => set({ ...f, current_stock_presentations })} />
+            <NumberField label={`Stock minimo en ${presentationUnit}`} value={f.minimum_stock_presentations} onChange={(minimum_stock_presentations) => set({ ...f, minimum_stock_presentations })} />
+            <InlineHint text={`Ejemplo: si escribes ${formatInventoryNumber(Number(f.current_stock_presentations) || 0)} ${presentationUnit}, se guardaran ${formatInventoryNumber(projectedCurrentStock)} ${consumptionUnit}. El minimo quedara en ${formatInventoryNumber(projectedMinimumStock)} ${consumptionUnit}.`} />
+          </>
+        ) : (
+          <>
+            <NumberField label={`Stock actual en ${consumptionUnit}`} value={f.current_stock} onChange={(current_stock) => set({ ...f, current_stock })} />
+            <NumberField label={`Stock minimo en ${consumptionUnit}`} value={f.minimum_stock} onChange={(minimum_stock) => set({ ...f, minimum_stock })} />
+          </>
+        )}
         <NumberField label="Costo unitario" value={f.reference_cost} onChange={(reference_cost) => set({ ...f, reference_cost })} />
         <NumberField label="Precio referencial" value={f.sale_price} onChange={(sale_price) => set({ ...f, sale_price })} />
         <TextField label="Lote actual" value={f.lot_number} onChange={(lot_number) => set({ ...f, lot_number })} />
@@ -869,6 +928,16 @@ function renderModalFields(props: {
   if (props.modal === "lot") {
     const f = props.lotForm;
     const set = props.setLotForm;
+    const item = props.itemMap.get(f.item_id);
+    const consumptionUnit = props.units.find((unit) => unit.id === item?.unit_id)?.abbreviation ?? item?.unit ?? "u";
+    const presentationUnit = props.units.find((unit) => unit.id === f.presentation_unit_id)?.abbreviation ?? "presentacion";
+    const usesPresentation = hasPresentationConfig(f.presentation_unit_id, f.units_per_presentation);
+    const projectedInitialStock = usesPresentation
+      ? toInternalQuantity(Number(f.initial_quantity_presentations), Number(f.units_per_presentation))
+      : Number(f.initial_quantity);
+    const projectedCurrentStock = usesPresentation
+      ? toInternalQuantity(Number(f.current_quantity_presentations), Number(f.units_per_presentation))
+      : Number(f.current_quantity);
     return (
       <div className="grid gap-4 md:grid-cols-2">
         <SelectField label="Item" value={f.item_id} onChange={(item_id) => {
@@ -878,17 +947,36 @@ function renderModalFields(props: {
             item_id,
             presentation_unit_id: item?.presentation_unit_id ?? "",
             units_per_presentation: Number(item?.units_per_presentation ?? 1),
+            initial_quantity_presentations: Number(item?.units_per_presentation ?? 1) > 1 ? 0 : f.initial_quantity_presentations,
+            current_quantity_presentations: Number(item?.units_per_presentation ?? 1) > 1 ? 0 : f.current_quantity_presentations,
           });
         }} options={props.items.map((i) => ({ value: i.id, label: i.name }))} />
         <TextField label="Numero de lote" value={f.lot_number} onChange={(lot_number) => set({ ...f, lot_number })} />
         <SelectField label="Proveedor" value={f.supplier_id} onChange={(supplier_id) => set({ ...f, supplier_id })} options={props.suppliers.map((s) => ({ value: s.id, label: s.name }))} />
         <SelectField label="Ubicacion" value={f.location_id} onChange={(location_id) => set({ ...f, location_id })} options={props.locations.map((l) => ({ value: l.id, label: l.name }))} />
-        <SelectField label="Presentacion del lote" value={f.presentation_unit_id} onChange={(presentation_unit_id) => set({ ...f, presentation_unit_id })} options={props.units.map((u) => ({ value: u.id, label: `${u.name} (${u.abbreviation})` }))} />
-        <NumberField label="Unidades internas por presentacion" value={f.units_per_presentation} onChange={(units_per_presentation) => set({ ...f, units_per_presentation })} />
+        <SelectField label="El lote entra en" value={f.presentation_unit_id} onChange={(presentation_unit_id) => set({ ...f, presentation_unit_id })} options={props.units.map((u) => ({ value: u.id, label: `${u.name} (${u.abbreviation})` }))} />
+        <NumberField label="Cuantas unidades de uso trae cada presentacion" value={f.units_per_presentation} onChange={(units_per_presentation) => set({ ...f, units_per_presentation })} />
+        <InlineHint
+          text={
+            usesPresentation
+              ? `Este lote se convertira usando 1 ${presentationUnit} = ${formatInventoryNumber(Number(f.units_per_presentation))} ${consumptionUnit}.`
+              : "Si el lote llega por caja o frasco, selecciona la presentacion y cuantas unidades reales contiene."
+          }
+        />
         <Field label="Fecha de recepcion"><input type="date" value={f.received_date} onChange={(event) => set({ ...f, received_date: event.target.value })} className="premium-input" /></Field>
         <Field label="Vencimiento"><input type="date" value={f.expiration_date} onChange={(event) => set({ ...f, expiration_date: event.target.value })} className="premium-input" /></Field>
-        <NumberField label="Cantidad inicial (unidades internas)" value={f.initial_quantity} onChange={(initial_quantity) => set({ ...f, initial_quantity })} />
-        <NumberField label="Cantidad actual (unidades internas)" value={f.current_quantity} onChange={(current_quantity) => set({ ...f, current_quantity })} />
+        {usesPresentation ? (
+          <>
+            <NumberField label={`Cantidad inicial en ${presentationUnit}`} value={f.initial_quantity_presentations} onChange={(initial_quantity_presentations) => set({ ...f, initial_quantity_presentations })} />
+            <NumberField label={`Cantidad actual en ${presentationUnit}`} value={f.current_quantity_presentations} onChange={(current_quantity_presentations) => set({ ...f, current_quantity_presentations })} />
+            <InlineHint text={`Se guardara como ${formatInventoryNumber(projectedInitialStock)} ${consumptionUnit} iniciales y ${formatInventoryNumber(projectedCurrentStock)} ${consumptionUnit} disponibles.`} />
+          </>
+        ) : (
+          <>
+            <NumberField label={`Cantidad inicial en ${consumptionUnit}`} value={f.initial_quantity} onChange={(initial_quantity) => set({ ...f, initial_quantity })} />
+            <NumberField label={`Cantidad actual en ${consumptionUnit}`} value={f.current_quantity} onChange={(current_quantity) => set({ ...f, current_quantity })} />
+          </>
+        )}
         <NumberField label="Costo unitario" value={f.unit_cost} onChange={(unit_cost) => set({ ...f, unit_cost })} />
         <TextareaField label="Notas" value={f.notes} onChange={(notes) => set({ ...f, notes })} />
       </div>
@@ -899,11 +987,19 @@ function renderModalFields(props: {
     const f = props.movementForm;
     const set = props.setMovementForm;
     const itemLots = props.lots.filter((lot) => lot.item_id === f.item_id);
+    const selectedItem = props.itemMap.get(f.item_id);
+    const movementUnit = props.units.find((unit) => unit.id === selectedItem?.unit_id)?.abbreviation ?? selectedItem?.unit ?? "u";
+    const movementPresentation = props.units.find((unit) => unit.id === selectedItem?.presentation_unit_id)?.abbreviation ?? "presentacion";
+    const movementUnitsPerPresentation = Number(selectedItem?.units_per_presentation ?? 1);
+    const movementUsesPresentation = hasPresentationConfig(selectedItem?.presentation_unit_id, selectedItem?.units_per_presentation);
     return (
       <div className="grid gap-4 md:grid-cols-2">
         <SelectField label="Item" value={f.item_id} onChange={(item_id) => set({ ...f, item_id, lot_id: "" })} options={props.items.map((i) => ({ value: i.id, label: i.name }))} />
         <SelectField label="Tipo de movimiento" value={f.movement_type} onChange={(movement_type) => set({ ...f, movement_type: movement_type as InventoryMovementRow["movement_type"] })} options={["entrada", "salida", "merma", "transferencia", "ajuste"].map((v) => ({ value: v, label: v }))} />
-        <NumberField label="Cantidad (unidades internas)" value={f.quantity} onChange={(quantity) => set({ ...f, quantity })} />
+        <NumberField label={`Cantidad en ${movementUnit}`} value={f.quantity} onChange={(quantity) => set({ ...f, quantity })} />
+        {movementUsesPresentation ? (
+          <InlineHint text={`Este movimiento se registra en ${movementUnit}. Ejemplo: 1 ${movementPresentation} = ${formatInventoryNumber(movementUnitsPerPresentation)} ${movementUnit}.`} />
+        ) : null}
         <NumberField label="Costo unitario" value={f.unit_cost} onChange={(unit_cost) => set({ ...f, unit_cost })} />
         <SelectField label="Lote" value={f.lot_id} onChange={(lot_id) => set({ ...f, lot_id })} options={itemLots.map((l) => ({ value: l.id, label: l.lot_number }))} />
         <SelectField label="Proveedor" value={f.supplier_id} onChange={(supplier_id) => set({ ...f, supplier_id })} options={props.suppliers.map((s) => ({ value: s.id, label: s.name }))} />
@@ -918,13 +1014,21 @@ function renderModalFields(props: {
 
   const f = props.countForm;
   const set = props.setCountForm;
+  const countedItem = props.itemMap.get(f.item_id);
+  const countUnit = props.units.find((unit) => unit.id === countedItem?.unit_id)?.abbreviation ?? countedItem?.unit ?? "u";
+  const countPresentation = props.units.find((unit) => unit.id === countedItem?.presentation_unit_id)?.abbreviation ?? "presentacion";
+  const countUnitsPerPresentation = Number(countedItem?.units_per_presentation ?? 1);
+  const countUsesPresentation = hasPresentationConfig(countedItem?.presentation_unit_id, countedItem?.units_per_presentation);
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <SelectField label="Item" value={f.item_id} onChange={(item_id) => {
         const item = props.itemMap.get(item_id);
         set({ ...f, item_id, counted_stock: Number(item?.current_stock ?? 0) });
       }} options={props.items.map((i) => ({ value: i.id, label: i.name }))} />
-      <NumberField label="Stock contado (unidades internas)" value={f.counted_stock} onChange={(counted_stock) => set({ ...f, counted_stock })} />
+      <NumberField label={`Stock contado en ${countUnit}`} value={f.counted_stock} onChange={(counted_stock) => set({ ...f, counted_stock })} />
+      {countUsesPresentation ? (
+        <InlineHint text={`Si fisicamente cuentas ${countPresentation}, conviertelo antes de guardar. Ejemplo: 8 ${countPresentation} x ${formatInventoryNumber(countUnitsPerPresentation)} = ${formatInventoryNumber(8 * countUnitsPerPresentation)} ${countUnit}.`} />
+      ) : null}
       <SelectField label="Ubicacion" value={f.location_id} onChange={(location_id) => set({ ...f, location_id })} options={props.locations.map((l) => ({ value: l.id, label: l.name }))} />
       <Field label="Fecha"><input type="date" value={f.count_date} onChange={(event) => set({ ...f, count_date: event.target.value })} className="premium-input" /></Field>
       <TextareaField label="Notas" value={f.notes} onChange={(notes) => set({ ...f, notes })} />
@@ -953,6 +1057,10 @@ function CityField({ label, value, onChange }: { label: string; value: string; o
 
 function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
   return <Field label={label}><input type="number" step="0.01" value={String(value)} onChange={(event) => onChange(Number(event.target.value))} className="premium-input" /></Field>;
+}
+
+function InlineHint({ text }: { text: string }) {
+  return <p className="md:col-span-2 text-xs leading-6 text-[var(--color-copy)]">{text}</p>;
 }
 
 function TextareaField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
@@ -1026,6 +1134,7 @@ function UnitFields({ form, setForm, units }: { form: typeof emptyUnitForm; setF
 }
 
 function itemToForm(item: InventoryItemRow) {
+  const usesPresentation = hasPresentationConfig(item.presentation_unit_id, item.units_per_presentation);
   return {
     name: item.name,
     item_type: item.item_type ?? "insumo",
@@ -1040,6 +1149,8 @@ function itemToForm(item: InventoryItemRow) {
     current_stock: Number(item.current_stock ?? 0),
     minimum_stock: Number(item.minimum_stock ?? 0),
     units_per_presentation: Number(item.units_per_presentation ?? 1),
+    current_stock_presentations: usesPresentation ? toPresentationQuantity(Number(item.current_stock ?? 0), Number(item.units_per_presentation ?? 1)) : Number(item.current_stock ?? 0),
+    minimum_stock_presentations: usesPresentation ? toPresentationQuantity(Number(item.minimum_stock ?? 0), Number(item.units_per_presentation ?? 1)) : Number(item.minimum_stock ?? 0),
     reference_cost: Number(item.reference_cost ?? 0),
     sale_price: Number(item.sale_price ?? 0),
     lot_number: item.lot_number ?? "",
@@ -1051,6 +1162,7 @@ function itemToForm(item: InventoryItemRow) {
 }
 
 function lotToForm(lot: InventoryLotRow) {
+  const usesPresentation = hasPresentationConfig(lot.presentation_unit_id, lot.units_per_presentation);
   return {
     item_id: lot.item_id,
     lot_number: lot.lot_number,
@@ -1062,6 +1174,8 @@ function lotToForm(lot: InventoryLotRow) {
     initial_quantity: Number(lot.initial_quantity ?? 0),
     current_quantity: Number(lot.current_quantity ?? 0),
     units_per_presentation: Number(lot.units_per_presentation ?? 1),
+    initial_quantity_presentations: usesPresentation ? toPresentationQuantity(Number(lot.initial_quantity ?? 0), Number(lot.units_per_presentation ?? 1)) : Number(lot.initial_quantity ?? 0),
+    current_quantity_presentations: usesPresentation ? toPresentationQuantity(Number(lot.current_quantity ?? 0), Number(lot.units_per_presentation ?? 1)) : Number(lot.current_quantity ?? 0),
     unit_cost: Number(lot.unit_cost ?? 0),
     notes: lot.notes ?? "",
     is_active: lot.is_active,
@@ -1114,6 +1228,19 @@ function formatInventoryNumber(value?: number | string | null) {
   return Number.isInteger(parsed) ? String(parsed) : parsed.toLocaleString("es-BO", { maximumFractionDigits: 2 });
 }
 
+function hasPresentationConfig(presentationUnitId?: string | null, unitsPerPresentation?: number | null) {
+  return Boolean(presentationUnitId) && Number(unitsPerPresentation ?? 0) > 1;
+}
+
+function toPresentationQuantity(internalQuantity: number, unitsPerPresentation: number) {
+  if (unitsPerPresentation <= 0) return internalQuantity;
+  return internalQuantity / unitsPerPresentation;
+}
+
+function toInternalQuantity(presentationQuantity: number, unitsPerPresentation: number) {
+  return presentationQuantity * unitsPerPresentation;
+}
+
 function getUnitLabel(unitId: string | null | undefined, fallback: string | null | undefined, unitMap: Map<string, InventoryUnitRow>) {
   return unitMap.get(unitId ?? "")?.abbreviation ?? fallback ?? "u";
 }
@@ -1129,7 +1256,11 @@ function formatStockSummary(
   const presentationLabel = unitMap.get(presentationUnitId ?? "")?.abbreviation ?? unitMap.get(presentationUnitId ?? "")?.name ?? "";
   const presentationSize = Number(unitsPerPresentation ?? 0);
   if (!presentationLabel || presentationSize <= 1) return base;
-  return `${base} (equiv. ${formatInventoryNumber(quantity / presentationSize)} ${presentationLabel})`;
+  const equivalentPresentations = quantity / presentationSize;
+  if (equivalentPresentations >= 1) {
+    return `${base} (equiv. ${formatInventoryNumber(equivalentPresentations)} ${presentationLabel})`;
+  }
+  return `${base} (config. ${formatInventoryNumber(presentationSize)} ${unitLabel} por ${presentationLabel})`;
 }
 
 function itemReport(
@@ -1206,4 +1337,29 @@ function startOfToday() {
 function normalizeText(value?: string | null) {
   const next = String(value ?? "").trim();
   return next.length > 0 ? next : null;
+}
+
+function getInventorySubmitErrorMessage(error: unknown) {
+  const code =
+    typeof error === "object" && error && "code" in error
+      ? String((error as { code?: unknown }).code ?? "")
+      : "";
+  const message =
+    typeof error === "object" && error && "message" in error
+      ? String((error as { message?: unknown }).message ?? "")
+      : error instanceof Error
+        ? error.message
+        : "";
+  const detail = `${code} ${message}`.toLowerCase();
+
+  if (
+    detail.includes("pgrst204") ||
+    detail.includes("schema cache") ||
+    detail.includes("presentation_unit_id") ||
+    detail.includes("units_per_presentation")
+  ) {
+    return "La base remota todavia no tiene aplicada la migracion 20260529113000_inventory_presentations.sql. Ejecutala en Supabase, recarga la pagina y vuelve a intentar.";
+  }
+
+  return "No pudimos guardar el registro. Revisa los datos e intenta nuevamente.";
 }

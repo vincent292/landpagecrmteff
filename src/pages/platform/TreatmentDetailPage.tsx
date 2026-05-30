@@ -127,7 +127,11 @@ export function TreatmentDetailPage() {
           city: treatment.city,
           doctor_id: treatment.doctor_id ?? null,
           agenda_tag: treatment.agenda_tag ?? null,
+          appointment_type: treatment.appointment_type ?? null,
+          assessment_mode: treatment.assessment_mode ?? null,
           assessment_price: treatment.assessment_price ?? null,
+          assessment_price_presencial: treatment.assessment_price_presencial ?? null,
+          assessment_price_virtual: treatment.assessment_price_virtual ?? null,
         }}
       />
     </section>

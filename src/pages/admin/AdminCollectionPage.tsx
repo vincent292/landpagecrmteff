@@ -51,6 +51,7 @@ import {
   updateTreatment,
   type TreatmentRow,
 } from "../../services/treatmentService";
+import { careModeOptions } from "../../lib/careMode";
 import { slugify } from "../../utils/text";
 import { canManageUsers, roleLabels } from "../../lib/roles";
 import { useAuth } from "../../hooks/useAuth";
@@ -1127,7 +1128,10 @@ function AdminEntityForm({
   const setValue = (name: string, value: string | boolean | number) => {
     const next = { ...values, [name]: value };
     if (name === "requires_assessment" && value === false) {
+      next.assessment_mode = "presencial";
       next.assessment_price = 0;
+      next.assessment_price_presencial = 0;
+      next.assessment_price_virtual = 0;
     }
     if (name === "title" && !row) next.slug = slugify(String(value));
     if (module === "galeria" && name === "display_mode" && value === "comparison") {
@@ -1213,8 +1217,16 @@ function AdminEntityForm({
         <div className="mt-8 grid gap-4 md:grid-cols-2">
           {fields
             .filter((field) => {
-              if (field.name !== "assessment_price") return true;
-              return Boolean(values.requires_assessment);
+              if (field.name === "assessment_mode") {
+                return Boolean(values.requires_assessment);
+              }
+              if (field.name === "assessment_price" || field.name === "assessment_price_presencial") {
+                return Boolean(values.requires_assessment) && values.assessment_mode !== "virtual";
+              }
+              if (field.name === "assessment_price_virtual") {
+                return Boolean(values.requires_assessment) && values.assessment_mode !== "presencial";
+              }
+              return true;
             })
             .map((field) => (
             <label key={field.name} className={field.type === "textarea" ? "md:col-span-2" : ""}>
@@ -1266,6 +1278,14 @@ function AdminEntityForm({
                   <option value="coordinate">Coordinar por WhatsApp</option>
                   <option value="choose_slot">Elegir horario disponible</option>
                 </select>
+              ) : field.type === "select-care-mode" ? (
+                <select value={String(values[field.name] ?? "")} onChange={(event) => setValue(field.name, event.target.value)} className="premium-input mt-2">
+                  {careModeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               ) : field.type === "select-appointment-type" ? (
                 <select value={String(values[field.name] ?? "")} onChange={(event) => setValue(field.name, event.target.value)} className="premium-input mt-2">
                   {appointmentTypeOptions.map((type) => <option key={type}>{type}</option>)}
@@ -1281,6 +1301,17 @@ function AdminEntityForm({
             </label>
           ))}
         </div>
+        {(module === "tratamientos" || module === "promociones") && Boolean(values.requires_assessment) ? (
+          <div className="mt-6 rounded-[24px] border border-[rgba(184,138,90,0.18)] bg-[rgba(255,249,244,0.84)] p-4 text-sm leading-7 text-[var(--color-copy)]">
+            <p className="font-semibold text-[var(--color-ink)]">Como llenar esta parte</p>
+            <p className="mt-2">
+              Si la doctora atendera la misma hora tanto presencial como virtual, elige <strong className="text-[var(--color-ink)]">Presencial y virtual</strong>. Luego define un precio para cada modalidad y usa en disponibilidad el mismo criterio para que la paciente vea solo los horarios compatibles.
+            </p>
+            <p className="mt-2">
+              El <strong className="text-[var(--color-ink)]">tipo de cita en agenda</strong> debe coincidir con el que uses al crear la disponibilidad de valoracion.
+            </p>
+          </div>
+        ) : null}
         {module === "promociones" ? (
           <PromotionVariantsEditor variants={promotionVariants} onChange={setPromotionVariants} />
         ) : null}
@@ -1557,6 +1588,13 @@ function extractPriceFromRequest(row: InformationRequestRow) {
   return `Bs. ${match[1]}`;
 }
 
+const assessmentFields = [
+  { name: "requires_assessment", label: "Requiere valoracion previa", type: "checkbox" },
+  { name: "assessment_mode", label: "La valoracion sera", type: "select-care-mode" },
+  { name: "assessment_price_presencial", label: "Precio valoracion presencial", type: "number" },
+  { name: "assessment_price_virtual", label: "Precio valoracion virtual", type: "number" },
+] as const;
+
 function getFields(module: Exclude<Module, "inscripciones" | "solicitudes" | "usuarios">) {
   const common = [
     { name: "title", label: "Título", type: "text" },
@@ -1575,8 +1613,7 @@ function getFields(module: Exclude<Module, "inscripciones" | "solicitudes" | "us
     { name: "expected_results", label: "Resultados esperados", type: "textarea" },
     { name: "cover_image", label: "Imagen principal", type: "image" },
     { name: "city", label: "Ciudad", type: "text" },
-    { name: "requires_assessment", label: "Requiere valoracion previa", type: "checkbox" },
-    { name: "assessment_price", label: "Precio de la valoracion previa", type: "number" },
+    ...assessmentFields,
     { name: "agenda_mode", label: "Agenda", type: "select-agenda-mode" },
     { name: "appointment_type", label: "Tipo de cita agenda", type: "select-appointment-type" },
     { name: "agenda_tag", label: "Tag de agenda opcional", type: "text" },
@@ -1596,8 +1633,7 @@ function getFields(module: Exclude<Module, "inscripciones" | "solicitudes" | "us
     { name: "start_date", label: "Fecha inicio", type: "date" },
     { name: "end_date", label: "Fecha fin", type: "date" },
     { name: "available_slots", label: "Cupos", type: "number" },
-    { name: "requires_assessment", label: "Requiere valoracion previa", type: "checkbox" },
-    { name: "assessment_price", label: "Precio de la valoracion previa", type: "number" },
+    ...assessmentFields,
     { name: "allows_direct_booking", label: "Permite pedir y pagar directo", type: "checkbox" },
     { name: "agenda_mode", label: "Agenda", type: "select-agenda-mode" },
     { name: "appointment_type", label: "Tipo de cita agenda", type: "select-appointment-type" },
@@ -1693,6 +1729,11 @@ function getInitialValues(module: Exclude<Module, "inscripciones" | "solicitudes
       return;
     }
 
+    if (field.name === "assessment_mode") {
+      defaults[field.name] = "presencial";
+      return;
+    }
+
     defaults[field.name] = "";
   });
 
@@ -1758,8 +1799,26 @@ function normalizePayload(
     payload.doctor_id = doctorProfileId;
   }
 
-  if ((module === "tratamientos" || module === "promociones") && !values.requires_assessment) {
-    payload.assessment_price = null;
+  if (module === "tratamientos" || module === "promociones") {
+    if (!values.requires_assessment) {
+      payload.assessment_mode = "presencial";
+      payload.assessment_price = null;
+      payload.assessment_price_presencial = null;
+      payload.assessment_price_virtual = null;
+    } else {
+      const assessmentMode = String(values.assessment_mode || "presencial");
+      const presencialPrice = Number(values.assessment_price_presencial ?? 0);
+      const virtualPrice = Number(values.assessment_price_virtual ?? 0);
+
+      payload.assessment_mode = assessmentMode;
+      payload.assessment_price_presencial = assessmentMode === "virtual" ? null : presencialPrice;
+      payload.assessment_price_virtual = assessmentMode === "presencial" ? null : virtualPrice;
+      payload.assessment_price = resolveAssessmentPriceForLegacyField(
+        assessmentMode,
+        presencialPrice,
+        virtualPrice
+      );
+    }
   }
 
   if (module === "agenda") {
@@ -1771,6 +1830,16 @@ function normalizePayload(
   }
 
   return payload;
+}
+
+function resolveAssessmentPriceForLegacyField(
+  mode: string,
+  presencialPrice: number,
+  virtualPrice: number
+) {
+  if (mode === "virtual") return virtualPrice;
+  if (mode === "ambas") return presencialPrice || virtualPrice || 0;
+  return presencialPrice;
 }
 
 function formatSubmitError(error: unknown) {

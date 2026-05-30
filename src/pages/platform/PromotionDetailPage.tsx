@@ -968,7 +968,11 @@ export function PromotionDetailPage() {
           city: promotion.city,
           doctor_id: promotion.doctor_id ?? null,
           agenda_tag: promotion.agenda_tag ?? null,
+          appointment_type: promotion.appointment_type ?? null,
+          assessment_mode: promotion.assessment_mode ?? null,
           assessment_price: promotion.assessment_price ?? null,
+          assessment_price_presencial: promotion.assessment_price_presencial ?? null,
+          assessment_price_virtual: promotion.assessment_price_virtual ?? null,
         }}
       />
     </section>

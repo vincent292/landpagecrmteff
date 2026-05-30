@@ -1,5 +1,5 @@
 import { Bell, LogOut, Menu, X, type LucideIcon } from "lucide-react";
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Link, Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 
 import { BrandSignature } from "../components/common/BrandSignature";
@@ -79,6 +79,14 @@ export function AdminLayout() {
   const desktopNotificationsRef = useRef<HTMLDivElement | null>(null);
   const activeModule = location.pathname.replace(/^\/panel\/?/, "").split("/")[0] || "dashboard";
   const { items: notifications, unreadCount, unreadByModule, markAllAsSeen } = useAdminNotifications(user?.id ?? null, role);
+  const persistentBadgeByModule = useMemo(() => {
+    const badges = { ...unreadByModule };
+    const hasInventoryAlert = notifications.some((item) => item.type === "inventory");
+    if (hasInventoryAlert) {
+      badges.dashboard = Math.max(badges.dashboard ?? 0, 1);
+    }
+    return badges;
+  }, [notifications, unreadByModule]);
 
   const visibleSections = adminSections
     .map((section) => ({
@@ -260,9 +268,16 @@ export function AdminLayout() {
                       >
                         <span className="flex items-center justify-between gap-3">
                           <span>{link.label}</span>
-                          {unreadByModule[link.module] ? (
-                            <span className="inline-flex min-h-5 min-w-5 animate-pulse items-center justify-center rounded-full bg-[var(--color-mocha)] px-1.5 text-[10px] font-bold text-white">
-                              {unreadByModule[link.module] > 9 ? "9+" : unreadByModule[link.module]}
+                          {persistentBadgeByModule[link.module] ? (
+                            <span
+                              className={cn(
+                                "inline-flex min-h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold text-white",
+                                link.module === "dashboard"
+                                  ? "animate-pulse bg-red-600 shadow-[0_8px_20px_rgba(166,38,38,0.25)]"
+                                  : "animate-pulse bg-[var(--color-mocha)]"
+                              )}
+                            >
+                              {persistentBadgeByModule[link.module] > 9 ? "9+" : persistentBadgeByModule[link.module]}
                             </span>
                           ) : null}
                         </span>
@@ -368,7 +383,7 @@ function NotificationBell({
           <div className="flex items-center justify-between gap-3 px-2 py-1">
             <div>
               <p className="text-sm font-semibold text-[var(--color-ink)]">Notificaciones</p>
-              <p className="text-xs text-[var(--color-copy)]">Solicitudes, pagos y reservas en tiempo real.</p>
+              <p className="text-xs text-[var(--color-copy)]">Solicitudes, pagos, citas e inventario en un solo lugar.</p>
             </div>
             <button type="button" onClick={onClose} className="rounded-full border border-[var(--color-border)] px-3 py-1 text-xs font-semibold">
               Cerrar

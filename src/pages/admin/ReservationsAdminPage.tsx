@@ -521,6 +521,7 @@ export function ReservationsAdminPage() {
           city: selectedSlot.city,
           location: selectedSlot.location,
           appointment_type: selectedSlot.appointment_type,
+          care_mode: selectedSlot.care_mode,
         },
         title: selectedSlot.appointment_type,
         notes: values.notes,

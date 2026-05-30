@@ -288,6 +288,10 @@ export function AdminDashboard() {
         </div>
       </section>
 
+      {inventoryLowStock > 0 || inventoryExpiringLots > 0 ? (
+        <InventoryAlertBanner lowStock={inventoryLowStock} expiringLots={inventoryExpiringLots} />
+      ) : null}
+
       <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
         <Metric icon={<MessagesSquare className="h-5 w-5" />} label="Solicitudes nuevas" value={String(newRequests)} href="/panel/solicitudes" />
         <Metric icon={<ClipboardList className="h-5 w-5" />} label="Total solicitudes" value={String(requests.length)} href="/panel/solicitudes" />
@@ -298,7 +302,13 @@ export function AdminDashboard() {
         <Metric icon={<Wallet className="h-5 w-5" />} label="Cajas abiertas" value={String(cashOpenSessions)} href="/panel/caja" />
         <Metric icon={<ReceiptText className="h-5 w-5" />} label="Ingresos de hoy" value={formatMoney(cashIncomeToday)} href="/panel/caja" />
         <Metric icon={<AlertTriangle className="h-5 w-5" />} label="Diferencias por revisar" value={formatMoney(cashDifferenceTotal)} href="/panel/caja" />
-        <Metric icon={<Boxes className="h-5 w-5" />} label="Items con stock bajo" value={String(inventoryLowStock)} href="/panel/inventario" />
+        <Metric
+          icon={<Boxes className="h-5 w-5" />}
+          label="Items con stock bajo"
+          value={String(inventoryLowStock)}
+          href="/panel/inventario"
+          tone={inventoryLowStock > 0 ? "danger" : "default"}
+        />
         <Metric icon={<AlertTriangle className="h-5 w-5" />} label="Lotes por vencer" value={String(inventoryExpiringLots)} href="/panel/inventario" />
       </section>
 
@@ -466,19 +476,58 @@ function Metric({
   label,
   value,
   href,
+  tone = "default",
 }: {
   icon: ReactNode;
   label: string;
   value: string;
   href: string;
+  tone?: "default" | "danger";
 }) {
   return (
-    <Link to={href} className="rounded-[26px] border border-[var(--color-border)] bg-white/75 p-5 shadow-[0_18px_50px_rgba(62,42,31,0.08)] transition hover:-translate-y-0.5 hover:bg-white">
-      <div className="flex items-center gap-3 text-[var(--color-accent-strong)]">
+    <Link
+      to={href}
+      className={
+        tone === "danger"
+          ? "rounded-[26px] border border-red-300 bg-[linear-gradient(135deg,rgba(176,44,44,0.14),rgba(255,255,255,0.96))] p-5 shadow-[0_18px_50px_rgba(122,42,42,0.16)] transition hover:-translate-y-0.5 hover:bg-[linear-gradient(135deg,rgba(176,44,44,0.18),rgba(255,255,255,1))]"
+          : "rounded-[26px] border border-[var(--color-border)] bg-white/75 p-5 shadow-[0_18px_50px_rgba(62,42,31,0.08)] transition hover:-translate-y-0.5 hover:bg-white"
+      }
+    >
+      <div className={`flex items-center gap-3 ${tone === "danger" ? "text-red-700" : "text-[var(--color-accent-strong)]"}`}>
         {icon}
-        <p className="text-sm text-[var(--color-copy)]">{label}</p>
+        <p className={`text-sm ${tone === "danger" ? "font-semibold text-red-700" : "text-[var(--color-copy)]"}`}>{label}</p>
       </div>
-      <p className="mt-4 text-4xl font-semibold text-[var(--color-ink)]">{value}</p>
+      <p className={`mt-4 text-4xl font-semibold ${tone === "danger" ? "animate-pulse text-red-700" : "text-[var(--color-ink)]"}`}>{value}</p>
+      {tone === "danger" ? (
+        <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-red-600">Atencion inmediata</p>
+      ) : null}
+    </Link>
+  );
+}
+
+function InventoryAlertBanner({ lowStock, expiringLots }: { lowStock: number; expiringLots: number }) {
+  return (
+    <Link
+      to="/panel/inventario"
+      className="block rounded-[30px] border border-red-300 bg-[linear-gradient(135deg,rgba(166,38,38,0.12),rgba(255,245,245,0.98))] p-5 shadow-[0_22px_60px_rgba(122,42,42,0.14)] transition hover:-translate-y-0.5"
+    >
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-start gap-3">
+          <span className="inline-flex h-12 w-12 animate-pulse items-center justify-center rounded-full bg-red-600 text-white shadow-[0_12px_28px_rgba(166,38,38,0.28)]">
+            <AlertTriangle className="h-5 w-5" />
+          </span>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-red-600">Notificacion de inventario</p>
+            <h2 className="mt-2 text-2xl font-semibold text-red-800">Hay insumos que necesitan atencion ahora.</h2>
+            <p className="mt-2 text-sm leading-7 text-red-700">
+              {lowStock} items con stock bajo y {expiringLots} lotes por vencer. Entra a inventario para revisar, comprar o ajustar.
+            </p>
+          </div>
+        </div>
+        <span className="inline-flex items-center justify-center rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white">
+          Ver inventario
+        </span>
+      </div>
     </Link>
   );
 }

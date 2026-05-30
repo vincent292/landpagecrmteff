@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabaseClient";
+import { getCareModeLabel, type AvailabilityCareMode, type ReservationCareMode } from "../lib/careMode";
 import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
 import { getSignedUrl, uploadPrivateFile } from "./storageService";
 
@@ -13,6 +14,7 @@ export type AppointmentReservationRow = DeletionMetadata & {
   availability_rule_id: string | null;
   title: string | null;
   appointment_type: string;
+  care_mode: AvailabilityCareMode;
   city: string;
   location: string | null;
   appointment_date: string;
@@ -87,6 +89,7 @@ export type PublicAssessmentReservationInput = {
   city: string;
   document_number: string;
   appointment_type: string;
+  care_mode: ReservationCareMode;
   assessment_label?: string | null;
   payment_receipt_path: string;
   payment_amount: number;
@@ -118,6 +121,7 @@ export type ManualAppointmentReservationInput = {
     city: string;
     location?: string | null;
     appointment_type: string;
+    care_mode?: AvailabilityCareMode | null;
   };
   title?: string | null;
   notes?: string | null;
@@ -233,6 +237,7 @@ export async function createManualAppointmentReservation(input: ManualAppointmen
     availability_rule_id: input.slot.rule_id,
     title: input.title ?? input.slot.appointment_type,
     appointment_type: input.slot.appointment_type,
+    care_mode: input.slot.care_mode ?? "presencial",
     city: input.slot.city,
     location: input.slot.location ?? null,
     appointment_date: input.slot.date,
@@ -267,6 +272,7 @@ export async function bookAppointmentSlot(data: {
   end_time: string;
   city: string;
   appointment_type: string;
+  care_mode?: AvailabilityCareMode | null;
   notes?: string | null;
 }) {
   const { data: row, error } = await supabase.rpc("book_appointment_slot", {
@@ -279,6 +285,7 @@ export async function bookAppointmentSlot(data: {
     p_city: data.city,
     p_appointment_type: data.appointment_type,
     p_notes: data.notes ?? null,
+    p_care_mode: data.care_mode ?? null,
   });
 
   if (error) throw error;
@@ -344,7 +351,7 @@ export async function getReservationReceiptUrl(path?: string | null) {
 }
 
 export async function createPublicAssessmentReservation(input: PublicAssessmentReservationInput) {
-  const { data, error } = await supabase.rpc("create_public_assessment_reservation", {
+  const baseArgs = {
     p_content_type: input.context_type ?? "general",
     p_content_id: input.context_reference_id ?? null,
     p_content_title: input.context_title ?? null,
@@ -362,10 +369,36 @@ export async function createPublicAssessmentReservation(input: PublicAssessmentR
     p_payment_amount: input.payment_amount,
     p_assessment_label: input.assessment_label ?? null,
     p_appointment_type: input.appointment_type,
+  };
+
+  const { data, error } = await supabase.rpc("create_public_assessment_reservation", {
+    ...baseArgs,
+    p_care_mode: input.care_mode,
   });
 
-  if (error) throw error;
+  if (error) {
+    if (!canRetryLegacyPublicAssessmentReservation(error)) throw error;
+
+    const fallbackNotes = [input.notes?.trim(), `Modalidad: ${getCareModeLabel(input.care_mode)}`]
+      .filter(Boolean)
+      .join("\n");
+
+    const legacyResponse = await supabase.rpc("create_public_assessment_reservation", {
+      ...baseArgs,
+      p_notes: fallbackNotes || null,
+    });
+
+    if (legacyResponse.error) throw legacyResponse.error;
+    return legacyResponse.data as AppointmentReservationRow;
+  }
+
   return data as AppointmentReservationRow;
+}
+
+function canRetryLegacyPublicAssessmentReservation(error: { code?: string; message?: string | null }) {
+  if (error.code === "PGRST202") return true;
+  const message = (error.message ?? "").toLowerCase();
+  return message.includes("create_public_assessment_reservation") && message.includes("could not find");
 }
 
 export async function getManualReservationPaymentByToken(token: string) {

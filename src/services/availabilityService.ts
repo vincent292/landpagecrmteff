@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabaseClient";
+import type { AvailabilityCareMode, ReservationCareMode } from "../lib/careMode";
 import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
 
 export type AvailabilityRuleRow = DeletionMetadata & {
@@ -15,6 +16,7 @@ export type AvailabilityRuleRow = DeletionMetadata & {
   city: string;
   location: string | null;
   appointment_type: string;
+  care_mode: AvailabilityCareMode;
   availability_type: "recurring" | "specific";
   start_date: string | null;
   end_date: string | null;
@@ -59,6 +61,7 @@ export type AvailableSlot = {
   city: string;
   location: string | null;
   appointment_type: string;
+  care_mode: AvailabilityCareMode;
   available_capacity: number;
   total_capacity: number;
 };
@@ -66,6 +69,7 @@ export type AvailableSlot = {
 export type SlotFilters = {
   city?: string;
   appointment_type?: string;
+  care_mode?: ReservationCareMode | null;
   doctor_id?: string | null;
   agenda_tag?: string | null;
   date_from: string;
@@ -173,15 +177,51 @@ export async function deleteAvailabilityBlock(id: string) {
 }
 
 export async function getAvailableSlots(filters: SlotFilters) {
-  const { data, error } = await supabase.rpc("get_available_slots", {
+  const baseArgs = {
     p_city: filters.city ?? null,
     p_appointment_type: filters.appointment_type ?? null,
     p_date_from: filters.date_from,
     p_date_to: filters.date_to,
     p_doctor_id: filters.doctor_id ?? null,
     p_agenda_tag: filters.agenda_tag ?? null,
+  };
+
+  const { data, error } = await supabase.rpc("get_available_slots", {
+    ...baseArgs,
+    p_care_mode: filters.care_mode ?? null,
   });
 
-  if (error) throw error;
-  return (data ?? []) as AvailableSlot[];
+  if (error) {
+    if (!canRetryLegacyGetAvailableSlots(error)) throw error;
+
+    const legacyResponse = await supabase.rpc("get_available_slots", baseArgs);
+    if (legacyResponse.error) throw legacyResponse.error;
+
+    return normalizeAvailableSlots(legacyResponse.data, filters.care_mode ?? null);
+  }
+
+  return normalizeAvailableSlots(data, filters.care_mode ?? null);
+}
+
+function canRetryLegacyGetAvailableSlots(error: { code?: string; message?: string | null }) {
+  if (error.code === "PGRST202") return true;
+  const message = (error.message ?? "").toLowerCase();
+  return message.includes("get_available_slots") && message.includes("could not find");
+}
+
+function normalizeAvailableSlots(data: unknown, fallbackCareMode?: ReservationCareMode | null) {
+  return ((data ?? []) as Partial<AvailableSlot>[]).map((slot) => ({
+    rule_id: String(slot.rule_id ?? ""),
+    doctor_id: slot.doctor_id ?? null,
+    agenda_tag: slot.agenda_tag ?? null,
+    date: String(slot.date ?? ""),
+    start_time: String(slot.start_time ?? ""),
+    end_time: String(slot.end_time ?? ""),
+    city: String(slot.city ?? ""),
+    location: slot.location ?? null,
+    appointment_type: String(slot.appointment_type ?? ""),
+    care_mode: slot.care_mode ?? fallbackCareMode ?? "presencial",
+    available_capacity: Number(slot.available_capacity ?? 0),
+    total_capacity: Number(slot.total_capacity ?? 0),
+  }));
 }

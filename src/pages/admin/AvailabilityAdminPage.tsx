@@ -9,6 +9,7 @@ import { EmptyState, ErrorState, LoadingState } from "../../components/common/As
 import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteActions";
 import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
+import { careModeOptions, getCareModeLabel } from "../../lib/careMode";
 import { hardDeleteRecord, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
 import {
   createAvailabilityBlock,
@@ -41,6 +42,7 @@ const ruleSchema = z
     city: z.string().min(2, "La ciudad es obligatoria."),
     location: z.string().optional(),
     appointment_type: z.string().min(2, "El tipo de cita es obligatorio."),
+    care_mode: z.enum(["presencial", "virtual", "ambas"]).default("presencial"),
     agenda_tag: z.string().optional(),
     availability_type: z.enum(["recurring", "specific"]),
     start_date: z.string().optional(),
@@ -310,6 +312,7 @@ export function AvailabilityAdminPage() {
         city: values.city,
         location: values.location || null,
         appointment_type: values.appointment_type,
+        care_mode: values.care_mode,
         agenda_tag: values.agenda_tag?.trim() || null,
         availability_type: values.availability_type,
         start_time: values.start_time,
@@ -422,6 +425,7 @@ export function AvailabilityAdminPage() {
       city: rule.city,
       location: rule.location ?? "",
       appointment_type: rule.appointment_type,
+      care_mode: rule.care_mode ?? "presencial",
       agenda_tag: rule.agenda_tag ?? "",
       availability_type: rule.availability_type,
       start_date: rule.start_date ?? "",
@@ -602,10 +606,19 @@ export function AvailabilityAdminPage() {
                   ))}
                 </select>
               </Field>
+              <Field label="Atencion para">
+                <select {...ruleForm.register("care_mode")} className="premium-input">
+                  {careModeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
               <Field label="Tag de agenda opcional">
                 <input {...ruleForm.register("agenda_tag")} className="premium-input" placeholder="Ej: madres-mayo-2026" />
               </Field>
-              <Field label="Modalidad">
+              <Field label="Frecuencia">
                 <select {...ruleForm.register("availability_type")} className="premium-input">
                   <option value="recurring">Recurrente semanal</option>
                   <option value="specific">Fecha especifica</option>
@@ -696,6 +709,9 @@ export function AvailabilityAdminPage() {
               Vista previa
             </p>
             <h2 className="mt-2 text-2xl font-semibold">Horarios que se generaran</h2>
+            <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">
+              Si una misma franja servira para presencial y virtual, marca <strong className="text-[var(--color-ink)]">Presencial y virtual</strong>. Cuando se reserve uno, ese mismo horario ya no aparecera para la otra modalidad.
+            </p>
             <div className="mt-5 grid gap-2">
               {previewSlots.length === 0 ? (
                 <p className="text-sm text-[var(--color-copy)]">Ajusta las horas para ver la vista previa.</p>
@@ -728,6 +744,9 @@ export function AvailabilityAdminPage() {
                     <h3 className="text-lg font-semibold">
                       {rule.doctor_profiles?.full_name ?? "Doctora sin asignar"} · {rule.city} · {rule.appointment_type}
                     </h3>
+                    <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-accent-strong)]">
+                      {getCareModeLabel(rule.care_mode)}
+                    </p>
                     <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">
                       {rule.availability_type === "specific"
                         ? `Fecha: ${rule.specific_date}`
@@ -1132,6 +1151,7 @@ function getDefaultRuleValues(): RuleForm {
     city: "Cochabamba",
     location: "",
     appointment_type: "Valoracion estetica",
+    care_mode: "presencial",
     agenda_tag: "",
     availability_type: "recurring",
     start_date: "",

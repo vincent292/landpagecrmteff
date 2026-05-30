@@ -42,7 +42,10 @@ export type PromotionRow = DeletionMetadata & {
   start_date: string | null;
   end_date: string | null;
   available_slots: number | null;
+  assessment_mode?: "presencial" | "virtual" | "ambas" | null;
   assessment_price?: number | null;
+  assessment_price_presencial?: number | null;
+  assessment_price_virtual?: number | null;
   is_active: boolean | null;
   doctor_id: string | null;
   requires_assessment?: boolean | null;

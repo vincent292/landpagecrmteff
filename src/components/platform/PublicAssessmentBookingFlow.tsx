@@ -5,6 +5,14 @@ import { CalendarDays, CheckCircle2, CreditCard, FileUp, MapPin, UserRound } fro
 
 import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
+import {
+  getAllowedReservationModes,
+  getCareModeLabel,
+  normalizeAvailabilityCareMode,
+  normalizeReservationCareMode,
+  type AvailabilityCareMode,
+  type ReservationCareMode,
+} from "../../lib/careMode";
 import { getAvailableSlots, type AvailableSlot } from "../../services/availabilityService";
 import { getDoctors, type DoctorProfileRow } from "../../services/doctorService";
 import {
@@ -23,7 +31,10 @@ type AssessmentContext = {
   doctor_id?: string | null;
   agenda_tag?: string | null;
   appointment_type?: string | null;
+  assessment_mode?: AvailabilityCareMode | null;
   assessment_price?: number | null;
+  assessment_price_presencial?: number | null;
+  assessment_price_virtual?: number | null;
 };
 
 type FlowStep = "datos" | "horario" | "pago";
@@ -64,6 +75,7 @@ export function PublicAssessmentBookingFlow({
   const [doctors, setDoctors] = useState<DoctorProfileRow[]>([]);
   const [selectedDoctorId, setSelectedDoctorId] = useState(context.doctor_id ?? "");
   const [selectedAppointmentType, setSelectedAppointmentType] = useState("");
+  const [selectedCareMode, setSelectedCareMode] = useState<ReservationCareMode>("presencial");
   const [form, setForm] = useState({
     full_name: "",
     phone: "",
@@ -92,7 +104,24 @@ export function PublicAssessmentBookingFlow({
   const assessmentTitle = settings?.assessment_label?.trim() || "Valoracion estetica";
   const defaultAppointmentType =
     context.appointment_type?.trim() || settings?.assessment_appointment_type?.trim() || "Valoracion estetica";
-  const assessmentPrice = Number(context.assessment_price ?? settings?.assessment_price ?? 0);
+  const defaultAvailabilityCareMode = normalizeAvailabilityCareMode(context.assessment_mode ?? "ambas");
+  const allowedCareModes = useMemo(
+    () => getAllowedReservationModes(defaultAvailabilityCareMode),
+    [defaultAvailabilityCareMode]
+  );
+  const defaultCareMode = allowedCareModes[0] ?? "presencial";
+  const resolvedCareMode = allowedCareModes.includes(selectedCareMode)
+    ? selectedCareMode
+    : normalizeReservationCareMode(defaultCareMode);
+  const allowCareModeSelection = allowedCareModes.length > 1;
+  const assessmentPriceByMode: Record<ReservationCareMode, number> = {
+    presencial: Number(context.assessment_price_presencial ?? context.assessment_price ?? settings?.assessment_price ?? 0),
+    virtual: Number(context.assessment_price_virtual ?? context.assessment_price ?? settings?.assessment_price ?? 0),
+  };
+  const assessmentPrice = assessmentPriceByMode[resolvedCareMode];
+  const careModePrices = allowedCareModes.map((careMode) => assessmentPriceByMode[careMode]);
+  const minAssessmentPrice = Math.min(...careModePrices);
+  const maxAssessmentPrice = Math.max(...careModePrices);
   const paymentQrImage = settings?.payment_qr_image ?? settings?.appointment_qr_payment_image ?? null;
   const normalizedAppointmentTypeOptions = useMemo(() => {
     const baseOptions = appointmentTypeOptions.length > 0 ? appointmentTypeOptions : [defaultAppointmentType];
@@ -144,6 +173,13 @@ export function PublicAssessmentBookingFlow({
   }, [allowAppointmentTypeSelection, defaultAppointmentType, normalizedAppointmentTypeOptions]);
 
   useEffect(() => {
+    setSelectedCareMode((current) => {
+      if (allowedCareModes.includes(current)) return current;
+      return normalizeReservationCareMode(defaultCareMode);
+    });
+  }, [allowedCareModes, defaultCareMode]);
+
+  useEffect(() => {
     const city = form.city.trim();
     if (!city || !open || !resolvedAppointmentType.trim()) {
       setSlots([]);
@@ -151,6 +187,7 @@ export function PublicAssessmentBookingFlow({
       setSelectedSlot(null);
       return;
     }
+    if (step === "datos") return;
 
     const from = new Date();
     const to = new Date();
@@ -162,6 +199,7 @@ export function PublicAssessmentBookingFlow({
     const filters = {
       city,
       appointment_type: resolvedAppointmentType,
+      care_mode: resolvedCareMode,
       agenda_tag: context.agenda_tag ?? null,
       date_from: from.toISOString().slice(0, 10),
       date_to: to.toISOString().slice(0, 10),
@@ -193,7 +231,7 @@ export function PublicAssessmentBookingFlow({
         setErrorMessage(error instanceof Error ? error.message : "No pudimos cargar horarios.");
       })
       .finally(() => setLoadingSlots(false));
-  }, [allowDoctorSelection, context.agenda_tag, context.doctor_id, form.city, open, resolvedAppointmentType, resolvedDoctorId]);
+  }, [allowDoctorSelection, context.agenda_tag, context.doctor_id, form.city, open, resolvedAppointmentType, resolvedCareMode, resolvedDoctorId, step]);
 
   const groupedSlots = useMemo(() => {
     const groups = new Map<string, AvailableSlot[]>();
@@ -268,6 +306,7 @@ export function PublicAssessmentBookingFlow({
         city: form.city.trim(),
         document_number: normalizeDocumentNumber(form.document_number),
         appointment_type: resolvedAppointmentType,
+        care_mode: resolvedCareMode,
         assessment_label: resolvedAssessmentLabel,
         payment_receipt_path,
         payment_amount: assessmentPrice,
@@ -372,8 +411,15 @@ export function PublicAssessmentBookingFlow({
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-accent-strong)]">
             Pago actual
           </p>
+          <p className="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-copy)]">
+            {allowCareModeSelection && step === "datos" ? "Segun modalidad" : getCareModeLabel(resolvedCareMode)}
+          </p>
           <p className="mt-2 text-3xl font-semibold text-[var(--color-ink)]">
-            {formatMoney(assessmentPrice)}
+            {allowCareModeSelection && step === "datos"
+              ? minAssessmentPrice === maxAssessmentPrice
+                ? formatMoney(minAssessmentPrice)
+                : `${formatMoney(minAssessmentPrice)} - ${formatMoney(maxAssessmentPrice)}`
+              : formatMoney(assessmentPrice)}
           </p>
         </div>
       </div>
@@ -478,6 +524,38 @@ export function PublicAssessmentBookingFlow({
         {step === "horario" ? (
           <div className="rounded-[28px] border border-[var(--color-mocha)] bg-[rgba(255,249,244,0.92)] p-5">
             <StepHeader icon={<CalendarDays className="h-4 w-4" />} title="Paso 2: elige horario" />
+            {allowCareModeSelection ? (
+              <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_260px]">
+                <Field label="Modalidad de la valoracion">
+                  <select
+                    value={resolvedCareMode}
+                    onChange={(event) => {
+                      setSelectedCareMode(normalizeReservationCareMode(event.target.value, defaultCareMode));
+                      setSelectedSlot(null);
+                      setSelectedDate(null);
+                    }}
+                    className="premium-input"
+                  >
+                    {allowedCareModes.map((mode) => (
+                      <option key={mode} value={mode}>
+                        {getCareModeLabel(mode)}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <div className="rounded-[22px] border border-[var(--color-border)] bg-white/82 px-4 py-3 text-sm leading-6 text-[var(--color-copy)]">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-accent-strong)]">
+                    Precio segun modalidad
+                  </p>
+                  <p className="mt-2 text-2xl font-semibold text-[var(--color-ink)]">
+                    {formatMoney(assessmentPrice)}
+                  </p>
+                  <p className="mt-1">
+                    Estas viendo horarios para {getCareModeLabel(resolvedCareMode).toLowerCase()}.
+                  </p>
+                </div>
+              </div>
+            ) : null}
             <div className="mt-4 rounded-[22px] bg-[rgba(247,242,236,0.76)] p-4 text-sm leading-7 text-[var(--color-copy)]">
               <p className="font-semibold text-[var(--color-ink)]">{form.full_name}</p>
               <p>
@@ -485,13 +563,15 @@ export function PublicAssessmentBookingFlow({
                 <br />
                 Ciudad: {form.city}
                 <br />
+                Modalidad: {getCareModeLabel(resolvedCareMode)}
+                <br />
                 Tipo de cita: {resolvedAppointmentType}
                 <br />
                 Doctora: {selectedDoctorName ?? "Cualquier doctora disponible"}
               </p>
             </div>
             <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">
-              Te mostramos la disponibilidad real para {resolvedAppointmentType.toLowerCase()} en {form.city || "tu ciudad"}
+              Te mostramos la disponibilidad real para {resolvedAppointmentType.toLowerCase()} en modalidad {getCareModeLabel(resolvedCareMode).toLowerCase()} en {form.city || "tu ciudad"}
               {selectedDoctorName ? ` con ${selectedDoctorName}.` : "."}
             </p>
             <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
@@ -548,6 +628,9 @@ export function PublicAssessmentBookingFlow({
                       </span>
                     ) : null}
                     <span className="mt-2 block text-xs opacity-80">
+                      Modalidad: {getCareModeLabel(slot.care_mode)}
+                    </span>
+                    <span className="mt-2 block text-xs opacity-80">
                       {slot.available_capacity} cupo(s) disponibles
                     </span>
                   </button>
@@ -566,6 +649,8 @@ export function PublicAssessmentBookingFlow({
               CI: {normalizeDocumentNumber(form.document_number) || "Sin CI"}
               <br />
               Ciudad: {form.city || "Sin ciudad"}
+              <br />
+              Modalidad: {getCareModeLabel(resolvedCareMode)}
               <br />
               Tipo de cita: {resolvedAppointmentType}
               <br />
@@ -591,7 +676,7 @@ export function PublicAssessmentBookingFlow({
                 className="mx-auto h-48 w-48 rounded-[22px] object-contain sm:h-56 sm:w-56"
               />
               <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
-                Escanea el QR preconfigurado, paga {formatMoney(assessmentPrice)} y luego sube tu comprobante para cerrar la solicitud.
+                Escanea el QR preconfigurado, paga {formatMoney(assessmentPrice)} para tu valoracion {getCareModeLabel(resolvedCareMode).toLowerCase()} y luego sube tu comprobante para cerrar la solicitud.
               </p>
             </div>
           ) : (

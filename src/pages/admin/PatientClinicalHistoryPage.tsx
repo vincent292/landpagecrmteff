@@ -420,8 +420,13 @@ export function PatientClinicalHistoryPage() {
       setInventoryForm({ clinical_history_id: inventoryForm.clinical_history_id, item_id: "", lot_id: "", quantity: 1, notes: "" });
       await load();
       setStatus({ type: "success", text: "Insumo registrado y descontado del inventario." });
-    } catch {
-      setStatus({ type: "error", text: "No pudimos descontar el insumo. Revisa stock, lote y permisos." });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "";
+      if (detail.toLowerCase().includes("stock negativo") || detail.toLowerCase().includes("cantidad negativa")) {
+        setStatus({ type: "error", text: "No alcanza el stock disponible. Revisa si el item esta cargado en unidades internas correctas o si falta ajustar el lote." });
+      } else {
+        setStatus({ type: "error", text: "No pudimos descontar el insumo. Revisa stock, lote y permisos." });
+      }
     } finally {
       setSavingInventory(false);
     }
@@ -620,7 +625,7 @@ export function PatientClinicalHistoryPage() {
                   <option value="">Selecciona item</option>
                   {inventoryItems.filter((item) => !item.is_deleted && item.is_active).map((item) => (
                     <option key={item.id} value={item.id}>
-                      {item.name} - stock {formatInventoryNumber(item.current_stock)} {item.unit}{Number(item.units_per_presentation ?? 1) > 1 ? ` - x ${formatInventoryNumber(item.units_per_presentation)}` : ""}
+                      {item.name} - stock {formatInventoryNumber(item.current_stock)} {item.unit}{Number(item.units_per_presentation ?? 1) > 1 ? ` - 1 presentacion = ${formatInventoryNumber(item.units_per_presentation)} ${item.unit}` : ""}
                     </option>
                   ))}
                 </select>
@@ -630,7 +635,7 @@ export function PatientClinicalHistoryPage() {
                   <option value="">Sin lote</option>
                   {filteredLots.map((lot) => (
                     <option key={lot.id} value={lot.id}>
-                      {lot.lot_number} - {formatInventoryNumber(lot.current_quantity)} disponibles{Number(lot.units_per_presentation ?? selectedItem?.units_per_presentation ?? 1) > 1 ? ` - x ${formatInventoryNumber(lot.units_per_presentation ?? selectedItem?.units_per_presentation ?? 1)}` : ""}
+                      {lot.lot_number} - {formatInventoryNumber(lot.current_quantity)} disponibles{Number(lot.units_per_presentation ?? selectedItem?.units_per_presentation ?? 1) > 1 ? ` - 1 presentacion = ${formatInventoryNumber(lot.units_per_presentation ?? selectedItem?.units_per_presentation ?? 1)} ${selectedItem?.unit ?? "u"}` : ""}
                     </option>
                   ))}
                 </select>
