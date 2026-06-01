@@ -26,6 +26,17 @@ type R2BookDownloadResponse = {
   path: string;
 };
 
+async function getAuthHeaders(): Promise<Record<string, string> | undefined> {
+  const { data } = await supabaseClient.auth.getSession();
+  const accessToken = data.session?.access_token;
+
+  if (!accessToken) return undefined;
+
+  return {
+    Authorization: `Bearer ${accessToken}`,
+  };
+}
+
 function resolveFunctionError(data: unknown, fallback: string) {
   if (
     typeof data === "object" &&
@@ -64,6 +75,7 @@ export async function uploadPrivateFileToR2(bucket: string, path: string, file: 
 
   const { data, error } = await supabaseClient.functions.invoke("r2-upload-private", {
     body: formData,
+    headers: await getAuthHeaders(),
   });
 
   if (error) throw await resolveInvokeError(error, "No se pudo subir el archivo privado a Cloudflare R2.");
@@ -87,6 +99,7 @@ export async function getPrivateSignedUrlFromR2(
       expiresIn,
       downloadName,
     },
+    headers: await getAuthHeaders(),
   });
 
   if (error) throw await resolveInvokeError(error, "No se pudo generar el acceso temporal al archivo.");
@@ -100,6 +113,7 @@ export async function getPrivateSignedUrlFromR2(
 export async function deleteObjectFromR2(bucket: string, path: string) {
   const { data, error } = await supabaseClient.functions.invoke("r2-delete-object", {
     body: { bucket, path },
+    headers: await getAuthHeaders(),
   });
 
   if (error) throw await resolveInvokeError(error, "No se pudo borrar el archivo en R2.");
@@ -116,6 +130,7 @@ export async function downloadBookFileWithTokenFromR2(token: string, expiresIn =
       token,
       expiresIn,
     },
+    headers: await getAuthHeaders(),
   });
 
   if (error) throw await resolveInvokeError(error, "No se pudo preparar la descarga del libro.");
