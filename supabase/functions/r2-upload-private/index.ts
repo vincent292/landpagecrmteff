@@ -85,7 +85,8 @@ function canUploadPrivate(isAuthenticated: boolean, role: string | null, key: st
       key.startsWith("receipts/appointments/") ||
       key.startsWith("receipts/promotions/") ||
       key.startsWith("receipts/courses/") ||
-      key.startsWith("receipts/books/")
+      key.startsWith("receipts/books/") ||
+      key.startsWith("receipts/savings-cards/")
     );
   }
 

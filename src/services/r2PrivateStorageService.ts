@@ -1,4 +1,6 @@
-import { supabase } from "../lib/supabaseClient";
+import { FunctionsHttpError } from "@supabase/supabase-js";
+
+import { supabase as supabaseClient } from "../lib/supabaseClient";
 
 type R2PrivateUploadResponse = {
   key: string;
@@ -37,17 +39,34 @@ function resolveFunctionError(data: unknown, fallback: string) {
   return new Error(fallback);
 }
 
+async function resolveInvokeError(error: unknown, fallback: string) {
+  if (error instanceof FunctionsHttpError && error.context instanceof Response) {
+    try {
+      const data = await error.context.clone().json();
+      return resolveFunctionError(data, fallback);
+    } catch {
+      return new Error(fallback);
+    }
+  }
+
+  if (error instanceof Error) {
+    return error;
+  }
+
+  return new Error(fallback);
+}
+
 export async function uploadPrivateFileToR2(bucket: string, path: string, file: File) {
   const formData = new FormData();
   formData.set("bucket", bucket);
   formData.set("path", path);
   formData.set("file", file, file.name);
 
-  const { data, error } = await supabase.functions.invoke("r2-upload-private", {
+  const { data, error } = await supabaseClient.functions.invoke("r2-upload-private", {
     body: formData,
   });
 
-  if (error) throw error;
+  if (error) throw await resolveInvokeError(error, "No se pudo subir el archivo privado a Cloudflare R2.");
   if (!data || typeof data !== "object" || !("key" in data)) {
     throw resolveFunctionError(data, "La subida privada a R2 no devolvio una ruta valida.");
   }
@@ -61,7 +80,7 @@ export async function getPrivateSignedUrlFromR2(
   expiresIn = 60 * 10,
   downloadName?: string
 ) {
-  const { data, error } = await supabase.functions.invoke("r2-get-private-url", {
+  const { data, error } = await supabaseClient.functions.invoke("r2-get-private-url", {
     body: {
       bucket,
       path,
@@ -70,7 +89,7 @@ export async function getPrivateSignedUrlFromR2(
     },
   });
 
-  if (error) throw error;
+  if (error) throw await resolveInvokeError(error, "No se pudo generar el acceso temporal al archivo.");
   if (!data || typeof data !== "object" || !("signedUrl" in data)) {
     throw resolveFunctionError(data, "No se pudo generar el acceso temporal al archivo.");
   }
@@ -79,11 +98,11 @@ export async function getPrivateSignedUrlFromR2(
 }
 
 export async function deleteObjectFromR2(bucket: string, path: string) {
-  const { data, error } = await supabase.functions.invoke("r2-delete-object", {
+  const { data, error } = await supabaseClient.functions.invoke("r2-delete-object", {
     body: { bucket, path },
   });
 
-  if (error) throw error;
+  if (error) throw await resolveInvokeError(error, "No se pudo borrar el archivo en R2.");
   if (!data || typeof data !== "object" || !("ok" in data)) {
     throw resolveFunctionError(data, "No se pudo borrar el archivo en R2.");
   }
@@ -92,14 +111,14 @@ export async function deleteObjectFromR2(bucket: string, path: string) {
 }
 
 export async function downloadBookFileWithTokenFromR2(token: string, expiresIn = 60 * 5) {
-  const { data, error } = await supabase.functions.invoke("r2-download-book-with-token", {
+  const { data, error } = await supabaseClient.functions.invoke("r2-download-book-with-token", {
     body: {
       token,
       expiresIn,
     },
   });
 
-  if (error) throw error;
+  if (error) throw await resolveInvokeError(error, "No se pudo preparar la descarga del libro.");
   if (!data || typeof data !== "object" || !("signedUrl" in data)) {
     throw resolveFunctionError(data, "No se pudo preparar la descarga del libro.");
   }
