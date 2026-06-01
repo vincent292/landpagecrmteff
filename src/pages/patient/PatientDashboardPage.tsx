@@ -12,6 +12,7 @@ import { getMyPromotionOrders } from "../../services/promotionOrderService";
 import { getMyPostCares } from "../../services/postCareService";
 import { getMyPrescriptions } from "../../services/prescriptionService";
 import { getMyReservations } from "../../services/reservationService";
+import { getMySavingsCards } from "../../services/savingsCardService";
 import { formatDate } from "../../utils/text";
 
 export function PatientDashboardPage() {
@@ -29,6 +30,7 @@ export function PatientDashboardPage() {
     ordersPending: 0,
     courseEnrollmentsPending: 0,
     promotionOrdersPending: 0,
+    savingsCardsActive: 0,
   });
 
   useEffect(() => {
@@ -39,7 +41,7 @@ export function PatientDashboardPage() {
 
     getPatientByProfileId(user.id)
       .then(async (patient) => {
-        const [cares, prescriptions, books, orders, appointments, reservations, courseEnrollments, promotionOrders] = await Promise.all([
+        const [cares, prescriptions, books, orders, appointments, reservations, courseEnrollments, promotionOrders, savingsCards] = await Promise.all([
           getMyPostCares(user.id),
           getMyPrescriptions(user.id),
           getMyActiveBooks(user.id),
@@ -48,6 +50,7 @@ export function PatientDashboardPage() {
           getMyReservations(user.id),
           getMyCourseEnrollments(user.id),
           getMyPromotionOrders(user.id),
+          getMySavingsCards(),
         ]);
 
         setSummary({
@@ -61,6 +64,7 @@ export function PatientDashboardPage() {
           ordersPending: orders.filter((item) => item.status === "Pendiente" || item.status === "En revision").length,
           courseEnrollmentsPending: courseEnrollments.filter((item) => item.status === "Pendiente" || item.status === "En revision").length,
           promotionOrdersPending: promotionOrders.filter((item) => item.status === "Pendiente" || item.status === "En revision").length,
+          savingsCardsActive: savingsCards.length,
         });
       })
       .catch(() => setError(true))
@@ -132,6 +136,7 @@ export function PatientDashboardPage() {
         <SummaryCard label="Pedidos de libros" value={String(summary.ordersPending)} />
         <SummaryCard label="Cursos pendientes" value={String(summary.courseEnrollmentsPending)} />
         <SummaryCard label="Promociones pendientes" value={String(summary.promotionOrdersPending)} />
+        <SummaryCard label="Tarjetas ahorro" value={String(summary.savingsCardsActive)} />
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
@@ -264,6 +269,12 @@ export function PatientDashboardPage() {
           detail="Agrega contacto de emergencia, direccion y datos clinicos para un mejor seguimiento."
           href="/mi-panel/perfil"
           label="Editar perfil"
+        />
+        <QuickLinkCard
+          title="Tarjetas de ahorro"
+          detail="Activa tu token, sube un comprobante por cada mes y sigue el estado de tus cuotas."
+          href="/mi-panel/tarjetas-ahorro"
+          label="Abrir ahorro"
         />
       </section>
     </div>

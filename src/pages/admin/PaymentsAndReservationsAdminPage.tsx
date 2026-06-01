@@ -5,6 +5,7 @@ import { Download, MessageCircleMore, RefreshCcw, Wallet } from "lucide-react";
 import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteActions";
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { useAuth } from "../../hooks/useAuth";
+import { getCareModeLabel } from "../../lib/careMode";
 import { supabase } from "../../lib/supabaseClient";
 import { hardDeleteRecord, isSoftDeleted, restoreRecord, softDeleteRecord, type DeletableTable } from "../../services/adminDeletionService";
 import { getSignedUrl } from "../../services/storageService";
@@ -567,7 +568,9 @@ export function PaymentsAndReservationsAdminPage() {
                         <>
                           <br />
                           {formatDate(item.row.appointment_date)} · {item.row.start_time.slice(0, 5)} - {item.row.end_time.slice(0, 5)}
-                          {item.row.doctor_profiles?.full_name ? ` · ${item.row.doctor_profiles.full_name}` : ""}
+                          {item.row.doctor_profiles?.full_name ? ` · Dra. ${item.row.doctor_profiles.full_name}` : ""}
+                          <br />
+                          Modalidad: {getCareModeLabel(item.row.care_mode)}
                         </>
                       ) : null}
                     </p>
@@ -672,6 +675,14 @@ export function PaymentsAndReservationsAdminPage() {
               <p className="mt-1 text-sm text-[var(--color-copy)]">
                 {approvalDraft.item.customerName} · {approvalDraft.item.sourceLabel}
               </p>
+              {approvalDraft.item.kind === "reservation" ? (
+                <p className="mt-2 text-sm text-[var(--color-copy)]">
+                  {formatDate(approvalDraft.item.row.appointment_date)} · {approvalDraft.item.row.start_time.slice(0, 5)} - {approvalDraft.item.row.end_time.slice(0, 5)}
+                  {approvalDraft.item.row.doctor_profiles?.full_name ? ` · Dra. ${approvalDraft.item.row.doctor_profiles.full_name}` : ""}
+                  <br />
+                  Modalidad: {getCareModeLabel(approvalDraft.item.row.care_mode)}
+                </p>
+              ) : null}
             </div>
 
             {!cashOpen ? (
@@ -766,7 +777,7 @@ export function PaymentsAndReservationsAdminPage() {
 function buildWhatsappMessage(item: PaymentsAndReservationsItem) {
   const patientName = item.customerName || "hola";
   if (item.kind === "reservation") {
-    return `Hola ${patientName}, te escribimos sobre tu reserva "${item.title}" del ${formatDate(item.row.appointment_date)} a las ${item.row.start_time.slice(0, 5)}.`;
+    return `Hola ${patientName}, te escribimos sobre tu reserva "${item.title}" en modalidad ${getCareModeLabel(item.row.care_mode).toLowerCase()} del ${formatDate(item.row.appointment_date)} a las ${item.row.start_time.slice(0, 5)}${item.row.doctor_profiles?.full_name ? ` con la Dra. ${item.row.doctor_profiles.full_name}` : ""}.`;
   }
 
   return `Hola ${patientName}, te escribimos de parte de la Dra. Estefany sobre "${item.title}".`;
@@ -782,7 +793,7 @@ function buildApprovedWhatsappMessage(
   const paymentLabel = paymentMethod.trim() ? ` por ${formatMoney(amount)} via ${paymentMethod}` : ` por ${formatMoney(amount)}`;
 
   if (item.kind === "reservation") {
-    return `Hola ${patientName}, tu pago${paymentLabel} fue aprobado. Tu reserva "${item.title}" queda confirmada para el ${formatDate(item.row.appointment_date)} a las ${item.row.start_time.slice(0, 5)}. Si necesitas apoyo adicional, respondemos por este medio.`;
+    return `Hola ${patientName}, tu pago${paymentLabel} fue aprobado. Tu reserva "${item.title}" queda confirmada en modalidad ${getCareModeLabel(item.row.care_mode).toLowerCase()} para el ${formatDate(item.row.appointment_date)} a las ${item.row.start_time.slice(0, 5)}${item.row.doctor_profiles?.full_name ? ` con la Dra. ${item.row.doctor_profiles.full_name}` : ""}. Si necesitas apoyo adicional, respondemos por este medio.`;
   }
 
   if (item.kind === "course") {

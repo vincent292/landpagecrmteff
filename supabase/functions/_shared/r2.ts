@@ -216,6 +216,40 @@ export async function canAccessPrivateObject(
   const results = await Promise.all(exactChecks);
   if (results.some((result) => result.data)) return true;
 
+  const { data: savingsReceipt } = await adminClient
+    .from("savings_card_receipts")
+    .select("id, installment_id")
+    .eq("receipt_path", path)
+    .maybeSingle();
+
+  if (savingsReceipt?.installment_id) {
+    const { data: installment } = await adminClient
+      .from("savings_card_installments")
+      .select("id, card_id")
+      .eq("id", savingsReceipt.installment_id)
+      .maybeSingle();
+
+    if (installment?.card_id) {
+      const { data: card } = await adminClient
+        .from("savings_cards")
+        .select("id, patient_id")
+        .eq("id", installment.card_id)
+        .maybeSingle();
+
+      if (card?.patient_id) {
+        const { data: patient } = await adminClient
+          .from("patients")
+          .select("id")
+          .eq("id", card.patient_id)
+          .eq("profile_id", userId)
+          .eq("is_deleted", false)
+          .maybeSingle();
+
+        if (patient) return true;
+      }
+    }
+  }
+
   const { data: photo } = await adminClient
     .from("patient_photos")
     .select("id, patient_id, is_visible_to_patient")

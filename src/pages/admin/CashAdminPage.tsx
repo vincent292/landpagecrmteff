@@ -33,11 +33,13 @@ import {
   type CashSessionCountLineRow,
   type CashSessionCountRow,
 } from "../../services/cashService";
+import { getSavingsCardByTokenAdmin, redeemSavingsCard, type SavingsCardRow } from "../../services/savingsCardService";
+import { getAdminTreatments, type TreatmentRow } from "../../services/treatmentService";
 import { downloadCsv } from "../../utils/csv";
 import { formatDate, formatMoney } from "../../utils/text";
 
 type TabKey = "resumen" | "sesiones" | "movimientos" | "arqueos" | "configuracion";
-type ModalKey = "session" | "movement" | "drawer" | "count" | null;
+type ModalKey = "session" | "movement" | "drawer" | "count" | "savingsCardRedeem" | null;
 
 type SessionFormState = {
   session_date: string;
@@ -81,6 +83,15 @@ type CountFormState = {
   countType: CashSessionCountRow["count_type"];
   notes: string;
   quantities: Record<string, number>;
+};
+
+type SavingsCardRedeemFormState = {
+  token: string;
+  treatmentId: string;
+  treatmentTitle: string;
+  treatmentPrice: number;
+  paymentMethod: string;
+  notes: string;
 };
 
 const tabs: Array<{ key: TabKey; label: string }> = [
@@ -130,6 +141,15 @@ const emptyDrawerForm: DrawerFormState = {
   is_active: true,
 };
 
+const emptySavingsCardRedeemForm: SavingsCardRedeemFormState = {
+  token: "",
+  treatmentId: "",
+  treatmentTitle: "",
+  treatmentPrice: 0,
+  paymentMethod: "efectivo",
+  notes: "",
+};
+
 export function CashAdminPage() {
   const { role, profile, user } = useAuth();
   const [activeTab, setActiveTab] = useState<TabKey>("resumen");
@@ -140,8 +160,11 @@ export function CashAdminPage() {
   const [denominations, setDenominations] = useState<CashDenominationRow[]>([]);
   const [counts, setCounts] = useState<CashSessionCountRow[]>([]);
   const [countLines, setCountLines] = useState<CashSessionCountLineRow[]>([]);
+  const [treatments, setTreatments] = useState<TreatmentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [warning, setWarning] = useState("");
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("Todos");
   const [statusFilter, setStatusFilter] = useState("Todos");
@@ -157,6 +180,10 @@ export function CashAdminPage() {
   const [movementAttachmentFile, setMovementAttachmentFile] = useState<File | null>(null);
   const [drawerForm, setDrawerForm] = useState<DrawerFormState>(emptyDrawerForm);
   const [countForm, setCountForm] = useState<CountFormState>({ sessionId: "", countType: "arqueo", notes: "", quantities: {} });
+  const [savingsCardRedeemForm, setSavingsCardRedeemForm] = useState<SavingsCardRedeemFormState>(emptySavingsCardRedeemForm);
+  const [savingsCardLookup, setSavingsCardLookup] = useState<SavingsCardRow | null>(null);
+  const [lookingUpSavingsCard, setLookingUpSavingsCard] = useState(false);
+  const [savingSavingsCardRedeem, setSavingSavingsCardRedeem] = useState(false);
 
   const actorId = profile?.id ?? user?.id ?? null;
   const actorName = profile?.full_name ?? user?.user_metadata.full_name ?? null;
@@ -173,14 +200,16 @@ export function CashAdminPage() {
       getCashPaymentMethods(true),
       getCashDenominations(true),
       getCashSessionCounts(includeDeleted),
+      getAdminTreatments(),
     ])
-      .then(async ([movementRows, sessionRows, drawerRows, methodRows, denominationRows, countRows]) => {
+      .then(async ([movementRows, sessionRows, drawerRows, methodRows, denominationRows, countRows, treatmentRows]) => {
         setMovements(movementRows);
         setSessions(sessionRows);
         setDrawers(drawerRows);
         setPaymentMethods(methodRows);
         setDenominations(denominationRows);
         setCounts(countRows);
+        setTreatments(treatmentRows.filter((item) => !item.is_deleted && item.is_active !== false));
         const lines = await getCashSessionCountLines(countRows.map((row) => row.id));
         setCountLines(lines);
       })
@@ -448,6 +477,15 @@ export function CashAdminPage() {
     setModal("count");
   };
 
+  const openSavingsCardRedeemModal = () => {
+    setSavingsCardLookup(null);
+    setSavingsCardRedeemForm({
+      ...emptySavingsCardRedeemForm,
+      paymentMethod: paymentMethods.find((method) => method.is_default)?.code ?? "efectivo",
+    });
+    setModal("savingsCardRedeem");
+  };
+
   const submitSession = async () => {
     setSaving(true);
     try {
@@ -511,6 +549,75 @@ export function CashAdminPage() {
   const openMovementAttachment = async (path?: string | null) => {
     const url = await getCashMovementAttachmentUrl(path);
     if (url) window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const lookupSavingsCard = async () => {
+    const token = savingsCardRedeemForm.token.trim().toUpperCase();
+    if (!token) return;
+    setLookingUpSavingsCard(true);
+    setNotice("");
+    setWarning("");
+    try {
+      const card = await getSavingsCardByTokenAdmin(token);
+      setSavingsCardLookup(card);
+      if (!card) {
+        setWarning("No encontramos una tarjeta con ese token.");
+        return;
+      }
+
+      const matchingTreatment = card.treatment_id ? treatments.find((item) => item.id === card.treatment_id) : null;
+
+      setSavingsCardRedeemForm((current) => ({
+        ...current,
+        token,
+        treatmentId: matchingTreatment?.id ?? card.treatment_id ?? current.treatmentId,
+        treatmentTitle: card.treatment_title ?? current.treatmentTitle,
+      }));
+    } catch (lookupError) {
+      setWarning(lookupError instanceof Error ? lookupError.message : "No pudimos validar el token.");
+    } finally {
+      setLookingUpSavingsCard(false);
+    }
+  };
+
+  const submitSavingsCardRedeem = async () => {
+    if (!savingsCardLookup) {
+      setWarning("Primero valida el token de la tarjeta.");
+      return;
+    }
+
+    const treatmentPrice = Number(savingsCardRedeemForm.treatmentPrice);
+    const extraAmount = Math.max(treatmentPrice - Number(savingsCardLookup.approved_amount ?? 0), 0);
+    const selectedTreatment = treatments.find((item) => item.id === savingsCardRedeemForm.treatmentId);
+    const resolvedTreatmentTitle =
+      savingsCardRedeemForm.treatmentTitle.trim() ||
+      selectedTreatment?.title ||
+      savingsCardLookup.treatment_title ||
+      "Tratamiento";
+
+    setSavingSavingsCardRedeem(true);
+    setNotice("");
+    setWarning("");
+    try {
+      await redeemSavingsCard({
+        token: savingsCardRedeemForm.token,
+        treatmentTitle: resolvedTreatmentTitle,
+        treatmentPrice,
+        extraAmountPaid: extraAmount,
+        paymentMethod: extraAmount > 0 ? savingsCardRedeemForm.paymentMethod : null,
+        notes: savingsCardRedeemForm.notes.trim() || null,
+        treatmentId: savingsCardRedeemForm.treatmentId || null,
+      });
+      setModal(null);
+      setNotice("Tarjeta canjeada correctamente. Si hubo diferencia, ya quedo registrada en caja.");
+      setSavingsCardLookup(null);
+      setSavingsCardRedeemForm(emptySavingsCardRedeemForm);
+      load();
+    } catch (redeemError) {
+      setWarning(redeemError instanceof Error ? redeemError.message : "No pudimos canjear la tarjeta.");
+    } finally {
+      setSavingSavingsCardRedeem(false);
+    }
   };
 
   const submitDrawer = async () => {
@@ -590,10 +697,22 @@ export function CashAdminPage() {
             <button onClick={exportMovements} className="rounded-full border border-[var(--color-border)] bg-white/80 px-5 py-3 text-sm font-semibold">CSV movimientos</button>
             <button onClick={exportSessions} className="rounded-full border border-[var(--color-border)] bg-white/80 px-5 py-3 text-sm font-semibold">CSV sesiones</button>
             <button onClick={exportCounts} className="rounded-full border border-[var(--color-border)] bg-white/80 px-5 py-3 text-sm font-semibold">CSV arqueos</button>
+            <button onClick={() => openSavingsCardRedeemModal()} className="rounded-full border border-[var(--color-border)] bg-white/80 px-5 py-3 text-sm font-semibold">Canjear tarjeta ahorro</button>
             <button onClick={() => openSessionModal()} className="rounded-full border border-[var(--color-border)] bg-white/80 px-5 py-3 text-sm font-semibold">Nueva apertura</button>
             <button onClick={() => openMovementModal()} className="rounded-full bg-[var(--color-mocha)] px-5 py-3 text-sm font-semibold text-white">Nuevo movimiento</button>
           </div>
         </div>
+
+        {notice ? (
+          <div className="mt-4 rounded-[22px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">
+            {notice}
+          </div>
+        ) : null}
+        {warning ? (
+          <div className="mt-4 rounded-[22px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">
+            {warning}
+          </div>
+        ) : null}
 
         <div className="mt-6 flex flex-wrap gap-3 rounded-full border border-[var(--color-border)] bg-[rgba(255,249,244,0.7)] p-2">
           {tabs.map((tab) => (
@@ -645,6 +764,7 @@ export function CashAdminPage() {
               <QuickAction label="Hacer arqueo parcial" onClick={() => openCountModal(openSessions[0]?.id ?? "", "arqueo")} disabled={!openSessions[0]} />
               <QuickAction label="Cerrar caja con conteo" onClick={() => openCountModal(openSessions[0]?.id ?? "", "cierre")} disabled={!openSessions[0]} />
               <QuickAction label="Cerrar caja sin arqueo" onClick={() => void closeWithoutCount(openSessions[0]?.id ?? "")} disabled={!openSessions[0] || saving} />
+              <QuickAction label="Canjear tarjeta de ahorro" onClick={() => openSavingsCardRedeemModal()} />
             </div>
           </Panel>
 
@@ -1126,6 +1246,156 @@ export function CashAdminPage() {
             </Field>
           </div>
           <ActionRow saving={saving} primaryLabel={countForm.countType === "cierre" ? "Cerrar caja" : "Guardar arqueo"} onSave={() => void submitCount()} onCancel={() => setModal(null)} />
+        </ModalShell>
+      ) : null}
+
+      {modal === "savingsCardRedeem" ? (
+        <ModalShell title="Canjear tarjeta de ahorro" onClose={() => setModal(null)} maxWidthClassName="max-w-4xl">
+          <div className="grid gap-4">
+            <div className="rounded-[24px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-7 text-amber-900">
+              Usa aqui el token cuando la paciente ya tenga todas sus cuotas aprobadas. Si el tratamiento cuesta mas que
+              el saldo acumulado, registraremos solo la diferencia restante como nuevo ingreso en caja.
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-[1fr_auto]">
+              <Field label="Token">
+                <input
+                  value={savingsCardRedeemForm.token}
+                  onChange={(event) => setSavingsCardRedeemForm({ ...savingsCardRedeemForm, token: event.target.value.toUpperCase() })}
+                  className="premium-input"
+                  placeholder="AHR-XXXX-XXXX-XXXX"
+                />
+              </Field>
+              <div className="md:self-end">
+                <button
+                  type="button"
+                  onClick={() => void lookupSavingsCard()}
+                  disabled={lookingUpSavingsCard || !savingsCardRedeemForm.token.trim()}
+                  className="rounded-full border border-[var(--color-border)] px-5 py-3 text-sm font-semibold disabled:opacity-60"
+                >
+                  {lookingUpSavingsCard ? "Validando..." : "Validar token"}
+                </button>
+              </div>
+            </div>
+
+            {savingsCardLookup ? (
+              <div className="rounded-[24px] border border-[var(--color-border)] bg-[rgba(247,242,236,0.74)] p-4">
+                <p className="font-semibold">
+                  {savingsCardLookup.patient_full_name}
+                  {savingsCardLookup.treatment_title ? ` · ${savingsCardLookup.treatment_title}` : ""}
+                </p>
+                <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">
+                  Estado {savingsCardLookup.status} · aprobado {formatMoney(savingsCardLookup.approved_amount)} · cuotas
+                  {` ${savingsCardLookup.approved_installments_count}/${savingsCardLookup.months_count}`}
+                  <br />
+                  {savingsCardLookup.redeemed_at ? `Ya canjeada el ${formatDate(savingsCardLookup.redeemed_at)}.` : "Lista para registrar en caja si todo esta aprobado."}
+                </p>
+              </div>
+            ) : null}
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="Tratamiento">
+                <select
+                  value={savingsCardRedeemForm.treatmentId}
+                  onChange={(event) => {
+                    const selectedTreatment = treatments.find((item) => item.id === event.target.value) ?? null;
+                    setSavingsCardRedeemForm({
+                      ...savingsCardRedeemForm,
+                      treatmentId: event.target.value,
+                      treatmentTitle: event.target.value ? "" : savingsCardRedeemForm.treatmentTitle,
+                    });
+                    if (selectedTreatment) {
+                      setSavingsCardRedeemForm((current) => ({
+                        ...current,
+                        treatmentId: event.target.value,
+                        treatmentTitle: "",
+                      }));
+                    }
+                  }}
+                  className="premium-input"
+                >
+                  <option value="">Tratamiento libre</option>
+                  {treatments.map((treatment) => (
+                    <option key={treatment.id} value={treatment.id}>
+                      {treatment.title}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Precio total del tratamiento">
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={String(savingsCardRedeemForm.treatmentPrice)}
+                  onChange={(event) => setSavingsCardRedeemForm({ ...savingsCardRedeemForm, treatmentPrice: Number(event.target.value) })}
+                  className="premium-input"
+                />
+              </Field>
+              {!savingsCardRedeemForm.treatmentId ? (
+                <Field label="Nombre libre del tratamiento" className="md:col-span-2">
+                  <input
+                    value={savingsCardRedeemForm.treatmentTitle}
+                    onChange={(event) => setSavingsCardRedeemForm({ ...savingsCardRedeemForm, treatmentTitle: event.target.value })}
+                    className="premium-input"
+                    placeholder="Ejemplo: Rinomodelacion"
+                  />
+                </Field>
+              ) : null}
+              <Field label="Metodo para la diferencia restante">
+                <select
+                  value={savingsCardRedeemForm.paymentMethod}
+                  onChange={(event) => setSavingsCardRedeemForm({ ...savingsCardRedeemForm, paymentMethod: event.target.value })}
+                  className="premium-input"
+                >
+                  {paymentMethods.map((method) => (
+                    <option key={method.id} value={method.code}>
+                      {method.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Notas" className="md:col-span-2">
+                <textarea
+                  value={savingsCardRedeemForm.notes}
+                  onChange={(event) => setSavingsCardRedeemForm({ ...savingsCardRedeemForm, notes: event.target.value })}
+                  className="premium-input min-h-28"
+                  placeholder="Notas del canje o detalle del tratamiento..."
+                />
+              </Field>
+            </div>
+
+            {savingsCardLookup ? (
+              <div className="rounded-[24px] border border-[var(--color-border)] bg-white/75 p-4">
+                <p className="text-sm font-semibold">Resumen del canje</p>
+                <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">
+                  Saldo aprobado: {formatMoney(savingsCardLookup.approved_amount)}
+                  <br />
+                  Precio del tratamiento: {formatMoney(savingsCardRedeemForm.treatmentPrice)}
+                  <br />
+                  Diferencia a cobrar en caja: {formatMoney(Math.max(Number(savingsCardRedeemForm.treatmentPrice) - Number(savingsCardLookup.approved_amount ?? 0), 0))}
+                </p>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => void submitSavingsCardRedeem()}
+              disabled={savingSavingsCardRedeem || !savingsCardLookup}
+              className="rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-60"
+            >
+              {savingSavingsCardRedeem ? "Guardando..." : "Registrar canje"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setModal(null)}
+              className="rounded-full border border-[var(--color-border)] px-6 py-3 text-sm font-semibold"
+            >
+              Cancelar
+            </button>
+          </div>
         </ModalShell>
       ) : null}
     </div>

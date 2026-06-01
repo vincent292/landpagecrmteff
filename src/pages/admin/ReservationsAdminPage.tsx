@@ -11,6 +11,7 @@ import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
 import { useFormDraft } from "../../hooks/useFormDraft";
 import { useWorkspaceState } from "../../hooks/useWorkspaceState";
+import { getCareModeLabel } from "../../lib/careMode";
 import { hardDeleteRecord, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
 import { getAppointmentsAdmin, updateAppointment, updateAppointmentStatus, type AppointmentAdminRow } from "../../services/appointmentService";
 import { getAvailableSlots, type AvailableSlot } from "../../services/availabilityService";
@@ -69,6 +70,11 @@ type ApprovalDraft = {
   reservationId: string;
   patientName: string;
   appointmentType: string;
+  careMode: string | null;
+  doctorName: string | null;
+  appointmentDate: string;
+  startTime: string;
+  endTime: string;
   amount: number;
   paymentMethod: string;
   notes: string;
@@ -350,6 +356,11 @@ export function ReservationsAdminPage() {
       reservationId: row.id,
       patientName: row.patients?.full_name ?? "Paciente",
       appointmentType: row.appointment_type,
+      careMode: row.care_mode ?? null,
+      doctorName: row.doctor_profiles?.full_name ?? null,
+      appointmentDate: row.appointment_date,
+      startTime: row.start_time,
+      endTime: row.end_time,
       amount: Number(row.payment_amount ?? 0),
       paymentMethod: row.payment_method ?? paymentMethods.find((method) => method.is_default)?.code ?? "qr",
       notes: row.admin_notes ?? "",
@@ -391,7 +402,7 @@ export function ReservationsAdminPage() {
     const hoursLeft = getHoursUntilExpiration(row.public_payment_token_expires_at);
     const whatsappMessage = [
       `Hola ${row.patients?.full_name ?? "paciente"},`,
-      `te compartimos el enlace para confirmar tu cita de ${row.title ?? row.appointment_type} el ${formatDate(row.appointment_date)} a las ${row.start_time.slice(0, 5)}.`,
+      `te compartimos el enlace para confirmar tu cita de ${row.title ?? row.appointment_type} en modalidad ${getCareModeLabel(row.care_mode).toLowerCase()} el ${formatDate(row.appointment_date)} a las ${row.start_time.slice(0, 5)}${row.doctor_profiles?.full_name ? ` con la Dra. ${row.doctor_profiles.full_name}` : ""}.`,
       `Monto pendiente: ${formatMoney(row.payment_amount ?? 0)}.`,
       `Para confirmar tu reserva tienes ${buildPaymentWindowLabel(hoursLeft)} para realizar el pago y subir tu comprobante.`,
       `Enlace de pago: ${paymentLink}`,
@@ -542,9 +553,13 @@ export function ReservationsAdminPage() {
       } else {
         const paymentLink = created.public_payment_token ? `${window.location.origin}/pago-cita/${created.public_payment_token}` : null;
         const deadlineLabel = buildPaymentWindowLabel(values.payment_window_hours);
+        const selectedSlotDoctorName =
+          doctors.find((doctor) => doctor.id === selectedSlot.doctor_id)?.full_name ??
+          selectedDoctor?.full_name ??
+          null;
         const whatsappMessage = [
           `Hola ${selectedPatient.full_name},`,
-          `te compartimos el enlace para confirmar tu cita de ${selectedSlot.appointment_type} el ${formatDate(selectedSlot.date)} a las ${selectedSlot.start_time.slice(0, 5)}.`,
+          `te compartimos el enlace para confirmar tu cita de ${selectedSlot.appointment_type} en modalidad ${getCareModeLabel(selectedSlot.care_mode).toLowerCase()} el ${formatDate(selectedSlot.date)} a las ${selectedSlot.start_time.slice(0, 5)}${selectedSlotDoctorName ? ` con la Dra. ${selectedSlotDoctorName}` : ""}.`,
           `Monto pendiente: ${formatMoney(values.payment_amount)}.`,
           `Para confirmar tu reserva tienes ${deadlineLabel} para realizar el pago y subir tu comprobante.`,
           paymentLink ? `Enlace de pago: ${paymentLink}` : null,
@@ -1054,6 +1069,12 @@ export function ReservationsAdminPage() {
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-accent-strong)]">Reserva</p>
               <p className="mt-2 text-lg font-semibold">{approvalDraft.patientName}</p>
               <p className="mt-1 text-sm text-[var(--color-copy)]">{approvalDraft.appointmentType}</p>
+              <p className="mt-2 text-sm text-[var(--color-copy)]">
+                {formatDate(approvalDraft.appointmentDate)} - {approvalDraft.startTime.slice(0, 5)} a {approvalDraft.endTime.slice(0, 5)}
+                {approvalDraft.doctorName ? ` · Dra. ${approvalDraft.doctorName}` : ""}
+                <br />
+                Modalidad: {getCareModeLabel(approvalDraft.careMode)}
+              </p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Monto pagado">
@@ -1203,7 +1224,7 @@ function ReservationCard({
   onRegenerateManualPaymentLink: (row: AppointmentReservationRow) => void;
 }) {
   const phone = row.patients?.phone?.replace(/\D/g, "") ?? "";
-  const message = `Hola ${row.patients?.full_name ?? ""}, te escribimos de parte de la Dra. Estefany sobre tu cita de ${row.appointment_type} del ${row.appointment_date} a las ${row.start_time}.`;
+  const message = `Hola ${row.patients?.full_name ?? ""}, te escribimos de parte de la Dra. Estefany sobre tu cita de ${row.appointment_type} en modalidad ${getCareModeLabel(row.care_mode).toLowerCase()} del ${formatDate(row.appointment_date)} a las ${row.start_time.slice(0, 5)}${row.doctor_profiles?.full_name ? ` con la Dra. ${row.doctor_profiles.full_name}` : ""}.`;
   const hasReceipt = Boolean(row.payment_receipt_path);
   const isManualReservation = (row.source ?? "").toLowerCase().includes("admin_manual");
   const canSendManualLink = isManualReservation && row.status === "Pendiente" && !hasReceipt && Boolean(row.public_payment_token);
@@ -1241,6 +1262,9 @@ function ReservationCard({
             {row.appointment_type}
             <br />
             {formatDate(row.appointment_date)} - {row.start_time.slice(0, 5)} a {row.end_time.slice(0, 5)}
+            <br />
+            Modalidad: {getCareModeLabel(row.care_mode)}
+            {row.doctor_profiles?.full_name ? ` - Dra. ${row.doctor_profiles.full_name}` : ""}
             <br />
             {row.location ?? "Sin ubicacion"} - Origen: {getReservationSourceLabel(row.source)}
             <br />

@@ -44,6 +44,7 @@ const adminSections: AdminSection[] = [
       { label: "Inventario", href: "/panel/inventario", module: "inventario" },
       { label: "Caja", href: "/panel/caja", module: "caja" },
       { label: "Pagos y Reservas", href: "/panel/pagos-reservas", module: "pagos-reservas" },
+      { label: "Tarjetas ahorro", href: "/panel/tarjetas-ahorro", module: "tarjetas-ahorro" },
       { label: "Libros", href: "/panel/libros", module: "libros" },
     ],
   },
