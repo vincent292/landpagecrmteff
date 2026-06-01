@@ -19,6 +19,7 @@ const patientLinks: PatientLink[] = [
   { label: "Citas", href: "/mi-panel/citas", module: "citas" },
   { label: "Cursos", href: "/mi-panel/cursos", module: "cursos" },
   { label: "Promociones", href: "/mi-panel/promociones", module: "promociones" },
+  { label: "Planes de pago", href: "/mi-panel/planes-pago", module: "planes-pago" },
   { label: "Tarjetas ahorro", href: "/mi-panel/tarjetas-ahorro", module: "tarjetas-ahorro" },
   { label: "Reservar cita", href: "/mi-panel/reservar-cita", module: "reservar-cita" },
   { label: "Cuidados", href: "/mi-panel/cuidados", module: "cuidados" },

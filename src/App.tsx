@@ -55,6 +55,8 @@ const PatientClinicalHistoryPage = lazyPage(() => import("./pages/admin/PatientC
 const PatientDetailPage = lazyPage(() => import("./pages/admin/PatientDetailPage"), "PatientDetailPage");
 const PatientPhotosPage = lazyPage(() => import("./pages/admin/PatientPhotosPage"), "PatientPhotosPage");
 const PatientPrescriptionsAdminPage = lazyPage(() => import("./pages/admin/PatientPrescriptionsAdminPage"), "PatientPrescriptionsAdminPage");
+const PaymentPlansAdminPage = lazyPage(() => import("./pages/admin/PaymentPlansAdminPage"), "PaymentPlansAdminPage");
+const PaymentPlanAdminDetailPage = lazyPage(() => import("./pages/admin/PaymentPlanAdminDetailPage"), "PaymentPlanAdminDetailPage");
 const PatientsPage = lazyPage(() => import("./pages/admin/PatientsPage"), "PatientsPage");
 const ReservationsAdminPage = lazyPage(() => import("./pages/admin/ReservationsAdminPage"), "ReservationsAdminPage");
 const SavingsCardsAdminPage = lazyPage(() => import("./pages/admin/SavingsCardsAdminPage"), "SavingsCardsAdminPage");
@@ -67,6 +69,7 @@ const PatientCaresPage = lazyPage(() => import("./pages/patient/PatientCaresPage
 const PatientCoursesPage = lazyPage(() => import("./pages/patient/PatientCoursesPage"), "PatientCoursesPage");
 const PatientDashboardPage = lazyPage(() => import("./pages/patient/PatientDashboardPage"), "PatientDashboardPage");
 const PatientDownloadsPage = lazyPage(() => import("./pages/patient/PatientDownloadsPage"), "PatientDownloadsPage");
+const PatientPaymentPlansPage = lazyPage(() => import("./pages/patient/PatientPaymentPlansPage"), "PatientPaymentPlansPage");
 const PatientPrescriptionsPage = lazyPage(() => import("./pages/patient/PatientPrescriptionsPage"), "PatientPrescriptionsPage");
 const PatientPromotionsPage = lazyPage(() => import("./pages/patient/PatientPromotionsPage"), "PatientPromotionsPage");
 const PatientProfilePage = lazyPage(() => import("./pages/patient/PatientProfilePage"), "PatientProfilePage");
@@ -170,6 +173,8 @@ export default function App() {
           <Route path="inventario" element={<InventoryAdminPage />} />
           <Route path="caja" element={<CashAdminPage />} />
           <Route path="pagos-reservas" element={<PaymentsAndReservationsAdminPage />} />
+          <Route path="planes-pago" element={<PaymentPlansAdminPage />} />
+          <Route path="planes-pago/:id" element={<PaymentPlanAdminDetailPage />} />
           <Route path="tarjetas-ahorro" element={<SavingsCardsAdminPage />} />
           <Route path="tarjetas-ahorro/:id" element={<SavingsCardAdminDetailPage />} />
           <Route path="pedidos-promociones" element={<Navigate to="/panel/pagos-reservas" replace />} />
@@ -191,6 +196,7 @@ export default function App() {
           <Route path="citas" element={<PatientAppointmentsPage />} />
           <Route path="cursos" element={<PatientCoursesPage />} />
           <Route path="promociones" element={<PatientPromotionsPage />} />
+          <Route path="planes-pago" element={<PatientPaymentPlansPage />} />
           <Route path="tarjetas-ahorro" element={<PatientSavingsCardsPage />} />
           <Route path="reservar-cita" element={<ReserveAppointmentPage />} />
           <Route path="cuidados" element={<PatientCaresPage />} />

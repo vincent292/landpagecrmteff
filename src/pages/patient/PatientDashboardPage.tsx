@@ -11,6 +11,7 @@ import { getPatientByProfileId } from "../../services/patientService";
 import { getMyPromotionOrders } from "../../services/promotionOrderService";
 import { getMyPostCares } from "../../services/postCareService";
 import { getMyPrescriptions } from "../../services/prescriptionService";
+import { getMyPaymentPlans } from "../../services/paymentPlanService";
 import { getMyReservations } from "../../services/reservationService";
 import { getMySavingsCards } from "../../services/savingsCardService";
 import { formatDate } from "../../utils/text";
@@ -30,6 +31,8 @@ export function PatientDashboardPage() {
     ordersPending: 0,
     courseEnrollmentsPending: 0,
     promotionOrdersPending: 0,
+    paymentPlansActive: 0,
+    nextPaymentPlanDate: null as string | null,
     savingsCardsActive: 0,
   });
 
@@ -41,7 +44,7 @@ export function PatientDashboardPage() {
 
     getPatientByProfileId(user.id)
       .then(async (patient) => {
-        const [cares, prescriptions, books, orders, appointments, reservations, courseEnrollments, promotionOrders, savingsCards] = await Promise.all([
+        const [cares, prescriptions, books, orders, appointments, reservations, courseEnrollments, promotionOrders, paymentPlans, savingsCards] = await Promise.all([
           getMyPostCares(user.id),
           getMyPrescriptions(user.id),
           getMyActiveBooks(user.id),
@@ -50,8 +53,20 @@ export function PatientDashboardPage() {
           getMyReservations(user.id),
           getMyCourseEnrollments(user.id),
           getMyPromotionOrders(user.id),
+          getMyPaymentPlans(),
           getMySavingsCards(),
         ]);
+
+        const nextPaymentPlanInstallment =
+          paymentPlans
+            .flatMap((plan) =>
+              (plan.installments ?? []).map((installment) => ({
+                plan,
+                installment,
+              }))
+            )
+            .filter((item) => item.installment.status !== "Pagado")
+            .sort((left, right) => left.installment.due_date.localeCompare(right.installment.due_date))[0] ?? null;
 
         setSummary({
           nextAppointment: appointments.find((item) => item.status !== "Cancelada") ?? null,
@@ -64,6 +79,8 @@ export function PatientDashboardPage() {
           ordersPending: orders.filter((item) => item.status === "Pendiente" || item.status === "En revision").length,
           courseEnrollmentsPending: courseEnrollments.filter((item) => item.status === "Pendiente" || item.status === "En revision").length,
           promotionOrdersPending: promotionOrders.filter((item) => item.status === "Pendiente" || item.status === "En revision").length,
+          paymentPlansActive: paymentPlans.filter((item) => item.status !== "Liquidado" && item.status !== "Cancelado").length,
+          nextPaymentPlanDate: nextPaymentPlanInstallment?.installment.due_date ?? null,
           savingsCardsActive: savingsCards.length,
         });
       })
@@ -136,6 +153,11 @@ export function PatientDashboardPage() {
         <SummaryCard label="Pedidos de libros" value={String(summary.ordersPending)} />
         <SummaryCard label="Cursos pendientes" value={String(summary.courseEnrollmentsPending)} />
         <SummaryCard label="Promociones pendientes" value={String(summary.promotionOrdersPending)} />
+        <SummaryCard label="Planes de pago" value={String(summary.paymentPlansActive)} />
+        <SummaryCard
+          label="Proxima cuota plan"
+          value={summary.nextPaymentPlanDate ? formatDate(summary.nextPaymentPlanDate) : "Sin cuota"}
+        />
         <SummaryCard label="Tarjetas ahorro" value={String(summary.savingsCardsActive)} />
       </section>
 
@@ -275,6 +297,12 @@ export function PatientDashboardPage() {
           detail="Activa tu token, sube un comprobante por cada mes y sigue el estado de tus cuotas."
           href="/mi-panel/tarjetas-ahorro"
           label="Abrir ahorro"
+        />
+        <QuickLinkCard
+          title="Planes de pago"
+          detail="Consulta tus cuotas reales, sube un comprobante por cada pago y sigue lo que ya entro a caja."
+          href="/mi-panel/planes-pago"
+          label="Abrir planes"
         />
       </section>
     </div>

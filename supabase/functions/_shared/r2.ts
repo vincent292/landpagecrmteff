@@ -250,6 +250,40 @@ export async function canAccessPrivateObject(
     }
   }
 
+  const { data: paymentPlanReceipt } = await adminClient
+    .from("payment_plan_receipts")
+    .select("id, installment_id")
+    .eq("receipt_path", path)
+    .maybeSingle();
+
+  if (paymentPlanReceipt?.installment_id) {
+    const { data: installment } = await adminClient
+      .from("payment_plan_installments")
+      .select("id, plan_id")
+      .eq("id", paymentPlanReceipt.installment_id)
+      .maybeSingle();
+
+    if (installment?.plan_id) {
+      const { data: plan } = await adminClient
+        .from("payment_plans")
+        .select("id, patient_id")
+        .eq("id", installment.plan_id)
+        .maybeSingle();
+
+      if (plan?.patient_id) {
+        const { data: patient } = await adminClient
+          .from("patients")
+          .select("id")
+          .eq("id", plan.patient_id)
+          .eq("profile_id", userId)
+          .eq("is_deleted", false)
+          .maybeSingle();
+
+        if (patient) return true;
+      }
+    }
+  }
+
   const { data: photo } = await adminClient
     .from("patient_photos")
     .select("id, patient_id, is_visible_to_patient")
