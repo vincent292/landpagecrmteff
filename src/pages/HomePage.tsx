@@ -7,6 +7,7 @@ import { Footer } from "../components/layout/Footer";
 import { PremiumNavbar } from "../components/layout/PremiumNavbar";
 import { Seo } from "../components/common/Seo";
 import { InfoRequestModal } from "../components/platform/InfoRequestModal";
+import { LandingCommunityChat } from "../components/platform/LandingCommunityChat";
 import { Hero } from "../components/sections/Hero";
 import { Services } from "../components/sections/Services";
 import { StickyLeadCTA } from "../components/sections/StickyLeadCTA";
@@ -155,6 +156,7 @@ export function HomePage() {
       </Suspense>
       <Footer />
       <StickyLeadCTA onRequestInfo={() => setInfoOpen(true)} />
+      <LandingCommunityChat />
       <WelcomeSpotlightModal />
       <InfoRequestModal
         open={infoOpen}

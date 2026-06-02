@@ -253,6 +253,15 @@ export function Services() {
         interest={interest?.title ?? ""}
         interestId={interest?.id}
         interestType={interest?.interestType ?? "General"}
+        whatsappTemplate={interest?.payload.whatsapp_prefill_message ?? null}
+        contentPrice={
+          interest?.kind === "Promocion"
+            ? interest.payload.promo_price ?? null
+            : interest?.kind === "Curso"
+              ? interest.payload.price ?? null
+              : null
+        }
+        contentCity={interest?.payload.city ?? null}
         onClose={() => setInterest(null)}
       />
     </SectionReveal>

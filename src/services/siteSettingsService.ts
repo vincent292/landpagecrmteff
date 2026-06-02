@@ -1,6 +1,16 @@
 import { supabase } from "../lib/supabaseClient";
 import { resolvePublicMediaValue } from "./publicMediaResolver";
 
+export type CommunityChatOption = {
+  id: string;
+  label: string;
+  keywords: string[];
+  reply: string;
+  button_text: string;
+  button_url: string;
+  is_active: boolean;
+};
+
 export type SiteSettingsRow = {
   id: boolean;
   phone: string | null;
@@ -23,6 +33,14 @@ export type SiteSettingsRow = {
   assessment_price?: number | null;
   reservation_reschedule_hours_before?: number | null;
   business_hours?: string | null;
+  community_chat_enabled?: boolean | null;
+  community_chat_title?: string | null;
+  community_chat_welcome?: string | null;
+  community_chat_placeholder?: string | null;
+  community_chat_fallback_text?: string | null;
+  community_chat_fallback_button_text?: string | null;
+  community_chat_fallback_url?: string | null;
+  community_chat_options?: CommunityChatOption[] | null;
   footer_text: string | null;
   updated_at: string;
 };
@@ -73,9 +91,83 @@ const fallbackSettings: SiteSettingsRow = {
   assessment_price: 0,
   reservation_reschedule_hours_before: 48,
   business_hours: null,
+  community_chat_enabled: false,
+  community_chat_title: "Comunidades WhatsApp",
+  community_chat_welcome:
+    "Hola, soy la guia del consultorio. Elige una comunidad o escribe una opcion breve y te comparto el enlace correcto.",
+  community_chat_placeholder: 'Escribe "promociones", "cursos" o toca una opcion',
+  community_chat_fallback_text:
+    "Por ahora solo puedo ayudarte con las opciones visibles. Si deseas atencion personalizada o pedir una cita, usa el siguiente enlace.",
+  community_chat_fallback_button_text: "Pedir cita",
+  community_chat_fallback_url: "/reservar-cita",
+  community_chat_options: [],
   footer_text: "Una experiencia clinica sobria, cercana y pensada para sentirse impecable en cualquier pantalla.",
   updated_at: new Date().toISOString(),
 };
+
+function normalizeCommunityChatOptions(value: unknown) {
+  if (!Array.isArray(value)) return fallbackSettings.community_chat_options ?? [];
+
+  return value
+    .map((entry, index) => {
+      if (!entry || typeof entry !== "object") return null;
+
+      const option = entry as Record<string, unknown>;
+      const label = typeof option.label === "string" ? option.label.trim() : "";
+      const reply = typeof option.reply === "string" ? option.reply.trim() : "";
+      const button_text = typeof option.button_text === "string" ? option.button_text.trim() : "";
+      const button_url = typeof option.button_url === "string" ? option.button_url.trim() : "";
+      const id =
+        typeof option.id === "string" && option.id.trim()
+          ? option.id.trim()
+          : `community-option-${index + 1}`;
+      const keywords = Array.isArray(option.keywords)
+        ? option.keywords
+            .map((item) => (typeof item === "string" ? item.trim() : ""))
+            .filter(Boolean)
+        : [];
+      const is_active = typeof option.is_active === "boolean" ? option.is_active : true;
+
+      if (!label || !reply || !button_text || !button_url) return null;
+
+      return {
+        id,
+        label,
+        keywords,
+        reply,
+        button_text,
+        button_url,
+        is_active,
+      } satisfies CommunityChatOption;
+    })
+    .filter((option): option is CommunityChatOption => option !== null);
+}
+
+function normalizeSiteSettings(row?: Partial<SiteSettingsRow> | null) {
+  const base = {
+    ...fallbackSettings,
+    ...(row ?? {}),
+  } satisfies SiteSettingsRow;
+
+  return {
+    ...base,
+    show_whatsapp_button: row?.show_whatsapp_button ?? fallbackSettings.show_whatsapp_button,
+    community_chat_enabled: row?.community_chat_enabled ?? fallbackSettings.community_chat_enabled,
+    community_chat_title: row?.community_chat_title?.trim() || fallbackSettings.community_chat_title,
+    community_chat_welcome:
+      row?.community_chat_welcome?.trim() || fallbackSettings.community_chat_welcome,
+    community_chat_placeholder:
+      row?.community_chat_placeholder?.trim() || fallbackSettings.community_chat_placeholder,
+    community_chat_fallback_text:
+      row?.community_chat_fallback_text?.trim() || fallbackSettings.community_chat_fallback_text,
+    community_chat_fallback_button_text:
+      row?.community_chat_fallback_button_text?.trim() ||
+      fallbackSettings.community_chat_fallback_button_text,
+    community_chat_fallback_url:
+      row?.community_chat_fallback_url?.trim() || fallbackSettings.community_chat_fallback_url,
+    community_chat_options: normalizeCommunityChatOptions(row?.community_chat_options),
+  } satisfies SiteSettingsRow;
+}
 
 function shouldRetryRequest(message: string) {
   const normalized = message.toLowerCase();
@@ -147,7 +239,7 @@ export async function getSiteSettings() {
     const { data, error } = await supabase.from("site_settings").select("*").eq("id", true).maybeSingle();
 
     if (!error) {
-      return resolveSiteSettingsMedia((data ?? fallbackSettings) as SiteSettingsRow);
+      return resolveSiteSettingsMedia(normalizeSiteSettings((data ?? fallbackSettings) as SiteSettingsRow));
     }
 
     if (error.code === "42P01") return fallbackSettings;
@@ -165,14 +257,20 @@ export async function getSiteSettings() {
 }
 
 export async function updateSiteSettings(data: Partial<SiteSettingsRow>) {
-  const payload = { ...data, id: true };
+  const payload = {
+    ...data,
+    ...(data.community_chat_options !== undefined
+      ? { community_chat_options: normalizeCommunityChatOptions(data.community_chat_options) }
+      : {}),
+    id: true,
+  };
   const { data: row, error } = await supabase
     .from("site_settings")
     .upsert(payload)
     .select("*")
     .single();
   if (error) throw error;
-  return resolveSiteSettingsMedia(row as SiteSettingsRow);
+  return resolveSiteSettingsMedia(normalizeSiteSettings(row as SiteSettingsRow));
 }
 
 export async function updateGeneralPaymentQr(data: {

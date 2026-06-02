@@ -47,10 +47,13 @@ export function InfoRequestModal({
 }: Props) {
   const [sent, setSent] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [messageTouched, setMessageTouched] = useState(false);
   const {
     register,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -61,12 +64,17 @@ export function InfoRequestModal({
       privacy_accepted: false,
     },
   });
+  const fullNameValue = watch("full_name");
+  const interestTypeValue = watch("interest_type");
+  const interestTitleValue = watch("interest_title");
+  const messageRegister = register("message");
 
   useEffect(() => {
     if (!open) return;
 
     setSent(false);
     setSubmitError("");
+    setMessageTouched(false);
     reset({
       full_name: "",
       phone: "",
@@ -74,10 +82,20 @@ export function InfoRequestModal({
       interest_type: interestType,
       interest_title: interest,
       contact_preference: "WhatsApp",
-      message: "",
+      message: buildSuggestedMessage("", interestType, interest),
       privacy_accepted: false,
     });
   }, [interest, interestType, open, reset]);
+
+  useEffect(() => {
+    if (!open || messageTouched) return;
+
+    setValue(
+      "message",
+      buildSuggestedMessage(fullNameValue ?? "", interestTypeValue, interestTitleValue ?? interest),
+      { shouldDirty: false, shouldTouch: false }
+    );
+  }, [fullNameValue, interest, interestTitleValue, interestTypeValue, messageTouched, open, setValue]);
 
   useEffect(() => {
     if (!open) return;
@@ -185,8 +203,18 @@ export function InfoRequestModal({
             </Field>
             <div className="md:col-span-2">
               <Field label="Mensaje opcional" error={errors.message?.message}>
-                <textarea {...register("message")} className="premium-input min-h-28 resize-none" />
+                <textarea
+                  {...messageRegister}
+                  onChange={(event) => {
+                    messageRegister.onChange(event);
+                    setMessageTouched(true);
+                  }}
+                  className="premium-input min-h-28 resize-none"
+                />
               </Field>
+              <p className="mt-2 text-sm leading-6 text-[var(--color-copy)]">
+                Lo dejamos preescrito para ayudarte a empezar, pero puedes cambiarlo como quieras.
+              </p>
             </div>
             <label className="flex gap-3 text-sm leading-6 text-[var(--color-copy)] md:col-span-2">
               <input type="checkbox" {...register("privacy_accepted")} className="mt-1" />
@@ -212,6 +240,43 @@ export function InfoRequestModal({
     </div>,
     document.body
   );
+}
+
+function buildSuggestedMessage(
+  fullName: string,
+  interestType: FormValues["interest_type"],
+  interestTitle: string
+) {
+  const cleanName = fullName.trim();
+  const intro = cleanName ? `Hola, mi nombre es ${cleanName}` : "Hola";
+  const bridge = cleanName ? " y " : ", ";
+  const cleanTitle = interestTitle.trim();
+
+  if (interestType === "Tratamiento" && cleanTitle) {
+    return `${intro}${bridge}me gustaria saber mas sobre el tratamiento ${cleanTitle}.`;
+  }
+
+  if (interestType === "Promoci\u00f3n" && cleanTitle) {
+    return `${intro}${bridge}me gustaria saber mas sobre la promocion ${cleanTitle}.`;
+  }
+
+  if (interestType === "Curso" && cleanTitle) {
+    return `${intro}${bridge}me gustaria saber mas sobre el curso ${cleanTitle}.`;
+  }
+
+  if (interestType === "Libro" && cleanTitle) {
+    return `${intro}${bridge}me gustaria saber mas sobre el libro ${cleanTitle}.`;
+  }
+
+  if (interestType === "Evento" && cleanTitle) {
+    return `${intro}${bridge}me gustaria saber mas sobre el evento ${cleanTitle}.`;
+  }
+
+  if (cleanTitle && cleanTitle.toLowerCase() !== "consulta general") {
+    return `${intro}${bridge}me gustaria saber mas sobre ${cleanTitle}.`;
+  }
+
+  return `${intro}${bridge}me gustaria saber mas sobre la atencion de la Dra. Estefany.`;
 }
 
 function Field({
