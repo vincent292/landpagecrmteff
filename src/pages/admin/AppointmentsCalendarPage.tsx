@@ -7,6 +7,7 @@ import { Download, ExternalLink, Mail, MessageCircleMore, Search } from "lucide-
 
 import { EmptyState, LoadingState } from "../../components/common/AsyncState";
 import { useAuth } from "../../hooks/useAuth";
+import { shouldHidePatientPhone } from "../../lib/patientPrivacy";
 import { getMyDoctorProfile } from "../../services/doctorService";
 import { getReservationsAdmin, type AppointmentReservationRow } from "../../services/reservationService";
 import { formatDate } from "../../utils/text";
@@ -15,6 +16,7 @@ const statuses = ["Todos", "Pendiente", "Confirmada", "Realizada", "Cancelada", 
 
 export function AppointmentsCalendarPage() {
   const { role, profile } = useAuth();
+  const hidePatientPhone = shouldHidePatientPhone(role);
   const [reservations, setReservations] = useState<AppointmentReservationRow[]>([]);
   const [selected, setSelected] = useState<AppointmentReservationRow | null>(null);
   const [status, setStatus] = useState("Todos");
@@ -47,7 +49,7 @@ export function AppointmentsCalendarPage() {
     }
 
     setLoading(true);
-    getReservationsAdmin(role === "doctor" ? { doctor_id: doctorProfileId } : {})
+    getReservationsAdmin(role === "doctor" ? { doctor_id: doctorProfileId } : {}, false, role)
       .then(setReservations)
       .finally(() => setLoading(false));
   }, [doctorProfileId, doctorProfileResolved, role]);
@@ -163,12 +165,20 @@ export function AppointmentsCalendarPage() {
         </aside>
       </section>
 
-      {selected && <AppointmentModal reservation={selected} onClose={() => setSelected(null)} />}
+      {selected ? <AppointmentModal reservation={selected} hidePatientPhone={hidePatientPhone} onClose={() => setSelected(null)} /> : null}
     </div>
   );
 }
 
-function AppointmentModal({ reservation, onClose }: { reservation: AppointmentReservationRow; onClose: () => void }) {
+function AppointmentModal({
+  reservation,
+  hidePatientPhone,
+  onClose,
+}: {
+  reservation: AppointmentReservationRow;
+  hidePatientPhone: boolean;
+  onClose: () => void;
+}) {
   const patientName = reservation.patients?.full_name ?? "Paciente";
   const doctorWhatsapp = (reservation.doctor_profiles?.whatsapp ?? "").replace(/\D/g, "");
   const title = `Cita ${reservation.appointment_type} - ${patientName}`;
@@ -193,7 +203,8 @@ function AppointmentModal({ reservation, onClose }: { reservation: AppointmentRe
           <br />
           {formatDate(reservation.appointment_date)} · {reservation.start_time.slice(0, 5)} - {reservation.end_time.slice(0, 5)}
           <br />
-          {reservation.location ?? "Sin ubicacion"} · {reservation.patients?.phone ?? "Sin celular"}
+          {reservation.location ?? "Sin ubicacion"}
+          {!hidePatientPhone ? ` · ${reservation.patients?.phone ?? "Sin celular"}` : ""}
         </p>
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
           <a href={getGoogleCalendarUrl(reservation)} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-full border border-[var(--color-border)] bg-white/70 px-4 py-3 text-sm font-semibold">
@@ -208,13 +219,12 @@ function AppointmentModal({ reservation, onClose }: { reservation: AppointmentRe
             <Mail className="h-4 w-4" />
             Email doctora
           </a>
-          {doctorWhatsapp && (
+          {doctorWhatsapp ? (
             <a href={`https://wa.me/${doctorWhatsapp}?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-full bg-[var(--color-mocha)] px-4 py-3 text-sm font-semibold text-white">
               <MessageCircleMore className="h-4 w-4" />
               WhatsApp doctora
             </a>
-          )}
-          {!doctorWhatsapp && (
+          ) : (
             <span className="rounded-full border border-[var(--color-border)] bg-white/60 px-4 py-3 text-center text-sm font-semibold text-[var(--color-copy)]">
               Asigna una doctora para WhatsApp
             </span>

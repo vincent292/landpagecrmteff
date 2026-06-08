@@ -51,7 +51,9 @@ export type DeletableTable =
   | "inventory_movements"
   | "inventory_counts"
   | "inventory_supplier_orders"
-  | "promotion_orders";
+  | "promotion_orders"
+  | "savings_cards"
+  | "payment_plans";
 
 type DeleteMode = "active" | "deleted";
 
@@ -95,6 +97,8 @@ const tableModes: Record<DeletableTable, DeleteMode> = {
   inventory_counts: "deleted",
   inventory_supplier_orders: "deleted",
   promotion_orders: "deleted",
+  savings_cards: "deleted",
+  payment_plans: "deleted",
 };
 
 export function canHardDelete(role: UserRole) {
@@ -316,6 +320,117 @@ async function cleanupBeforeHardDelete(table: DeletableTable, id: string) {
       for (const payment of data.inventory_supplier_order_payments ?? []) {
         await deleteStorageFileIfPresent("payment-receipts-private", payment.receipt_path);
         await deleteLinkedCashMovement(payment.cash_movement_id);
+      }
+      return;
+    }
+    case "savings_cards": {
+      const { data: installments, error: installmentsError } = await supabase
+        .from("savings_card_installments")
+        .select("id, cash_movement_id")
+        .eq("card_id", id);
+      if (installmentsError) throw installmentsError;
+
+      const installmentIds = (installments ?? []).map((item) => item.id);
+      const installmentMovementIds = (installments ?? [])
+        .map((item) => item.cash_movement_id)
+        .filter((value): value is string => Boolean(value));
+
+      if (installmentIds.length > 0) {
+        const { data: receipts, error: receiptsError } = await supabase
+          .from("savings_card_receipts")
+          .select("id, receipt_path")
+          .in("installment_id", installmentIds);
+        if (receiptsError) throw receiptsError;
+
+        for (const receipt of receipts ?? []) {
+          await deleteStorageFileIfPresent("payment-receipts-private", receipt.receipt_path);
+        }
+
+        const { error: receiptsDeleteError } = await supabase
+          .from("savings_card_receipts")
+          .delete()
+          .in("installment_id", installmentIds);
+        if (receiptsDeleteError) throw receiptsDeleteError;
+      }
+
+      const { data: redemption, error: redemptionError } = await supabase
+        .from("savings_card_redemptions")
+        .select("id, cash_movement_id")
+        .eq("card_id", id)
+        .maybeSingle();
+      if (redemptionError) throw redemptionError;
+
+      for (const movementId of new Set(installmentMovementIds)) {
+        await deleteLinkedCashMovement(movementId);
+      }
+
+      if (redemption?.cash_movement_id) {
+        await deleteLinkedCashMovement(redemption.cash_movement_id);
+      }
+
+      if (installmentIds.length > 0) {
+        const { error: installmentsDeleteError } = await supabase
+          .from("savings_card_installments")
+          .delete()
+          .in("id", installmentIds);
+        if (installmentsDeleteError) throw installmentsDeleteError;
+      }
+
+      const { error: redemptionDeleteError } = await supabase
+        .from("savings_card_redemptions")
+        .delete()
+        .eq("card_id", id);
+      if (redemptionDeleteError) throw redemptionDeleteError;
+      return;
+    }
+    case "payment_plans": {
+      const { data: plan, error: planError } = await supabase
+        .from("payment_plans")
+        .select("initial_payment_cash_movement_id")
+        .eq("id", id)
+        .maybeSingle();
+      if (planError) throw planError;
+
+      const { data: installments, error: installmentsError } = await supabase
+        .from("payment_plan_installments")
+        .select("id, cash_movement_id")
+        .eq("plan_id", id);
+      if (installmentsError) throw installmentsError;
+
+      const installmentIds = (installments ?? []).map((item) => item.id);
+      const movementIds = [
+        plan?.initial_payment_cash_movement_id ?? null,
+        ...((installments ?? []).map((item) => item.cash_movement_id) ?? []),
+      ].filter((value): value is string => Boolean(value));
+
+      if (installmentIds.length > 0) {
+        const { data: receipts, error: receiptsError } = await supabase
+          .from("payment_plan_receipts")
+          .select("id, receipt_path")
+          .in("installment_id", installmentIds);
+        if (receiptsError) throw receiptsError;
+
+        for (const receipt of receipts ?? []) {
+          await deleteStorageFileIfPresent("payment-receipts-private", receipt.receipt_path);
+        }
+
+        const { error: receiptsDeleteError } = await supabase
+          .from("payment_plan_receipts")
+          .delete()
+          .in("installment_id", installmentIds);
+        if (receiptsDeleteError) throw receiptsDeleteError;
+      }
+
+      for (const movementId of new Set(movementIds)) {
+        await deleteLinkedCashMovement(movementId);
+      }
+
+      if (installmentIds.length > 0) {
+        const { error: installmentsDeleteError } = await supabase
+          .from("payment_plan_installments")
+          .delete()
+          .in("id", installmentIds);
+        if (installmentsDeleteError) throw installmentsDeleteError;
       }
       return;
     }

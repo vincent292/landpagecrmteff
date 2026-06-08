@@ -1,4 +1,5 @@
 import type { UserRole } from "../types/platform";
+import { shouldHidePatientPhone } from "../lib/patientPrivacy";
 import {
   getCourseEnrollments,
   type EnrollmentRow,
@@ -154,7 +155,7 @@ export async function getPaymentsAndReservationsFeed(options?: {
     getPromotionOrdersAdmin(includeDeleted),
     getCourseEnrollments(includeDeleted),
     getBookOrdersAdmin(includeDeleted),
-    getReservationsAdmin({}, includeDeleted),
+    getReservationsAdmin({}, includeDeleted, options?.role),
   ]);
 
   const promotionItems: PaymentsAndReservationsItem[] = promotionRows.map((row) => ({
@@ -278,6 +279,10 @@ export async function getPaymentsAndReservationsFeed(options?: {
       }
       return false;
     });
+  }
+
+  if (shouldHidePatientPhone(options?.role)) {
+    items = items.map((item) => ({ ...item, phone: null }));
   }
 
   return items.sort(

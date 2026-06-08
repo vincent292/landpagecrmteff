@@ -1,4 +1,6 @@
 import { supabase } from "../lib/supabaseClient";
+import { sanitizePatientPhone } from "../lib/patientPrivacy";
+import type { UserRole } from "../types/platform";
 import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
 import { normalizeDocumentNumber } from "../utils/documentNumber";
 
@@ -34,19 +36,19 @@ export type PortalPatientProfileInput = {
   notes?: string | null;
 };
 
-export async function getPatients(includeDeleted = false) {
+export async function getPatients(includeDeleted = false, viewerRole?: UserRole) {
   let query = supabase.from("patients").select("*").order("created_at", { ascending: false });
   const filter = getVisibleDeletionFilter("patients", includeDeleted);
   if (filter.column) query = query.eq(filter.column, filter.value);
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []) as PatientRow[];
+  return ((data ?? []) as PatientRow[]).map((row) => sanitizePatientPhone(row, viewerRole) as PatientRow);
 }
 
-export async function getPatientById(id: string) {
+export async function getPatientById(id: string, viewerRole?: UserRole) {
   const { data, error } = await supabase.from("patients").select("*").eq("id", id).eq("is_deleted", false).maybeSingle();
   if (error) throw error;
-  return data as PatientRow | null;
+  return sanitizePatientPhone(data as PatientRow | null, viewerRole) as PatientRow | null;
 }
 
 export async function getPatientByProfileId(profileId: string) {

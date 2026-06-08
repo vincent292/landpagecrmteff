@@ -85,9 +85,9 @@ export const processSteps: ProcessStep[] = [
 ];
 
 export const stats: StatItem[] = [
-  { value: "100%", label: "Atencion personalizada" },
+  { value: "5+", label: "Anos de experiencia" },
   { value: "1:1", label: "Acompanamiento cercano" },
-  { value: "360", label: "Vision integral" },
+  { value: "Bolivia", label: "Atencion nacional" },
 ];
 
 export const philosophyPoints: PhilosophyPoint[] = [
@@ -114,10 +114,10 @@ export const philosophyPoints: PhilosophyPoint[] = [
 ];
 
 export const doctorHighlights: DoctorHighlight[] = [
-  { icon: Clock3, text: "Experiencia cuidadosa" },
-  { icon: ShieldCheck, text: "Rigor profesional" },
-  { icon: Sparkles, text: "Estetica natural" },
-  { icon: HeartHandshake, text: "Trato cercano" },
+  { icon: Clock3, text: "Mas de 5 anos de experiencia" },
+  { icon: ShieldCheck, text: "Actualizacion y criterio profesional" },
+  { icon: Sparkles, text: "Armonizacion facial y medicina estetica" },
+  { icon: HeartHandshake, text: "Trato cercano y valoracion personalizada" },
 ];
 
 export const navLinks: NavLink[] = [

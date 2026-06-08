@@ -3,7 +3,10 @@ import { useDeferredValue, useEffect, useMemo, useState, type ReactNode } from "
 import { AlertTriangle, CheckCircle2, ChevronRight, CreditCard, Receipt, Search, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
+import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteActions";
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
+import { useAuth } from "../../hooks/useAuth";
+import { hardDeleteRecord, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
 import { getCashPaymentMethods, type CashPaymentMethodRow } from "../../services/cashService";
 import { getPatients, type PatientRow } from "../../services/patientService";
 import {
@@ -61,6 +64,7 @@ const emptyCreateForm: CreateFormState = {
 };
 
 export function PaymentPlansAdminPage() {
+  const { role, profile, user } = useAuth();
   const navigate = useNavigate();
   const [plans, setPlans] = useState<PaymentPlanRow[]>([]);
   const [patients, setPatients] = useState<PatientRow[]>([]);
@@ -80,14 +84,17 @@ export function PaymentPlansAdminPage() {
   const deferredQuery = useDeferredValue(query);
   const deferredPatientSearch = useDeferredValue(patientSearch);
   const deferredTreatmentSearch = useDeferredValue(treatmentSearch);
+  const actorId = profile?.id ?? user?.id ?? null;
+  const actorName = profile?.full_name ?? user?.user_metadata.full_name ?? null;
+  const actorEmail = profile?.email ?? user?.email ?? null;
 
   const load = async () => {
     setLoading(true);
     setError("");
     try {
       const [nextPlans, nextPatients, nextTreatments, nextMethods] = await Promise.all([
-        getPaymentPlansAdmin(),
-        getPatients(),
+        getPaymentPlansAdmin(role === "superadmin", role),
+        getPatients(false, role),
         getAdminTreatments(),
         getCashPaymentMethods(true),
       ]);
@@ -108,7 +115,9 @@ export function PaymentPlansAdminPage() {
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [role]);
+
+  const visiblePlans = useMemo(() => plans.filter((plan) => !plan.is_deleted), [plans]);
 
   const filteredPlans = useMemo(() => {
     const search = deferredQuery.trim().toLowerCase();
@@ -120,7 +129,6 @@ export function PaymentPlansAdminPage() {
           plan.patient_document_number,
           plan.title,
           plan.treatment_title,
-          plan.patients?.phone,
         ]
           .join(" ")
           .toLowerCase()
@@ -131,7 +139,7 @@ export function PaymentPlansAdminPage() {
   }, [deferredQuery, plans, statusFilter]);
 
   const pendingReviewItems = useMemo(() => {
-    return plans
+    return visiblePlans
       .flatMap((plan) =>
         (plan.installments ?? [])
           .filter((installment) => installment.status === "Comprobante enviado" || installment.status === "En revision")
@@ -147,14 +155,14 @@ export function PaymentPlansAdminPage() {
         const rightDate = right.receipt?.submitted_at ?? right.installment.latest_submission_at ?? "";
         return rightDate.localeCompare(leftDate);
       }) as ReviewQueueItem[];
-  }, [plans]);
+  }, [visiblePlans]);
 
   const patientOptions = useMemo<SearchOption[]>(
     () =>
       patients.map((patient) => ({
         id: patient.id,
         label: patient.full_name,
-        hint: patient.document_number ? `Carnet ${patient.document_number}` : patient.phone ?? "Sin carnet",
+        hint: patient.document_number ? `Carnet ${patient.document_number}` : "Sin carnet",
       })),
     [patients]
   );
@@ -231,10 +239,10 @@ export function PaymentPlansAdminPage() {
   if (loading) return <LoadingState label="Cargando planes de pago..." />;
   if (error && plans.length === 0) return <ErrorState label={error} />;
 
-  const totalPlans = plans.length;
-  const activePlans = plans.filter((plan) => plan.status === "Activo" || plan.status === "Al dia").length;
-  const overduePlans = plans.filter((plan) => plan.status === "Con atraso").length;
-  const paidPlans = plans.filter((plan) => plan.status === "Liquidado").length;
+  const totalPlans = visiblePlans.length;
+  const activePlans = visiblePlans.filter((plan) => plan.status === "Activo" || plan.status === "Al dia").length;
+  const overduePlans = visiblePlans.filter((plan) => plan.status === "Con atraso").length;
+  const paidPlans = visiblePlans.filter((plan) => plan.status === "Liquidado").length;
   const totalBreakdownAmount = Number(createForm.initialPaymentAmount || 0) + Number(createForm.installmentAmount || 0) * Number(createForm.monthsCount || 0);
 
   return (
@@ -346,10 +354,8 @@ export function PaymentPlansAdminPage() {
         ) : (
           <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
             {filteredPlans.map((plan) => (
-              <button
+              <article
                 key={plan.id}
-                type="button"
-                onClick={() => openDetail(plan.id)}
                 className="rounded-[24px] border border-[var(--color-border)] bg-white/80 p-5 text-left transition hover:bg-white hover:shadow-[0_12px_30px_rgba(62,42,31,0.08)]"
               >
                 <div className="flex items-start justify-between gap-3">
@@ -359,7 +365,14 @@ export function PaymentPlansAdminPage() {
                       {plan.patient_document_number ?? "sin carnet"} · {plan.title}
                     </p>
                   </div>
-                  <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-[var(--color-copy)]" />
+                  <button
+                    type="button"
+                    onClick={() => openDetail(plan.id)}
+                    className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-white px-3 py-2 text-xs font-semibold text-[var(--color-mocha)]"
+                  >
+                    Abrir
+                    <ChevronRight className="h-4 w-4 shrink-0 text-[var(--color-copy)]" />
+                  </button>
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2">
@@ -379,7 +392,28 @@ export function PaymentPlansAdminPage() {
                   <InlineStat label="Pagado" value={formatMoney(plan.approved_amount)} />
                   <InlineStat label="Pendiente" value={formatMoney(plan.pending_amount)} />
                 </div>
-              </button>
+                {role === "superadmin" ? (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <DeleteActions
+                      role={role}
+                      row={plan}
+                      onSoftDelete={() =>
+                        void softDeleteRecord({
+                          table: "payment_plans",
+                          id: plan.id,
+                          actorId,
+                          actorRole: role,
+                          actorName,
+                          actorEmail,
+                        }).then(load)
+                      }
+                      onRestore={() => void restoreRecord("payment_plans", plan.id).then(load)}
+                      onHardDelete={() => void hardDeleteRecord("payment_plans", plan.id).then(load)}
+                    />
+                  </div>
+                ) : null}
+                <DeletedStatusNote row={plan} />
+              </article>
             ))}
           </div>
         )}

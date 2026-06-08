@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
+import { useAuth } from "../../hooks/useAuth";
+import { shouldHidePatientPhone } from "../../lib/patientPrivacy";
 import { getAppointmentsByPatient } from "../../services/appointmentService";
 import { getClinicalEvolutions, getClinicalHistoriesByPatient, getClinicalHistoryByPatient } from "../../services/clinicalHistoryService";
 import { getPatientById } from "../../services/patientService";
@@ -13,6 +15,8 @@ import { formatDate } from "../../utils/text";
 
 export function PatientDetailPage() {
   const { id = "" } = useParams();
+  const { role } = useAuth();
+  const hidePatientPhone = shouldHidePatientPhone(role);
   const [data, setData] = useState<{
     patient: Awaited<ReturnType<typeof getPatientById>>;
     history: Awaited<ReturnType<typeof getClinicalHistoryByPatient>>;
@@ -28,7 +32,7 @@ export function PatientDetailPage() {
 
   useEffect(() => {
     Promise.all([
-      getPatientById(id),
+      getPatientById(id, role),
       getClinicalHistoryByPatient(id),
       getClinicalHistoriesByPatient(id),
       getClinicalEvolutions(id),
@@ -42,7 +46,7 @@ export function PatientDetailPage() {
       )
       .catch(() => setError(true))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, role]);
 
   if (loading) return <LoadingState label="Cargando ficha del paciente..." />;
   if (error) return <ErrorState label="No pudimos cargar esta ficha." />;
@@ -61,7 +65,9 @@ export function PatientDetailPage() {
           <div>
             <h1 className="font-display text-5xl font-semibold">{data.patient.full_name}</h1>
             <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
-              {data.patient.email ?? "Sin correo"} · {data.patient.phone ?? "Sin celular"} · {data.patient.city ?? "Sin ciudad"}
+              {data.patient.email ?? "Sin correo"}
+              {!hidePatientPhone ? ` · ${data.patient.phone ?? "Sin celular"}` : ""}
+              {` · ${data.patient.city ?? "Sin ciudad"}`}
               <br />
               Registro: {formatDate(data.patient.created_at)}
             </p>

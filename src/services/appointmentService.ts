@@ -1,4 +1,6 @@
 import { supabase } from "../lib/supabaseClient";
+import { shouldHidePatientPhone } from "../lib/patientPrivacy";
+import type { UserRole } from "../types/platform";
 import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
 
 export type AppointmentRow = DeletionMetadata & {
@@ -107,10 +109,21 @@ export async function getAppointmentsByPatient(patientId: string, includeDeleted
   return enrichAppointments((data ?? []) as AppointmentBaseRow[]);
 }
 
-export async function getAppointmentsAdmin(includeDeleted = false, doctorId?: string | null) {
+function getAppointmentsAdminSelect(viewerRole?: UserRole) {
+  const patientsSelect = shouldHidePatientPhone(viewerRole)
+    ? "patients(full_name, email, city, document_number)"
+    : "patients(full_name, phone, email, city, document_number)";
+  return `*, ${patientsSelect}, doctor_profiles(id, full_name, whatsapp, email), profiles!appointments_created_by_fkey(full_name, email, role)`;
+}
+
+export async function getAppointmentsAdmin(
+  includeDeleted = false,
+  doctorId?: string | null,
+  viewerRole?: UserRole
+) {
   let query = supabase
     .from("appointments")
-    .select("*, patients(full_name, phone, email, city, document_number), doctor_profiles(id, full_name, whatsapp, email), profiles!appointments_created_by_fkey(full_name, email, role)")
+    .select(getAppointmentsAdminSelect(viewerRole))
     .order("appointment_date", { ascending: true })
     .order("start_time", { ascending: true });
 
@@ -120,7 +133,7 @@ export async function getAppointmentsAdmin(includeDeleted = false, doctorId?: st
 
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []) as AppointmentAdminRow[];
+  return (data ?? []) as unknown as AppointmentAdminRow[];
 }
 
 export async function getMyAppointments(userId: string) {

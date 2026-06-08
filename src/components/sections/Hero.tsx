@@ -145,7 +145,7 @@ export function Hero({ onRequestInfo }: HeroProps) {
       <div data-gsap="hero-bg" className="absolute inset-0 scale-[1.06]">
         <img
           src={placeholder.hero}
-          alt="Imagen principal de la doctora"
+          alt="Dra. Estefany Ballesteros en consulta de medicina estetica en Bolivia"
           loading="eager"
           decoding="async"
           className="h-full w-full object-cover"
@@ -179,8 +179,19 @@ export function Hero({ onRequestInfo }: HeroProps) {
               data-gsap="hero-copy"
               className="mt-7 max-w-2xl text-lg leading-8 text-[var(--color-copy)] md:text-xl"
             >
-              Encuentra rapido tratamientos, promociones y cursos con una atencion
-              medica cercana, clara y pensada para ayudarte a decidir sin vueltas.
+              Dra. Estefany Ballesteros ofrece medicina estetica y medicina
+              ortomolecular en Bolivia, con enfoque en armonizacion facial,
+              bioestimuladores, toxina botulinica, rellenos y valoracion medica
+              personalizada.
+            </p>
+
+            <p
+              data-gsap="hero-copy"
+              className="mt-4 max-w-2xl text-sm leading-7 text-[var(--color-copy)] md:text-base"
+            >
+              Si buscas una doctora de medicina estetica en Bolivia con criterio
+              medico, atencion cercana y resultados naturales, aqui puedes revisar
+              tratamientos, promociones, agenda y cursos desde un solo lugar.
             </p>
 
             <div

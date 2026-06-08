@@ -1,4 +1,7 @@
 import { supabase } from "../lib/supabaseClient";
+import { shouldHidePatientPhone } from "../lib/patientPrivacy";
+import type { UserRole } from "../types/platform";
+import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
 import { getSignedUrl, uploadPrivateFile } from "./storageService";
 
 const receiptsBucket = "payment-receipts-private";
@@ -44,7 +47,7 @@ export type PaymentPlanInstallmentRow = {
   receipts?: PaymentPlanReceiptRow[];
 };
 
-export type PaymentPlanRow = {
+export type PaymentPlanRow = DeletionMetadata & {
   id: string;
   patient_id: string;
   treatment_id: string | null;
@@ -92,7 +95,12 @@ export type PaymentPlanRow = {
 
 type BasePlanRow = Omit<PaymentPlanRow, "installments">;
 
-const planSelect = "*, patients(id, full_name, document_number, phone, city, profile_id), treatments(id, title, slug)";
+function getPlanSelect(viewerRole?: UserRole) {
+  const patientsSelect = shouldHidePatientPhone(viewerRole)
+    ? "patients(id, full_name, document_number, city, profile_id)"
+    : "patients(id, full_name, document_number, phone, city, profile_id)";
+  return `*, ${patientsSelect}, treatments(id, title, slug)`;
+}
 
 function groupByKey<T extends { [key: string]: unknown }>(items: T[], key: keyof T) {
   const map = new Map<string, T[]>();
@@ -145,34 +153,37 @@ async function hydratePaymentPlans(basePlans: BasePlanRow[]) {
   }));
 }
 
-export async function getPaymentPlansAdmin() {
-  const { data, error } = await supabase
-    .from("payment_plans")
-    .select(planSelect)
-    .order("created_at", { ascending: false });
+async function getPaymentPlansAdminInternal(includeDeleted: boolean, viewerRole?: UserRole) {
+  let query = supabase.from("payment_plans").select(getPlanSelect(viewerRole)).order("created_at", { ascending: false });
+  const filter = getVisibleDeletionFilter("payment_plans", includeDeleted);
+  if (filter.column) query = query.eq(filter.column, filter.value);
+  const { data, error } = await query;
   if (error) throw error;
-  return hydratePaymentPlans((data ?? []) as BasePlanRow[]);
+  return hydratePaymentPlans((data ?? []) as unknown as BasePlanRow[]);
 }
 
-export async function getPaymentPlanByIdAdmin(planId: string) {
-  const { data, error } = await supabase
-    .from("payment_plans")
-    .select(planSelect)
-    .eq("id", planId)
-    .maybeSingle();
+export async function getPaymentPlansAdmin(includeDeleted = false, viewerRole?: UserRole) {
+  return getPaymentPlansAdminInternal(includeDeleted, viewerRole);
+}
+
+export async function getPaymentPlanByIdAdmin(planId: string, includeDeleted = false, viewerRole?: UserRole) {
+  let query = supabase.from("payment_plans").select(getPlanSelect(viewerRole)).eq("id", planId);
+  const filter = getVisibleDeletionFilter("payment_plans", includeDeleted);
+  if (filter.column) query = query.eq(filter.column, filter.value);
+  const { data, error } = await query.maybeSingle();
   if (error) throw error;
   if (!data) return null;
-  const rows = await hydratePaymentPlans([data as BasePlanRow]);
+  const rows = await hydratePaymentPlans([data as unknown as BasePlanRow]);
   return rows[0] ?? null;
 }
 
 export async function getMyPaymentPlans() {
-  const { data, error } = await supabase
-    .from("payment_plans")
-    .select(planSelect)
-    .order("created_at", { ascending: false });
+  let query = supabase.from("payment_plans").select(getPlanSelect()).order("created_at", { ascending: false });
+  const filter = getVisibleDeletionFilter("payment_plans", false);
+  if (filter.column) query = query.eq(filter.column, filter.value);
+  const { data, error } = await query;
   if (error) throw error;
-  return hydratePaymentPlans((data ?? []) as BasePlanRow[]);
+  return hydratePaymentPlans((data ?? []) as unknown as BasePlanRow[]);
 }
 
 export async function createPaymentPlan(input: {

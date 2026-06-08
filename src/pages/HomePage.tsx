@@ -12,6 +12,7 @@ import { Hero } from "../components/sections/Hero";
 import { Services } from "../components/sections/Services";
 import { StickyLeadCTA } from "../components/sections/StickyLeadCTA";
 import { WelcomeSpotlightModal } from "../components/sections/WelcomeSpotlightModal";
+import { buildCanonicalUrl } from "../lib/siteUrl";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -109,11 +110,18 @@ export function HomePage() {
       className="relative min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,var(--color-base)_0%,#f6efe7_18%,var(--color-surface)_44%,#f2e7dc_72%,var(--color-surface-soft)_100%)] pb-28 text-[var(--color-ink)]"
     >
       <Seo
-        title="Dra. Estefany Ballesteros | Medicina estetica ortomolecular en Bolivia"
-        description="Tratamientos esteticos, promociones, cursos, agenda y galeria de Dra. Estefany Ballesteros. Medicina estetica ortomolecular con atencion clara y cercana."
+        title="Dra. Estefany Ballesteros | Medicina estetica, armonizacion facial y ortomolecular en Bolivia"
+        description="Dra. Estefany Ballesteros en Bolivia: medicina estetica, armonizacion facial, bioestimuladores, toxina botulinica, rellenos y medicina ortomolecular con enfoque medico y atencion personalizada."
         path="/"
         image="/doctora/dra1.jpg"
-        keywords={["tratamientos esteticos Bolivia", "armonizacion facial", "agenda medica estetica", "doctora estetica Cochabamba"]}
+        keywords={[
+          "medicina estetica Bolivia",
+          "armonizacion facial Bolivia",
+          "bioestimuladores Bolivia",
+          "toxina botulinica Bolivia",
+          "rellenos faciales Bolivia",
+          "medicina ortomolecular Bolivia",
+        ]}
         jsonLd={[
           {
             "@context": "https://schema.org",
@@ -121,13 +129,44 @@ export function HomePage() {
             name: "Dra. Estefany Ballesteros",
             medicalSpecialty: "Aesthetic Medicine",
             areaServed: "Bolivia",
-            url: typeof window !== "undefined" ? `${window.location.origin}/` : "/",
+            url: buildCanonicalUrl("/"),
+            description:
+              "Medicina estetica, armonizacion facial, bioestimuladores, toxina botulinica, rellenos y medicina ortomolecular en Bolivia.",
+            knowsAbout: [
+              "Armonizacion facial",
+              "Medicina estetica",
+              "Bioestimuladores",
+              "Toxina botulinica",
+              "Rellenos faciales",
+              "Medicina ortomolecular",
+            ],
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "MedicalBusiness",
+            name: "Dra. Estefany Ballesteros",
+            url: buildCanonicalUrl("/"),
+            areaServed: "Bolivia",
+            description:
+              "Consulta y tratamientos de medicina estetica y medicina ortomolecular en Bolivia.",
+            hasOfferCatalog: {
+              "@type": "OfferCatalog",
+              name: "Servicios principales",
+              itemListElement: [
+                { "@type": "Offer", itemOffered: { "@type": "Service", name: "Armonizacion facial" } },
+                { "@type": "Offer", itemOffered: { "@type": "Service", name: "Medicina estetica" } },
+                { "@type": "Offer", itemOffered: { "@type": "Service", name: "Bioestimuladores" } },
+                { "@type": "Offer", itemOffered: { "@type": "Service", name: "Toxina botulinica" } },
+                { "@type": "Offer", itemOffered: { "@type": "Service", name: "Rellenos faciales" } },
+                { "@type": "Offer", itemOffered: { "@type": "Service", name: "Medicina ortomolecular" } },
+              ],
+            },
           },
           {
             "@context": "https://schema.org",
             "@type": "WebSite",
             name: "Dra. Estefany Ballesteros",
-            url: typeof window !== "undefined" ? window.location.origin : "/",
+            url: buildCanonicalUrl("/"),
           },
         ]}
       />

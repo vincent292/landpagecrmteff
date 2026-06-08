@@ -12,6 +12,7 @@ import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
 import { useFormDraft } from "../../hooks/useFormDraft";
 import { useWorkspaceState } from "../../hooks/useWorkspaceState";
+import { shouldHidePatientPhone } from "../../lib/patientPrivacy";
 import { hardDeleteRecord, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
 import { createAppointment, getAppointmentsByPatient, updateAppointmentStatus, type AppointmentRow } from "../../services/appointmentService";
 import { getAvailableSlots, getAvailabilityRulesByIds, type AvailableSlot } from "../../services/availabilityService";
@@ -62,6 +63,7 @@ function getErrorMessage(error: unknown, fallback: string) {
 export function PatientAppointmentsAdminPage() {
   const { id = "" } = useParams();
   const { role, profile, user } = useAuth();
+  const hidePatientPhone = shouldHidePatientPhone(role);
   const [patient, setPatient] = useState<PatientRow | null>(null);
   const [items, setItems] = useState<AppointmentRow[]>([]);
   const [reservations, setReservations] = useState<AppointmentReservationRow[]>([]);
@@ -107,7 +109,7 @@ export function PatientAppointmentsAdminPage() {
     void Promise.all([
       getAppointmentsByPatient(id, role === "superadmin"),
       getReservationsByPatientId(id, role === "superadmin"),
-      getPatientById(id),
+      getPatientById(id, role),
       getAdminDoctors(),
       getCashPaymentMethods(true),
     ]).then(([appointments, reservationRows, patientRow, doctorRows, methods]) => {
@@ -442,9 +444,9 @@ export function PatientAppointmentsAdminPage() {
                     <option>Cancelada</option>
                     <option>Rechazada</option>
                   </select>
-                  {patient?.phone ? (
-                    <a
-                      href={`https://wa.me/${patient.phone.replace(/\D/g, "")}?text=${encodeURIComponent(buildReservationMessage(patient.full_name, item))}`}
+                {!hidePatientPhone && patient?.phone ? (
+                  <a
+                    href={`https://wa.me/${patient.phone.replace(/\D/g, "")}?text=${encodeURIComponent(buildReservationMessage(patient.full_name, item))}`}
                       target="_blank"
                       rel="noreferrer"
                       className="rounded-full border border-[var(--color-border)] p-3"
@@ -497,7 +499,7 @@ export function PatientAppointmentsAdminPage() {
                   <option>Realizada</option>
                   <option>Cancelada</option>
                 </select>
-                {patient?.phone ? (
+                {!hidePatientPhone && patient?.phone ? (
                   <a
                     href={`https://wa.me/${patient.phone.replace(/\D/g, "")}?text=${encodeURIComponent(buildAppointmentMessage(patient.full_name, item))}`}
                     target="_blank"

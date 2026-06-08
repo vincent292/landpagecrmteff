@@ -1,5 +1,7 @@
 import { useEffect } from "react";
 
+import { buildCanonicalUrl } from "../../lib/siteUrl";
+
 type SeoProps = {
   title: string;
   description: string;
@@ -26,16 +28,14 @@ export function Seo({ title, description, path = "/", image = "/doctora/dra1.jpg
   useEffect(() => {
     if (typeof document === "undefined") return;
 
-    const origin = window.location.origin;
-    const canonicalUrl = new URL(path, origin).toString();
-    const imageUrl = new URL(image, origin).toString();
-    const mergedKeywords = [...new Set([...defaultKeywords, ...keywords])].join(", ");
+    const canonicalUrl = buildCanonicalUrl(path);
+    const imageUrl = new URL(image, canonicalUrl).toString();
+    const mergedKeywords = [...new Set([...defaultKeywords, ...keywords])];
 
     document.title = title;
     document.documentElement.lang = "es";
 
     upsertMeta("name", "description", description);
-    upsertMeta("name", "keywords", mergedKeywords);
     upsertMeta("name", "robots", "index,follow,max-image-preview:large");
     upsertMeta("property", "og:locale", "es_BO");
     upsertMeta("property", "og:type", type);
@@ -44,6 +44,7 @@ export function Seo({ title, description, path = "/", image = "/doctora/dra1.jpg
     upsertMeta("property", "og:description", description);
     upsertMeta("property", "og:url", canonicalUrl);
     upsertMeta("property", "og:image", imageUrl);
+    upsertMeta("property", "og:image:alt", title);
     upsertMeta("name", "twitter:card", "summary_large_image");
     upsertMeta("name", "twitter:title", title);
     upsertMeta("name", "twitter:description", description);
@@ -64,6 +65,7 @@ export function Seo({ title, description, path = "/", image = "/doctora/dra1.jpg
               description,
               areaServed: "Bolivia",
               medicalSpecialty: "Aesthetic Medicine",
+              keywords: mergedKeywords,
             },
           ];
 

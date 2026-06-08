@@ -124,7 +124,7 @@ export default function App() {
       <ScrollToTop />
       <Routes>
         <Route path="/" element={<HomePage />} />
-        <Route path="/agendar" element={<PublicAssessmentPage />} />
+        <Route path="/agendar" element={<Navigate to="/reservar-cita" replace />} />
 
       <Route element={<PublicLayout />}>
         <Route path="/tratamientos" element={<TreatmentsPage />} />

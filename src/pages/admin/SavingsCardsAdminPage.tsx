@@ -3,7 +3,10 @@ import { useDeferredValue, useEffect, useMemo, useState, type ReactNode } from "
 import { CheckCircle2, ChevronRight, Copy, CreditCard, Receipt, Search, ShieldAlert, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
+import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteActions";
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
+import { useAuth } from "../../hooks/useAuth";
+import { hardDeleteRecord, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
 import { getPatients, type PatientRow } from "../../services/patientService";
 import {
   buildSavingsCardShareMessage,
@@ -50,6 +53,7 @@ const emptyCreateForm: CreateFormState = {
 };
 
 export function SavingsCardsAdminPage() {
+  const { role, profile, user } = useAuth();
   const navigate = useNavigate();
   const [cards, setCards] = useState<SavingsCardRow[]>([]);
   const [patients, setPatients] = useState<PatientRow[]>([]);
@@ -69,14 +73,17 @@ export function SavingsCardsAdminPage() {
   const deferredQuery = useDeferredValue(query);
   const deferredPatientSearch = useDeferredValue(patientSearch);
   const deferredTreatmentSearch = useDeferredValue(treatmentSearch);
+  const actorId = profile?.id ?? user?.id ?? null;
+  const actorName = profile?.full_name ?? user?.user_metadata.full_name ?? null;
+  const actorEmail = profile?.email ?? user?.email ?? null;
 
   const load = async () => {
     setLoading(true);
     setError("");
     try {
       const [nextCards, nextPatients, nextTreatments] = await Promise.all([
-        getSavingsCardsAdmin(),
-        getPatients(),
+        getSavingsCardsAdmin(role === "superadmin", role),
+        getPatients(false, role),
         getAdminTreatments(),
       ]);
       setCards(nextCards);
@@ -91,7 +98,9 @@ export function SavingsCardsAdminPage() {
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [role]);
+
+  const visibleCards = useMemo(() => cards.filter((card) => !card.is_deleted), [cards]);
 
   const filteredCards = useMemo(() => {
     const search = deferredQuery.trim().toLowerCase();
@@ -103,7 +112,6 @@ export function SavingsCardsAdminPage() {
           card.patient_document_number,
           card.token,
           card.treatment_title,
-          card.patients?.phone,
         ]
           .join(" ")
           .toLowerCase()
@@ -114,7 +122,7 @@ export function SavingsCardsAdminPage() {
   }, [cards, deferredQuery, statusFilter]);
 
   const pendingReviewItems = useMemo(() => {
-    return cards
+    return visibleCards
       .flatMap((card) =>
         (card.installments ?? [])
           .filter((installment) => installment.status === "Comprobante enviado" || installment.status === "En revision")
@@ -130,19 +138,19 @@ export function SavingsCardsAdminPage() {
         const rightDate = right.receipt?.submitted_at ?? right.installment.latest_submission_at ?? "";
         return rightDate.localeCompare(leftDate);
       }) as ReviewQueueItem[];
-  }, [cards]);
+  }, [visibleCards]);
 
-  const totalCards = cards.length;
-  const activeCards = cards.filter((card) => card.status === "Activa").length;
-  const readyCards = cards.filter((card) => card.status === "Completada").length;
-  const observedCards = cards.filter((card) => card.observed_receipts_count > 0).length;
+  const totalCards = visibleCards.length;
+  const activeCards = visibleCards.filter((card) => card.status === "Activa").length;
+  const readyCards = visibleCards.filter((card) => card.status === "Completada").length;
+  const observedCards = visibleCards.filter((card) => card.observed_receipts_count > 0).length;
 
   const patientOptions = useMemo<SearchOption[]>(
     () =>
       patients.map((patient) => ({
         id: patient.id,
         label: patient.full_name,
-        hint: patient.document_number ? `Carnet ${patient.document_number}` : patient.phone ?? "Sin carnet",
+        hint: patient.document_number ? `Carnet ${patient.document_number}` : "Sin carnet",
       })),
     [patients]
   );
@@ -324,10 +332,8 @@ export function SavingsCardsAdminPage() {
         ) : (
           <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
             {filteredCards.map((card) => (
-              <button
+              <article
                 key={card.id}
-                type="button"
-                onClick={() => openDetail(card.id)}
                 className="rounded-[24px] border border-[var(--color-border)] bg-white/80 p-5 text-left transition hover:bg-white hover:shadow-[0_12px_30px_rgba(62,42,31,0.08)]"
               >
                 <div className="flex items-start justify-between gap-3">
@@ -337,7 +343,14 @@ export function SavingsCardsAdminPage() {
                       {card.patient_document_number ?? "sin carnet"} · {card.token}
                     </p>
                   </div>
-                  <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-[var(--color-copy)]" />
+                  <button
+                    type="button"
+                    onClick={() => openDetail(card.id)}
+                    className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-white px-3 py-2 text-xs font-semibold text-[var(--color-mocha)]"
+                  >
+                    Abrir
+                    <ChevronRight className="h-4 w-4 shrink-0 text-[var(--color-copy)]" />
+                  </button>
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2">
@@ -357,7 +370,28 @@ export function SavingsCardsAdminPage() {
                   <InlineStat label="Aprobado" value={formatMoney(card.approved_amount)} />
                   <InlineStat label="Pendiente" value={formatMoney(card.pending_amount)} />
                 </div>
-              </button>
+                {role === "superadmin" ? (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <DeleteActions
+                      role={role}
+                      row={card}
+                      onSoftDelete={() =>
+                        void softDeleteRecord({
+                          table: "savings_cards",
+                          id: card.id,
+                          actorId,
+                          actorRole: role,
+                          actorName,
+                          actorEmail,
+                        }).then(load)
+                      }
+                      onRestore={() => void restoreRecord("savings_cards", card.id).then(load)}
+                      onHardDelete={() => void hardDeleteRecord("savings_cards", card.id).then(load)}
+                    />
+                  </div>
+                ) : null}
+                <DeletedStatusNote row={card} />
+              </article>
             ))}
           </div>
         )}

@@ -23,6 +23,7 @@ import { Link } from "react-router-dom";
 
 import { LoadingState } from "../../components/common/AsyncState";
 import { useAuth } from "../../hooks/useAuth";
+import { shouldHidePatientPhone } from "../../lib/patientPrivacy";
 import { getBooksAdmin } from "../../services/bookService";
 import { getAdminCalendarEvents } from "../../services/calendarService";
 import { getCashMovements, getCashRegisterSessions, getCashSessionCounts } from "../../services/cashService";
@@ -38,6 +39,7 @@ import { formatDate, formatMoney } from "../../utils/text";
 
 export function AdminDashboard() {
   const { role, user } = useAuth();
+  const hidePatientPhone = shouldHidePatientPhone(role);
   const [requests, setRequests] = useState<InformationRequestRow[]>([]);
   const [coursesCount, setCoursesCount] = useState(0);
   const [enrollmentsPending, setEnrollmentsPending] = useState(0);
@@ -66,7 +68,7 @@ export function AdminDashboard() {
           getAdminCourses(false, doctorId),
           getAdminCalendarEvents(false, doctorId),
           getAdminTreatments(false, doctorId),
-          getReservationsAdmin({ doctor_id: doctorId }),
+          getReservationsAdmin({ doctor_id: doctorId }, false, role),
           getBooksAdmin(false, doctorId),
           getAdminGalleryAlbums(false, doctorId),
         ]);
@@ -106,7 +108,7 @@ export function AdminDashboard() {
         getCourseEnrollments(),
         getAdminCalendarEvents(),
         getAdminTreatments(),
-        getReservationsAdmin(),
+        getReservationsAdmin({}, false, role),
         getCashMovements(),
         getCashRegisterSessions(),
         getCashSessionCounts(),
@@ -259,7 +261,7 @@ export function AdminDashboard() {
         </section>
 
         {selectedReservation ? (
-          <AppointmentModal reservation={selectedReservation} onClose={() => setSelectedReservation(null)} />
+          <AppointmentModal reservation={selectedReservation} hidePatientPhone={hidePatientPhone} onClose={() => setSelectedReservation(null)} />
         ) : null}
       </div>
     );
@@ -465,7 +467,7 @@ export function AdminDashboard() {
       </section>
 
       {selectedReservation && (
-        <AppointmentModal reservation={selectedReservation} onClose={() => setSelectedReservation(null)} />
+        <AppointmentModal reservation={selectedReservation} hidePatientPhone={hidePatientPhone} onClose={() => setSelectedReservation(null)} />
       )}
     </div>
   );
@@ -559,9 +561,17 @@ function QuickCard({ label, value, href }: { label: string; value: string; href:
   );
 }
 
-function AppointmentModal({ reservation, onClose }: { reservation: AppointmentReservationRow; onClose: () => void }) {
+function AppointmentModal({
+  reservation,
+  hidePatientPhone,
+  onClose,
+}: {
+  reservation: AppointmentReservationRow;
+  hidePatientPhone: boolean;
+  onClose: () => void;
+}) {
   const patientName = reservation.patients?.full_name ?? "Paciente";
-  const phone = reservation.patients?.phone?.replace(/\D/g, "") ?? "";
+  const phone = hidePatientPhone ? "" : reservation.patients?.phone?.replace(/\D/g, "") ?? "";
   const appointmentText = `Cita ${reservation.appointment_type} - ${patientName}`;
   const message = `Hola ${patientName}, te confirmamos tu cita de ${reservation.appointment_type} para el ${formatDate(reservation.appointment_date)} de ${reservation.start_time.slice(0, 5)} a ${reservation.end_time.slice(0, 5)}.`;
 
@@ -584,7 +594,8 @@ function AppointmentModal({ reservation, onClose }: { reservation: AppointmentRe
           <br />
           {formatDate(reservation.appointment_date)} · {reservation.start_time.slice(0, 5)} - {reservation.end_time.slice(0, 5)}
           <br />
-          {reservation.location ?? "Sin ubicacion"} · {reservation.patients?.phone ?? "Sin celular"}
+          {reservation.location ?? "Sin ubicacion"}
+          {!hidePatientPhone ? ` · ${reservation.patients?.phone ?? "Sin celular"}` : ""}
         </p>
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
           <a href={getGoogleCalendarUrl(reservation)} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-full border border-[var(--color-border)] bg-white/70 px-4 py-3 text-sm font-semibold">

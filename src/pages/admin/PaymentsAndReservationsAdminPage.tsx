@@ -758,7 +758,7 @@ export function PaymentsAndReservationsAdminPage() {
               disabled={savingApproval || !cashOpen}
               className="rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-60"
             >
-              {savingApproval ? "Guardando..." : "Confirmar pago y abrir WhatsApp"}
+              {savingApproval ? "Guardando..." : approvalDraft.item.phone ? "Confirmar pago y abrir WhatsApp" : "Confirmar pago"}
             </button>
             <button
               type="button"

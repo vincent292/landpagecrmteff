@@ -4,8 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev": "npm run seo:generate && vite",
+    "seo:generate": "node scripts/generate-seo-files.mjs",
+    "build": "npm run seo:generate && tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "supabase:start": "supabase start",

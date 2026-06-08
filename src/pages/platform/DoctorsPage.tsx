@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Mail, MessageCircleMore } from "lucide-react";
 
 import { EmptyState, LoadingState } from "../../components/common/AsyncState";
+import { Seo } from "../../components/common/Seo";
 import { ImageWithSkeleton } from "../../components/ui/ImageWithSkeleton";
 import { getDoctors, type DoctorProfileRow } from "../../services/doctorService";
 import { PageIntro } from "./TreatmentsPage";
@@ -19,9 +20,16 @@ export function DoctorsPage() {
 
   return (
     <section className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24">
+      <Seo
+        title="Doctoras de medicina estetica en Bolivia | Dra. Estefany Ballesteros"
+        description="Conoce al equipo medico y las doctoras vinculadas al proyecto de Dra. Estefany Ballesteros para atencion y seguimiento en Bolivia."
+        path="/doctoras"
+        image="/doctora/dra1.jpg"
+        keywords={["doctoras medicina estetica Bolivia", "equipo medico estetica Bolivia", "Dra. Estefany Ballesteros doctoras"]}
+      />
       <PageIntro
         eyebrow="Doctoras"
-        title="Un equipo medico preparado para acompanar tu proceso con criterio y cercania."
+        title="Un equipo medico preparado para acompañar tu proceso con criterio y cercania."
         text="Cada doctora puede tener su agenda, pacientes asignados y canales de contacto sin mezclar informacion clinica."
       />
 

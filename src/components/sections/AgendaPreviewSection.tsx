@@ -36,7 +36,7 @@ export function AgendaPreviewSection() {
       <SectionHeading
         eyebrow="Agenda"
         title="Próximas actividades publicadas desde la agenda real del consultorio."
-        description="Esta vista toma los mismos eventos que se administran desde el panel, para que la información pública y operativa se mantenga sincronizada."
+        description="."
         align="center"
       />
 

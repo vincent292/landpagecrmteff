@@ -1,4 +1,7 @@
 import { supabase } from "../lib/supabaseClient";
+import { shouldHidePatientPhone } from "../lib/patientPrivacy";
+import type { UserRole } from "../types/platform";
+import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
 import { getSignedUrl, uploadPrivateFile } from "./storageService";
 
 const receiptsBucket = "payment-receipts-private";
@@ -58,7 +61,7 @@ export type SavingsCardRedemptionRow = {
   updated_at: string;
 };
 
-export type SavingsCardRow = {
+export type SavingsCardRow = DeletionMetadata & {
   id: string;
   patient_id: string;
   treatment_id: string | null;
@@ -104,7 +107,12 @@ export type SavingsCardRow = {
 
 type BaseCardRow = Omit<SavingsCardRow, "installments" | "redemption">;
 
-const cardSelect = "*, patients(id, full_name, document_number, phone, city, profile_id), treatments(id, title, slug)";
+function getCardSelect(viewerRole?: UserRole) {
+  const patientsSelect = shouldHidePatientPhone(viewerRole)
+    ? "patients(id, full_name, document_number, city, profile_id)"
+    : "patients(id, full_name, document_number, phone, city, profile_id)";
+  return `*, ${patientsSelect}, treatments(id, title, slug)`;
+}
 
 function groupByKey<T extends { [key: string]: unknown }>(items: T[], key: keyof T) {
   const map = new Map<string, T[]>();
@@ -166,46 +174,51 @@ async function hydrateSavingsCards(baseCards: BaseCardRow[]) {
   }));
 }
 
-export async function getSavingsCardsAdmin() {
-  const { data, error } = await supabase
-    .from("savings_cards")
-    .select(cardSelect)
-    .order("created_at", { ascending: false });
+async function getSavingsCardsAdminInternal(includeDeleted: boolean, viewerRole?: UserRole) {
+  let query = supabase.from("savings_cards").select(getCardSelect(viewerRole)).order("created_at", { ascending: false });
+  const filter = getVisibleDeletionFilter("savings_cards", includeDeleted);
+  if (filter.column) query = query.eq(filter.column, filter.value);
+  const { data, error } = await query;
   if (error) throw error;
-  return hydrateSavingsCards((data ?? []) as BaseCardRow[]);
+  return hydrateSavingsCards((data ?? []) as unknown as BaseCardRow[]);
 }
 
-export async function getSavingsCardByTokenAdmin(token: string) {
-  const { data, error } = await supabase
+export async function getSavingsCardsAdmin(includeDeleted = false, viewerRole?: UserRole) {
+  return getSavingsCardsAdminInternal(includeDeleted, viewerRole);
+}
+
+export async function getSavingsCardByTokenAdmin(token: string, includeDeleted = false) {
+  let query = supabase
     .from("savings_cards")
-    .select(cardSelect)
-    .eq("token", token.trim().toUpperCase())
-    .maybeSingle();
+    .select(getCardSelect())
+    .eq("token", token.trim().toUpperCase());
+  const filter = getVisibleDeletionFilter("savings_cards", includeDeleted);
+  if (filter.column) query = query.eq(filter.column, filter.value);
+  const { data, error } = await query.maybeSingle();
   if (error) throw error;
   if (!data) return null;
-  const rows = await hydrateSavingsCards([data as BaseCardRow]);
+  const rows = await hydrateSavingsCards([data as unknown as BaseCardRow]);
   return rows[0] ?? null;
 }
 
-export async function getSavingsCardByIdAdmin(cardId: string) {
-  const { data, error } = await supabase
-    .from("savings_cards")
-    .select(cardSelect)
-    .eq("id", cardId)
-    .maybeSingle();
+export async function getSavingsCardByIdAdmin(cardId: string, includeDeleted = false, viewerRole?: UserRole) {
+  let query = supabase.from("savings_cards").select(getCardSelect(viewerRole)).eq("id", cardId);
+  const filter = getVisibleDeletionFilter("savings_cards", includeDeleted);
+  if (filter.column) query = query.eq(filter.column, filter.value);
+  const { data, error } = await query.maybeSingle();
   if (error) throw error;
   if (!data) return null;
-  const rows = await hydrateSavingsCards([data as BaseCardRow]);
+  const rows = await hydrateSavingsCards([data as unknown as BaseCardRow]);
   return rows[0] ?? null;
 }
 
 export async function getMySavingsCards() {
-  const { data, error } = await supabase
-    .from("savings_cards")
-    .select(cardSelect)
-    .order("created_at", { ascending: false });
+  let query = supabase.from("savings_cards").select(getCardSelect()).order("created_at", { ascending: false });
+  const filter = getVisibleDeletionFilter("savings_cards", false);
+  if (filter.column) query = query.eq(filter.column, filter.value);
+  const { data, error } = await query;
   if (error) throw error;
-  return hydrateSavingsCards((data ?? []) as BaseCardRow[]);
+  return hydrateSavingsCards((data ?? []) as unknown as BaseCardRow[]);
 }
 
 export async function createSavingsCard(input: {

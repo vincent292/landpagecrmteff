@@ -206,7 +206,7 @@ export function PatientClinicalHistoryPage() {
     setError(false);
     try {
       const [patientRow, historyRows, evolutionRows, photoRows, itemRows, lotRows, usageRows, doctorRows, myDoctorRow] = await Promise.all([
-        getPatientById(id),
+        getPatientById(id, role),
         getClinicalHistoriesByPatient(id),
         getClinicalEvolutions(id),
         getPatientPhotos(id),

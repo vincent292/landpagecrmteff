@@ -105,7 +105,7 @@ export function DoctorSection() {
               <img
                 data-gsap="doctor-main-photo"
                 src={placeholder.doctorAlt}
-                alt="Retrato de la doctora"
+                alt="Retrato profesional de la Dra. Estefany Ballesteros"
                 loading="lazy"
                 decoding="async"
                 className="h-[560px] w-full object-cover object-[50%_18%] md:h-[650px]"
@@ -119,7 +119,7 @@ export function DoctorSection() {
           >
             <img
               src={placeholder.doctor}
-              alt="Detalle profesional de la doctora"
+              alt="Detalle fotografico de la Dra. Estefany Ballesteros"
               loading="lazy"
               decoding="async"
               className="h-56 w-full object-cover object-[50%_18%] md:h-72"
@@ -132,7 +132,7 @@ export function DoctorSection() {
           >
             <Quote className="h-5 w-5 text-[var(--color-accent-strong)]" />
             <p className="mt-3 font-display text-2xl font-semibold leading-7 text-[var(--color-ink)]">
-              Belleza natural con criterio médico, escucha real y una mirada
+              Belleza natural con criterio medico, escucha real y una mirada
               cercana.
             </p>
           </div>
@@ -150,24 +150,29 @@ export function DoctorSection() {
             data-gsap="doctor-copy"
             className="font-display text-5xl font-semibold leading-[0.94] text-[var(--color-ink)] md:text-6xl"
           >
-            Un enfoque médico al servicio de tu bienestar y tu imagen.
+            Un enfoque medico al servicio de tu bienestar y tu imagen.
           </h2>
 
           <p
             data-gsap="doctor-copy"
             className="mt-6 text-base leading-8 text-[var(--color-copy)] md:text-lg"
           >
-            Este espacio está listo para incorporar la biografía profesional de la
-            Dra. Estefany Ballesteros, su trayectoria, credenciales, enfoque
-            clínico y propuesta diferencial.
+            Dra. Estefany Ballesteros representa una propuesta medica enfocada en
+            medicina estetica, armonizacion facial y medicina ortomolecular para
+            pacientes en Bolivia. Su trabajo busca resultados naturales,
+            valoracion responsable y acompanamiento cercano en cada etapa.
           </p>
 
           <p
             data-gsap="doctor-copy"
             className="mt-5 text-base leading-8 text-[var(--color-copy)] md:text-lg"
           >
-            La composición visual está diseñada para transmitir autoridad cálida,
-            sensibilidad estética y confianza médica sin caer en excesos visuales.
+            Con mas de 5 anos de experiencia, su enfoque incluye
+            bioestimuladores, toxina botulinica, rellenos y protocolos de
+            medicina estetica pensados para respetar la anatomia, la seguridad y
+            la identidad de cada paciente. Las certificaciones y actualizaciones
+            profesionales pueden seguir ampliandose conforme el equipo publique
+            nuevos respaldos en el sitio.
           </p>
 
           <div className="mt-10 grid gap-3 sm:grid-cols-2">

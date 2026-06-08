@@ -152,8 +152,8 @@ export function Services() {
     <SectionReveal id="servicios" className="mx-auto max-w-7xl px-6 py-28 md:px-8 md:py-36">
       <SectionHeading
         eyebrow="Servicios"
-        title="Lo mas buscado del consultorio en un solo vistazo."
-        description="Accede rapido a tratamientos, promociones y cursos activos sin tener que pasar por bloques largos de texto."
+        title="Medicina estetica, armonizacion facial y formacion en Bolivia."
+        description="Explora tratamientos de medicina estetica, promociones activas y cursos con informacion clara para pacientes y profesionales en Bolivia."
         align="center"
       />
 

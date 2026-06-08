@@ -12,6 +12,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { useFormDraft } from "../../hooks/useFormDraft";
 import { useWorkspaceState } from "../../hooks/useWorkspaceState";
 import { getCareModeLabel } from "../../lib/careMode";
+import { shouldHidePatientPhone } from "../../lib/patientPrivacy";
 import { hardDeleteRecord, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
 import { getAppointmentsAdmin, updateAppointment, updateAppointmentStatus, type AppointmentAdminRow } from "../../services/appointmentService";
 import { getAvailableSlots, type AvailableSlot } from "../../services/availabilityService";
@@ -56,7 +57,7 @@ const manualSchema = z.object({
 const quickPatientSchema = z.object({
   full_name: z.string().min(3, "Escribe el nombre completo."),
   document_number: z.string().min(5, "Escribe el numero de carnet."),
-  phone: z.string().min(7, "Escribe un celular valido."),
+  phone: z.string().optional(),
   email: z.string().email("Correo invalido").or(z.literal("")),
   city: z.string().min(2, "Selecciona ciudad."),
 });
@@ -85,6 +86,7 @@ type SourceFilter = "Todos" | "Reservas" | "Internas";
 
 export function ReservationsAdminPage() {
   const { role, profile, user } = useAuth();
+  const hidePatientPhone = shouldHidePatientPhone(role);
   const [rows, setRows] = useState<AppointmentReservationRow[]>([]);
   const [appointments, setAppointments] = useState<AppointmentAdminRow[]>([]);
   const [patients, setPatients] = useState<PatientRow[]>([]);
@@ -182,9 +184,9 @@ export function ReservationsAdminPage() {
     setLoading(true);
     setError("");
     Promise.all([
-      getReservationsAdmin(role === "doctor" ? { doctor_id: doctorProfileId } : {}, role === "superadmin"),
-      getAppointmentsAdmin(role === "superadmin", role === "doctor" ? doctorProfileId : null),
-      getPatients(),
+      getReservationsAdmin(role === "doctor" ? { doctor_id: doctorProfileId } : {}, role === "superadmin", role),
+      getAppointmentsAdmin(role === "superadmin", role === "doctor" ? doctorProfileId : null, role),
+      getPatients(false, role),
       getAdminDoctors().then((doctorRows) =>
         role === "doctor" && doctorProfileId ? doctorRows.filter((doctor) => doctor.id === doctorProfileId) : doctorRows
       ),
@@ -290,9 +292,9 @@ export function ReservationsAdminPage() {
     if (!normalizedQuery) return patients.slice(0, 8);
 
     return patients
-      .filter((patient) => buildPatientSearchIndex(patient).includes(normalizedQuery))
+      .filter((patient) => buildPatientSearchIndex(patient, hidePatientPhone).includes(normalizedQuery))
       .slice(0, 8);
-  }, [patientQuery, patients]);
+  }, [hidePatientPhone, patientQuery, patients]);
 
   const filteredDoctors = useMemo(() => {
     const normalizedQuery = normalizeSearchText(doctorQuery);
@@ -313,7 +315,6 @@ export function ReservationsAdminPage() {
           patient: row.patients,
           type: row.appointment_type,
           city: row.city,
-          phone: row.patients?.phone,
           status: row.status,
         })
           .toLowerCase()
@@ -337,7 +338,6 @@ export function ReservationsAdminPage() {
           patient: item.patients,
           title: item.title,
           city: item.city,
-          phone: item.patients?.phone,
           status: item.status,
         })
           .toLowerCase()
@@ -393,7 +393,7 @@ export function ReservationsAdminPage() {
   };
 
   const openManualPaymentLink = (row: AppointmentReservationRow) => {
-    if (!row.public_payment_token || !row.patients?.phone) {
+    if (hidePatientPhone || !row.public_payment_token || !row.patients?.phone) {
       setError("Esta cita manual todavia no tiene un enlace disponible o la paciente no tiene WhatsApp registrado.");
       return;
     }
@@ -568,9 +568,13 @@ export function ReservationsAdminPage() {
           .join("\n");
         const whatsappHref = buildWhatsAppHref(selectedPatient.phone, whatsappMessage);
 
-        setFollowUpWhatsappHref(whatsappHref);
+        setFollowUpWhatsappHref(hidePatientPhone ? null : whatsappHref);
         setFollowUpWhatsappLabel("Enviar enlace de pago por WhatsApp");
-        setSuccess("Cita manual creada como pendiente de pago. Ya puedes mandarle el enlace por WhatsApp para que pague sin registrarse.");
+        setSuccess(
+          hidePatientPhone
+            ? "Cita manual creada como pendiente de pago."
+            : "Cita manual creada como pendiente de pago. Ya puedes mandarle el enlace por WhatsApp para que pague sin registrarse."
+        );
       }
 
       form.reset({
@@ -678,7 +682,7 @@ export function ReservationsAdminPage() {
                           setPatientPickerOpen(true);
                           form.setValue("patient_id", "", { shouldDirty: true, shouldValidate: true });
                         }}
-                        placeholder="Buscar por nombre, CI, celular o correo"
+                        placeholder={hidePatientPhone ? "Buscar por nombre, CI o correo" : "Buscar por nombre, CI, celular o correo"}
                         className="premium-input !pl-12"
                       />
                     </div>
@@ -717,7 +721,9 @@ export function ReservationsAdminPage() {
                             >
                               <span className="text-sm font-semibold text-[var(--color-ink)]">{patient.full_name}</span>
                               <span className="mt-1 text-xs text-[var(--color-copy)]">
-                                CI {patient.document_number ?? "sin carnet"} · {patient.phone ?? "sin celular"} · {patient.city ?? "sin ciudad"}
+                                CI {patient.document_number ?? "sin carnet"}
+                                {!hidePatientPhone ? ` · ${patient.phone ?? "sin celular"}` : ""}
+                                {` · ${patient.city ?? "sin ciudad"}`}
                               </span>
                             </button>
                           ))}
@@ -758,7 +764,9 @@ export function ReservationsAdminPage() {
                     <div>
                       <p className="text-lg font-semibold text-[var(--color-ink)]">{selectedPatient.full_name}</p>
                       <p className="mt-1 text-sm text-[var(--color-copy)]">
-                        CI {selectedPatient.document_number ?? "sin carnet"} · {selectedPatient.phone ?? "sin celular"} · {selectedPatient.city ?? "sin ciudad"}
+                        CI {selectedPatient.document_number ?? "sin carnet"}
+                        {!hidePatientPhone ? ` · ${selectedPatient.phone ?? "sin celular"}` : ""}
+                        {` · ${selectedPatient.city ?? "sin ciudad"}`}
                       </p>
                     </div>
                     <span className="inline-flex rounded-full bg-white px-3 py-1 text-xs font-semibold text-[var(--color-mocha)]">
@@ -1023,6 +1031,7 @@ export function ReservationsAdminPage() {
                   key={row.id}
                   row={row}
                   role={role}
+                  hidePatientPhone={hidePatientPhone}
                   actorId={actorId}
                   actorName={actorName}
                   actorEmail={actorEmail}
@@ -1049,6 +1058,7 @@ export function ReservationsAdminPage() {
                   key={item.id}
                   item={item}
                   role={role}
+                  hidePatientPhone={hidePatientPhone}
                   actorId={actorId}
                   actorName={actorName}
                   actorEmail={actorEmail}
@@ -1152,9 +1162,11 @@ export function ReservationsAdminPage() {
                   className="premium-input"
                 />
               </Field>
-              <Field label="WhatsApp / celular" error={quickPatientForm.formState.errors.phone?.message}>
-                <input {...quickPatientForm.register("phone")} className="premium-input" />
-              </Field>
+              {!hidePatientPhone ? (
+                <Field label="WhatsApp / celular" error={quickPatientForm.formState.errors.phone?.message}>
+                  <input {...quickPatientForm.register("phone")} className="premium-input" />
+                </Field>
+              ) : null}
               <Field label="Correo" error={quickPatientForm.formState.errors.email?.message}>
                 <input {...quickPatientForm.register("email")} className="premium-input" />
               </Field>
@@ -1201,6 +1213,7 @@ export function ReservationsAdminPage() {
 function ReservationCard({
   row,
   role,
+  hidePatientPhone,
   actorId,
   actorName,
   actorEmail,
@@ -1213,6 +1226,7 @@ function ReservationCard({
 }: {
   row: AppointmentReservationRow;
   role: ReturnType<typeof useAuth>["role"];
+  hidePatientPhone: boolean;
   actorId?: string | null;
   actorName?: string | null;
   actorEmail?: string | null;
@@ -1223,12 +1237,12 @@ function ReservationCard({
   onSendManualPaymentLink: (row: AppointmentReservationRow) => void;
   onRegenerateManualPaymentLink: (row: AppointmentReservationRow) => void;
 }) {
-  const phone = row.patients?.phone?.replace(/\D/g, "") ?? "";
+  const phone = hidePatientPhone ? "" : row.patients?.phone?.replace(/\D/g, "") ?? "";
   const message = `Hola ${row.patients?.full_name ?? ""}, te escribimos de parte de la Dra. Estefany sobre tu cita de ${row.appointment_type} en modalidad ${getCareModeLabel(row.care_mode).toLowerCase()} del ${formatDate(row.appointment_date)} a las ${row.start_time.slice(0, 5)}${row.doctor_profiles?.full_name ? ` con la Dra. ${row.doctor_profiles.full_name}` : ""}.`;
   const hasReceipt = Boolean(row.payment_receipt_path);
   const isManualReservation = (row.source ?? "").toLowerCase().includes("admin_manual");
-  const canSendManualLink = isManualReservation && row.status === "Pendiente" && !hasReceipt && Boolean(row.public_payment_token);
-  const canRegenerateManualLink = isManualReservation && row.status === "Rechazada";
+  const canSendManualLink = !hidePatientPhone && isManualReservation && row.status === "Pendiente" && !hasReceipt && Boolean(row.public_payment_token);
+  const canRegenerateManualLink = !hidePatientPhone && isManualReservation && row.status === "Rechazada";
 
   const openReceipt = async () => {
     const url = await getReservationReceiptUrl(row.payment_receipt_path);
@@ -1343,6 +1357,7 @@ function ReservationCard({
 function AppointmentCard({
   item,
   role,
+  hidePatientPhone,
   actorId,
   actorName,
   actorEmail,
@@ -1352,6 +1367,7 @@ function AppointmentCard({
 }: {
   item: AppointmentAdminRow;
   role: ReturnType<typeof useAuth>["role"];
+  hidePatientPhone: boolean;
   actorId?: string | null;
   actorName?: string | null;
   actorEmail?: string | null;
@@ -1359,7 +1375,7 @@ function AppointmentCard({
   doctorFieldLocked: boolean;
   onChanged: () => void;
 }) {
-  const phone = item.patients?.phone?.replace(/\D/g, "") ?? "";
+  const phone = hidePatientPhone ? "" : item.patients?.phone?.replace(/\D/g, "") ?? "";
   const message = `Hola ${item.patients?.full_name ?? ""}, te escribimos de parte de la Dra. Estefany sobre tu cita de ${item.title} del ${item.appointment_date} a las ${item.start_time}.`;
 
   return (
@@ -1459,8 +1475,14 @@ function Field({ label, error, children }: { label: string; error?: string; chil
   );
 }
 
-function buildPatientSearchIndex(patient: PatientRow) {
-  return normalizeSearchText([patient.full_name, patient.document_number, patient.phone, patient.email, patient.city].filter(Boolean).join(" "));
+function buildPatientSearchIndex(patient: PatientRow, hidePatientPhone = false) {
+  return normalizeSearchText([
+    patient.full_name,
+    patient.document_number,
+    hidePatientPhone ? null : patient.phone,
+    patient.email,
+    patient.city,
+  ].filter(Boolean).join(" "));
 }
 
 function buildPatientLabel(patient: PatientRow) {

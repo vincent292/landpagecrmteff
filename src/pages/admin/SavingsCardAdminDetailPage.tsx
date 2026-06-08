@@ -1,9 +1,13 @@
 import { useEffect, useState, type ReactNode } from "react";
 
 import { ArrowLeft, Copy, ExternalLink, MessageSquareShare } from "lucide-react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
+import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteActions";
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
+import { useAuth } from "../../hooks/useAuth";
+import { shouldHidePatientPhone } from "../../lib/patientPrivacy";
+import { hardDeleteRecord, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
 import { getCashPaymentMethods, type CashPaymentMethodRow } from "../../services/cashService";
 import {
   buildSavingsCardShareMessage,
@@ -26,7 +30,10 @@ type ReviewDraft = {
 };
 
 export function SavingsCardAdminDetailPage() {
+  const { role, profile, user } = useAuth();
+  const hidePatientPhone = shouldHidePatientPhone(role);
   const { id = "" } = useParams();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const highlightedInstallmentId = searchParams.get("cuota") ?? "";
 
@@ -38,13 +45,16 @@ export function SavingsCardAdminDetailPage() {
   const [shareOpen, setShareOpen] = useState(false);
   const [reviewDraft, setReviewDraft] = useState<ReviewDraft | null>(null);
   const [savingReview, setSavingReview] = useState(false);
+  const actorId = profile?.id ?? user?.id ?? null;
+  const actorName = profile?.full_name ?? user?.user_metadata.full_name ?? null;
+  const actorEmail = profile?.email ?? user?.email ?? null;
 
   const load = async () => {
     setLoading(true);
     setError("");
     try {
       const [nextCard, nextMethods] = await Promise.all([
-        getSavingsCardByIdAdmin(id),
+        getSavingsCardByIdAdmin(id, role === "superadmin", role),
         getCashPaymentMethods(true),
       ]);
       setCard(nextCard);
@@ -58,7 +68,7 @@ export function SavingsCardAdminDetailPage() {
 
   useEffect(() => {
     void load();
-  }, [id]);
+  }, [id, role]);
 
   useEffect(() => {
     if (!highlightedInstallmentId || loading) return;
@@ -158,6 +168,28 @@ export function SavingsCardAdminDetailPage() {
             <MessageSquareShare className="h-4 w-4" />
             Ver mensaje
           </button>
+          {role === "superadmin" ? (
+            <DeleteActions
+              role={role}
+              row={card}
+              onSoftDelete={() =>
+                void softDeleteRecord({
+                  table: "savings_cards",
+                  id: card.id,
+                  actorId,
+                  actorRole: role,
+                  actorName,
+                  actorEmail,
+                }).then(load)
+              }
+              onRestore={() => void restoreRecord("savings_cards", card.id).then(load)}
+              onHardDelete={() =>
+                void hardDeleteRecord("savings_cards", card.id).then(() => {
+                  void navigate("/panel/tarjetas-ahorro");
+                })
+              }
+            />
+          ) : null}
         </div>
 
         <p className="mt-6 text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">
@@ -187,6 +219,7 @@ export function SavingsCardAdminDetailPage() {
           {error}
         </div>
       ) : null}
+      <DeletedStatusNote row={card} />
 
       {highlightedInstallmentId ? (
         <div className="rounded-[20px] border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-800">
@@ -213,7 +246,7 @@ export function SavingsCardAdminDetailPage() {
               Paciente: {card.patient_full_name}
               <br />
               Carnet: {card.patient_document_number ?? "sin carnet"}
-              {card.patients?.phone ? ` · ${card.patients.phone}` : ""}
+              {!hidePatientPhone && card.patients?.phone ? ` · ${card.patients.phone}` : ""}
               <br />
               Inicio del plan: {formatDate(card.start_month)}
               <br />

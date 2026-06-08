@@ -186,7 +186,7 @@ export function AvailabilityAdminPage() {
     Promise.all([
       getAvailabilityRules(role === "superadmin", role === "doctor" ? doctorProfileId : null),
       getAvailabilityBlocks(role === "superadmin", role === "doctor" ? doctorProfileId : null),
-      getReservationsAdmin(role === "doctor" ? { doctor_id: doctorProfileId } : {}, role === "superadmin"),
+      getReservationsAdmin(role === "doctor" ? { doctor_id: doctorProfileId } : {}, role === "superadmin", role),
       getAdminDoctors(role === "superadmin").then((rows) =>
         role === "doctor" && doctorProfileId ? rows.filter((doctor) => doctor.id === doctorProfileId) : rows
       ),

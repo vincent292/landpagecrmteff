@@ -12,6 +12,7 @@ import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
 import { useFormDraft } from "../../hooks/useFormDraft";
 import { useWorkspaceState } from "../../hooks/useWorkspaceState";
+import { shouldHidePatientPhone } from "../../lib/patientPrivacy";
 import { hardDeleteRecord, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
 import { createPatient, getPatients, type PatientRow } from "../../services/patientService";
 import { normalizeDocumentNumber } from "../../utils/documentNumber";
@@ -29,6 +30,7 @@ type PatientFormValues = z.infer<typeof patientSchema>;
 
 export function PatientsPage() {
   const { role, profile, user } = useAuth();
+  const hidePatientPhone = shouldHidePatientPhone(role);
   const [rows, setRows] = useState<PatientRow[]>([]);
   const [query, setQuery] = useWorkspaceState("admin:patients:query", "", { ttlMs: 1000 * 60 * 60 * 8 });
   const [city, setCity] = useWorkspaceState("admin:patients:city", "Todas", { ttlMs: 1000 * 60 * 60 * 8 });
@@ -56,7 +58,7 @@ export function PatientsPage() {
   const load = () => {
     setLoading(true);
     setError(false);
-    getPatients(role === "superadmin")
+    getPatients(role === "superadmin", role)
       .then(setRows)
       .catch(() => setError(true))
       .finally(() => setLoading(false));
@@ -72,7 +74,7 @@ export function PatientsPage() {
   const filtered = useMemo(
     () =>
       rows.filter((item) => {
-        const queryMatch = JSON.stringify([item.full_name, item.document_number, item.phone, item.email]).toLowerCase().includes(query.toLowerCase());
+        const queryMatch = JSON.stringify([item.full_name, item.document_number, item.email]).toLowerCase().includes(query.toLowerCase());
         const cityMatch = city === "Todas" || item.city === city;
         return queryMatch && cityMatch;
       }),
@@ -121,7 +123,7 @@ export function PatientsPage() {
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Buscar por nombre, carnet, celular o correo"
+            placeholder={hidePatientPhone ? "Buscar por nombre, carnet o correo" : "Buscar por nombre, carnet, celular o correo"}
             className="premium-input"
           />
           <select value={city} onChange={(event) => setCity(event.target.value)} className="premium-input">
@@ -156,7 +158,7 @@ export function PatientsPage() {
                   <div className="text-right text-xs text-[var(--color-copy)]">{formatDate(patient.created_at)}</div>
                 </div>
                 <div className="mt-4 grid gap-2 text-sm text-[var(--color-copy)]">
-                  <p>{patient.phone ?? "Sin celular"}</p>
+                  {!hidePatientPhone ? <p>{patient.phone ?? "Sin celular"}</p> : null}
                   <p>CI: {patient.document_number ?? "Sin carnet"}</p>
                   <p>{patient.email ?? "Sin correo"}</p>
                   <p>{patient.city ?? "Sin ciudad"}</p>
@@ -196,7 +198,7 @@ export function PatientsPage() {
             <thead className="text-[var(--color-copy)]">
               <tr>
                 <th className="py-3">Paciente</th>
-                <th>Celular</th>
+                {!hidePatientPhone ? <th>Celular</th> : null}
                 <th>CI</th>
                 <th>Correo</th>
                 <th>Ciudad</th>
@@ -213,7 +215,7 @@ export function PatientsPage() {
                       Paciente
                     </div>
                   </td>
-                  <td>{patient.phone ?? "Sin celular"}</td>
+                  {!hidePatientPhone ? <td>{patient.phone ?? "Sin celular"}</td> : null}
                   <td>{patient.document_number ?? "Sin carnet"}</td>
                   <td>{patient.email ?? "Sin correo"}</td>
                   <td>{patient.city ?? "Sin ciudad"}</td>
@@ -277,9 +279,11 @@ export function PatientsPage() {
                   className="premium-input mt-2"
                 />
               </Field>
-              <Field label="Celular" error={errors.phone?.message}>
-                <input {...register("phone")} className="premium-input mt-2" />
-              </Field>
+              {!hidePatientPhone ? (
+                <Field label="Celular" error={errors.phone?.message}>
+                  <input {...register("phone")} className="premium-input mt-2" />
+                </Field>
+              ) : null}
               <Field label="Correo" error={errors.email?.message}>
                 <input {...register("email")} className="premium-input mt-2" />
               </Field>

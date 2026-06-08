@@ -1,5 +1,7 @@
 import { supabase } from "../lib/supabaseClient";
 import { getCareModeLabel, type AvailabilityCareMode, type ReservationCareMode } from "../lib/careMode";
+import { shouldHidePatientPhone } from "../lib/patientPrivacy";
+import type { UserRole } from "../types/platform";
 import { getVisibleDeletionFilter, type DeletionMetadata } from "./adminDeletionService";
 import { getSignedUrl, uploadPrivateFile } from "./storageService";
 
@@ -138,11 +140,22 @@ async function expireUnpaidReservations() {
   if (error) throw error;
 }
 
-export async function getReservationsAdmin(filters: ReservationFilters = {}, includeDeleted = false) {
+function getReservationsAdminSelect(viewerRole?: UserRole) {
+  const patientsSelect = shouldHidePatientPhone(viewerRole)
+    ? "patients(full_name, email, city)"
+    : "patients(full_name, phone, email, city)";
+  return `*, ${patientsSelect}, doctor_profiles(id, full_name, whatsapp, email)`;
+}
+
+export async function getReservationsAdmin(
+  filters: ReservationFilters = {},
+  includeDeleted = false,
+  viewerRole?: UserRole
+) {
   await expireUnpaidReservations();
   let query = supabase
     .from("appointment_reservations")
-    .select("*, patients(full_name, phone, email, city), doctor_profiles(id, full_name, whatsapp, email)")
+    .select(getReservationsAdminSelect(viewerRole))
     .order("appointment_date", { ascending: true })
     .order("start_time", { ascending: true });
   const deletedFilter = getVisibleDeletionFilter("appointment_reservations", includeDeleted);
@@ -159,7 +172,7 @@ export async function getReservationsAdmin(filters: ReservationFilters = {}, inc
   const { data, error } = await query;
   if (error) throw error;
 
-  const rows = (data ?? []) as AppointmentReservationRow[];
+  const rows = (data ?? []) as unknown as AppointmentReservationRow[];
   const search = filters.query?.trim().toLowerCase();
   if (!search) return rows;
 
@@ -175,16 +188,16 @@ export async function getReservationsAdmin(filters: ReservationFilters = {}, inc
   );
 }
 
-export async function getReservationById(id: string) {
+export async function getReservationById(id: string, viewerRole?: UserRole) {
   await expireUnpaidReservations();
   const { data, error } = await supabase
     .from("appointment_reservations")
-    .select("*, patients(full_name, phone, email, city), doctor_profiles(id, full_name, whatsapp, email)")
+    .select(getReservationsAdminSelect(viewerRole))
     .eq("id", id)
     .eq("is_deleted", false)
     .maybeSingle();
   if (error) throw error;
-  return data as AppointmentReservationRow | null;
+  return data as unknown as AppointmentReservationRow | null;
 }
 
 export async function getMyReservations(userId: string) {

@@ -40,7 +40,7 @@ export function Footer() {
               "Atención médica orientada al bienestar, la armonía facial y el acompañamiento cercano en cada etapa del proceso."}
           </p>
           <p className="mt-4 text-sm font-medium text-[var(--color-ink)]">
-            {getDisplayCity(settings?.city)}, Bolivia
+            Atencion en Bolivia {settings?.city ? `· ${getDisplayCity(settings.city)}` : ""}
           </p>
         </div>
 
