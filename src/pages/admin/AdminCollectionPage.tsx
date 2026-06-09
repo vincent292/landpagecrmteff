@@ -53,7 +53,7 @@ import {
 } from "../../services/treatmentService";
 import { careModeOptions } from "../../lib/careMode";
 import { slugify } from "../../utils/text";
-import { canManageUsers, roleLabels } from "../../lib/roles";
+import { canManageUsers, isDoctorRole, roleLabels } from "../../lib/roles";
 import { useAuth } from "../../hooks/useAuth";
 import { useWorkspaceState } from "../../hooks/useWorkspaceState";
 import { boliviaCities } from "../../data/cities";
@@ -106,7 +106,7 @@ const enrollmentStatuses = ["Pendiente", "En revision", "Confirmado", "Rechazado
 const eventTypes = ["Curso", "Procedimiento", "Cirugía", "Presentación", "Jornada", "Valoración"];
 const appointmentTypeOptions = ["Valoracion estetica", "Control", "Procedimiento", "Promocion directa", "Revision postratamiento", "Consulta general"];
 const galleryCategories = ["Eventos", "Tratamientos", "Cursos", "Testimonios", "Antes y despues autorizados", "Videos"];
-const userRoles = ["superadmin", "doctor", "admin", "assistant", "patient", "student", "user"] as const;
+const userRoles = ["superadmin", "doctor", "doctor_inventory", "admin", "assistant", "patient", "student", "user"] as const;
 
 export function AdminCollectionPage({ module }: Props) {
   const { role, profile, user } = useAuth();
@@ -123,14 +123,14 @@ export function AdminCollectionPage({ module }: Props) {
   const [enrollmentApproval, setEnrollmentApproval] = useState<EnrollmentApprovalDraft | null>(null);
   const [savingApproval, setSavingApproval] = useState(false);
   const [doctorProfileId, setDoctorProfileId] = useState<string | null>(null);
-  const [doctorProfileResolved, setDoctorProfileResolved] = useState(role !== "doctor");
+  const [doctorProfileResolved, setDoctorProfileResolved] = useState(!isDoctorRole(role));
   const listRef = useRef<HTMLDivElement | null>(null);
 
   const load = () => {
     setLoading(true);
     setError(false);
     Promise.all([
-      getRows(module, role === "superadmin", role === "doctor" ? doctorProfileId : null),
+      getRows(module, role === "superadmin", isDoctorRole(role) ? doctorProfileId : null),
       module === "inscripciones" ? getCashPaymentMethods(true) : Promise.resolve([] as CashPaymentMethodRow[]),
     ])
       .then(([loadedRows, methods]) => {
@@ -142,7 +142,7 @@ export function AdminCollectionPage({ module }: Props) {
   };
 
   useEffect(() => {
-    if (role !== "doctor" || !profile?.id) {
+    if (!isDoctorRole(role) || !profile?.id) {
       setDoctorProfileId(null);
       setDoctorProfileResolved(true);
       return;
@@ -156,7 +156,7 @@ export function AdminCollectionPage({ module }: Props) {
   }, [profile?.id, role]);
 
   useEffect(() => {
-    if (role === "doctor" && !doctorProfileResolved) return;
+    if (isDoctorRole(role) && !doctorProfileResolved) return;
     load();
   }, [doctorProfileId, doctorProfileResolved, module, role]);
 
@@ -1075,7 +1075,7 @@ function AdminEntityForm({
   }, [module, values.slug, values.title]);
 
   useEffect(() => {
-    if (role !== "doctor" || !profile?.id) return;
+    if (!isDoctorRole(role) || !profile?.id) return;
 
     getMyDoctorProfile(profile.id)
       .then((doctor) => setDoctorProfileId(doctor?.id ?? null))
@@ -1095,7 +1095,7 @@ function AdminEntityForm({
 
     const currentDoctorId = typeof values.doctor_id === "string" ? values.doctor_id : "";
 
-    if (role === "doctor" && doctorProfileId && currentDoctorId !== doctorProfileId) {
+    if (isDoctorRole(role) && doctorProfileId && currentDoctorId !== doctorProfileId) {
       setValues((current) => ({ ...current, doctor_id: doctorProfileId }));
       return;
     }
@@ -1144,7 +1144,7 @@ function AdminEntityForm({
     try {
       setError("");
       const selectedDoctorId =
-        role === "doctor"
+        isDoctorRole(role)
           ? doctorProfileId
           : typeof values.doctor_id === "string" && values.doctor_id
             ? values.doctor_id
@@ -1248,7 +1248,7 @@ function AdminEntityForm({
                   value={String(values[field.name] ?? "")}
                   onChange={(event) => setValue(field.name, event.target.value)}
                   className="premium-input mt-2"
-                  disabled={role === "doctor" && Boolean(doctorProfileId)}
+                  disabled={isDoctorRole(role) && Boolean(doctorProfileId)}
                 >
                   <option value="">{doctors.length > 0 ? "Selecciona doctora" : "Sin doctoras disponibles"}</option>
                   {doctors.map((doctor) => (

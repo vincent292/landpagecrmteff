@@ -8,6 +8,7 @@ import { z } from "zod";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { useAuth } from "../../hooks/useAuth";
+import { isDoctorRole } from "../../lib/roles";
 import { getMyDoctorProfile } from "../../services/doctorService";
 import {
   createPhotoComparison,
@@ -93,7 +94,7 @@ export function PatientPhotosPage() {
   }, [id]);
 
   useEffect(() => {
-    if (role !== "doctor" || !profile?.id) {
+    if (!isDoctorRole(role) || !profile?.id) {
       setDoctorProfileId(null);
       return;
     }
@@ -147,7 +148,7 @@ export function PatientPhotosPage() {
       await uploadPatientPhoto(file, id, {
         ...values,
         uploaded_by: user?.id ?? null,
-        doctor_id: role === "doctor" ? doctorProfileId : null,
+        doctor_id: isDoctorRole(role) ? doctorProfileId : null,
       });
       setFile(null);
       setPreview("");
@@ -224,7 +225,7 @@ export function PatientPhotosPage() {
               <img src={preview} alt="Previsualizacion de subida" className="mt-3 h-72 w-full rounded-[18px] object-cover md:max-w-md" />
             </div>
           ) : null}
-          <button disabled={uploading || (role === "doctor" && !doctorProfileId)} className="w-fit rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-60">
+          <button disabled={uploading || (isDoctorRole(role) && !doctorProfileId)} className="w-fit rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-60">
             {uploading ? "Subiendo..." : "Subir foto"}
           </button>
         </form>
@@ -327,7 +328,7 @@ export function PatientPhotosPage() {
                       type="checkbox"
                       checked={item.is_visible_to_patient}
                       onChange={(event) => void updatePhotoVisibility(item.id, event.target.checked).then(load)}
-                      disabled={role === "doctor" && item.doctor_id !== doctorProfileId}
+                      disabled={isDoctorRole(role) && item.doctor_id !== doctorProfileId}
                     />
                     Visible
                   </label>

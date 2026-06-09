@@ -1,7 +1,8 @@
+import { isDoctorRole } from "./roles";
 import type { UserRole } from "../types/platform";
 
 export function shouldHidePatientPhone(role?: UserRole | null) {
-  return role === "doctor";
+  return role ? isDoctorRole(role) : false;
 }
 
 export function sanitizePatientPhone<T extends { phone: string | null }>(

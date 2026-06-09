@@ -13,6 +13,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { useFormDraft } from "../../hooks/useFormDraft";
 import { useWorkspaceState } from "../../hooks/useWorkspaceState";
 import { shouldHidePatientPhone } from "../../lib/patientPrivacy";
+import { isDoctorRole } from "../../lib/roles";
 import { hardDeleteRecord, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
 import { createPatient, getPatients, type PatientRow } from "../../services/patientService";
 import { normalizeDocumentNumber } from "../../utils/documentNumber";
@@ -170,7 +171,7 @@ export function PatientsPage() {
                   <PatientAction href={`/panel/pacientes/${patient.id}/citas`} label="Citas" />
                   <PatientAction href={`/panel/pacientes/${patient.id}/recetas`} label="Recetas" />
                   <PatientAction href={`/panel/pacientes/${patient.id}/cuidados`} label="Cuidados" />
-                  {role !== "doctor" ? (
+                  {!isDoctorRole(role) ? (
                     <DeleteActions
                       role={role}
                       row={patient}
@@ -228,7 +229,7 @@ export function PatientsPage() {
                       <PatientAction href={`/panel/pacientes/${patient.id}/citas`} label="Citas" />
                       <PatientAction href={`/panel/pacientes/${patient.id}/recetas`} label="Recetas" />
                       <PatientAction href={`/panel/pacientes/${patient.id}/cuidados`} label="Cuidados" />
-                      {role !== "doctor" ? (
+                      {!isDoctorRole(role) ? (
                         <DeleteActions
                           role={role}
                           row={patient}

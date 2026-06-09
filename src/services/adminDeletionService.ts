@@ -106,7 +106,7 @@ export function canHardDelete(role: UserRole) {
 }
 
 export function canSoftDelete(role: UserRole) {
-  return ["superadmin", "admin", "doctor", "assistant"].includes(role);
+  return ["superadmin", "admin", "doctor", "doctor_inventory", "assistant"].includes(role);
 }
 
 export function isSoftDeleted(row?: DeletionMetadata | null) {

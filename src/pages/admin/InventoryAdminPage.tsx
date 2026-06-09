@@ -29,7 +29,9 @@ import {
   createInventoryLot,
   createInventorySupplier,
   createInventoryUnit,
+  closeInventoryShift,
   getInventoryCategories,
+  getInventoryCountLines,
   getInventoryCounts,
   getInventoryItems,
   getInventoryLocations,
@@ -37,15 +39,18 @@ import {
   getInventoryMovements,
   getInventorySuppliers,
   getInventoryUnits,
+  openInventoryShift,
   recordInventoryCountLine,
   recordInventoryMovement,
   updateInventoryCategory,
   updateInventoryItem,
   updateInventoryLocation,
   updateInventoryLot,
+  updateInventoryShiftLine,
   updateInventorySupplier,
   updateInventoryUnit,
   type InventoryCategoryRow,
+  type InventoryCountLineRow,
   type InventoryCountRow,
   type InventoryItemRow,
   type InventoryLocationRow,
@@ -58,7 +63,8 @@ import { downloadCsv } from "../../utils/csv";
 import { formatDate, formatMoney } from "../../utils/text";
 
 type TabKey = "resumen" | "items" | "categorias" | "lotes" | "movimientos" | "conteos" | "alertas" | "reportes" | "proveedores" | "pedidos";
-type ModalKey = "item" | "category" | "unit" | "supplier" | "location" | "lot" | "movement" | "count" | null;
+type ModalKey = "item" | "category" | "unit" | "supplier" | "location" | "lot" | "movement" | "count" | "shift" | null;
+type ShiftLineDraft = { counted_stock: number; notes: string };
 
 const tabs: { key: TabKey; label: string; icon: ReactNode }[] = [
   { key: "resumen", label: "Resumen", icon: <Boxes className="h-4 w-4" /> },
@@ -66,7 +72,7 @@ const tabs: { key: TabKey; label: string; icon: ReactNode }[] = [
   { key: "categorias", label: "Categorias", icon: <Layers className="h-4 w-4" /> },
   { key: "lotes", label: "Lotes", icon: <Tags className="h-4 w-4" /> },
   { key: "movimientos", label: "Movimientos", icon: <Warehouse className="h-4 w-4" /> },
-  { key: "conteos", label: "Conteos", icon: <ClipboardCheck className="h-4 w-4" /> },
+  { key: "conteos", label: "Turnos", icon: <ClipboardCheck className="h-4 w-4" /> },
   { key: "alertas", label: "Alertas", icon: <Bell className="h-4 w-4" /> },
   { key: "reportes", label: "Reportes", icon: <Download className="h-4 w-4" /> },
   { key: "proveedores", label: "Proveedores", icon: <Truck className="h-4 w-4" /> },
@@ -159,6 +165,12 @@ const emptyCountForm = {
   notes: "",
   count_date: new Date().toISOString().slice(0, 10),
 };
+const emptyShiftForm = {
+  shift_name: "",
+  location_id: "",
+  notes: "",
+  count_date: new Date().toISOString().slice(0, 10),
+};
 
 export function InventoryAdminPage() {
   const { role, profile, user } = useAuth();
@@ -171,6 +183,7 @@ export function InventoryAdminPage() {
   const [lots, setLots] = useState<InventoryLotRow[]>([]);
   const [movements, setMovements] = useState<InventoryMovementRow[]>([]);
   const [counts, setCounts] = useState<InventoryCountRow[]>([]);
+  const [countLines, setCountLines] = useState<InventoryCountLineRow[]>([]);
   const [query, setQuery] = useState("");
   const [modal, setModal] = useState<ModalKey>(null);
   const [editing, setEditing] = useState<unknown>(null);
@@ -178,6 +191,9 @@ export function InventoryAdminPage() {
   const [error, setError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<{ type: "error"; text: string } | null>(null);
+  const [shiftStatus, setShiftStatus] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [shiftLineDrafts, setShiftLineDrafts] = useState<Record<string, ShiftLineDraft>>({});
+  const [closingNotesByShift, setClosingNotesByShift] = useState<Record<string, string>>({});
   const [itemForm, setItemForm] = useState(emptyItemForm);
   const [categoryForm, setCategoryForm] = useState(emptyCategoryForm);
   const [unitForm, setUnitForm] = useState(emptyUnitForm);
@@ -186,6 +202,7 @@ export function InventoryAdminPage() {
   const [lotForm, setLotForm] = useState(emptyLotForm);
   const [movementForm, setMovementForm] = useState(emptyMovementForm);
   const [countForm, setCountForm] = useState(emptyCountForm);
+  const [shiftForm, setShiftForm] = useState(emptyShiftForm);
 
   const actorId = profile?.id ?? user?.id ?? null;
   const actorName = profile?.full_name ?? user?.user_metadata.full_name ?? null;
@@ -197,6 +214,15 @@ export function InventoryAdminPage() {
   const unitMap = useMemo(() => new Map(units.map((unit) => [unit.id, unit])), [units]);
   const supplierMap = useMemo(() => new Map(suppliers.map((supplier) => [supplier.id, supplier])), [suppliers]);
   const locationMap = useMemo(() => new Map(locations.map((location) => [location.id, location])), [locations]);
+  const countLinesByCount = useMemo(() => {
+    const map = new Map<string, InventoryCountLineRow[]>();
+    countLines.forEach((line) => {
+      const rows = map.get(line.count_id) ?? [];
+      rows.push(line);
+      map.set(line.count_id, rows);
+    });
+    return map;
+  }, [countLines]);
 
   const load = () => {
     setLoading(true);
@@ -210,8 +236,9 @@ export function InventoryAdminPage() {
       getInventoryLots(includeDeleted),
       getInventoryMovements(includeDeleted),
       getInventoryCounts(includeDeleted),
+      getInventoryCountLines(),
     ])
-      .then(([itemRows, categoryRows, unitRows, supplierRows, locationRows, lotRows, movementRows, countRows]) => {
+      .then(([itemRows, categoryRows, unitRows, supplierRows, locationRows, lotRows, movementRows, countRows, countLineRows]) => {
         setItems(itemRows);
         setCategories(categoryRows);
         setUnits(unitRows);
@@ -220,6 +247,7 @@ export function InventoryAdminPage() {
         setLots(lotRows);
         setMovements(movementRows);
         setCounts(countRows);
+        setCountLines(countLineRows);
       })
       .catch((loadError) => {
         console.error("Error cargando inventario profundo", loadError);
@@ -231,6 +259,7 @@ export function InventoryAdminPage() {
   useEffect(load, [includeDeleted]);
 
   const activeItems = items.filter((item) => !item.is_deleted);
+  const openShifts = counts.filter((count) => !count.is_deleted && count.status === "abierto");
   const lowStock = activeItems.filter((item) => Number(item.current_stock) <= Number(item.minimum_stock));
   const outOfStock = activeItems.filter((item) => Number(item.current_stock) <= 0);
   const expiringLots = lots.filter((lot) => !lot.is_deleted && isExpiringSoon(lot.expiration_date, itemMap.get(lot.item_id)?.alert_days_before_expiration ?? 30));
@@ -274,6 +303,7 @@ export function InventoryAdminPage() {
     if (nextModal === "lot") setLotForm(row ? lotToForm(row as InventoryLotRow) : emptyLotForm);
     if (nextModal === "movement") setMovementForm({ ...emptyMovementForm, item_id: activeItems[0]?.id ?? "" });
     if (nextModal === "count") setCountForm({ ...emptyCountForm, item_id: activeItems[0]?.id ?? "", location_id: locations[0]?.id ?? "" });
+    if (nextModal === "shift") setShiftForm({ ...emptyShiftForm, location_id: locations[0]?.id ?? "" });
     setModal(nextModal);
   };
 
@@ -295,6 +325,7 @@ export function InventoryAdminPage() {
       if (modal === "lot") await saveLot();
       if (modal === "movement") await saveMovement();
       if (modal === "count") await saveCount();
+      if (modal === "shift") await saveShift();
       closeModal();
       load();
     } catch (submitError) {
@@ -401,6 +432,80 @@ export function InventoryAdminPage() {
     });
   };
 
+  const saveShift = async () => {
+    await openInventoryShift({
+      locationId: normalizeText(shiftForm.location_id),
+      shiftName: normalizeText(shiftForm.shift_name),
+      notes: normalizeText(shiftForm.notes),
+      countDate: shiftForm.count_date,
+    });
+    setActiveTab("conteos");
+  };
+
+  const setShiftLineDraft = (lineId: string, draft: ShiftLineDraft) => {
+    setShiftLineDrafts((current) => ({ ...current, [lineId]: draft }));
+  };
+
+  const getLineDraft = (line: InventoryCountLineRow) =>
+    shiftLineDrafts[line.id] ?? { counted_stock: Number(line.counted_stock ?? 0), notes: line.notes ?? "" };
+
+  const saveShiftLine = async (line: InventoryCountLineRow) => {
+    setSaving(true);
+    setShiftStatus(null);
+    try {
+      const draft = getLineDraft(line);
+      await updateInventoryShiftLine({
+        countId: line.count_id,
+        itemId: line.item_id,
+        countedStock: Number(draft.counted_stock),
+        notes: normalizeText(draft.notes),
+      });
+      setShiftStatus({ type: "success", text: "Conteo guardado para este item." });
+      load();
+    } catch (lineError) {
+      console.error("Error guardando linea de turno", lineError);
+      setShiftStatus({ type: "error", text: getInventorySubmitErrorMessage(lineError) });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const syncShiftDrafts = async (countId: string) => {
+    const lines = countLinesByCount.get(countId) ?? [];
+    await Promise.all(
+      lines.map((line) => {
+        const draft = getLineDraft(line);
+        return updateInventoryShiftLine({
+          countId,
+          itemId: line.item_id,
+          countedStock: Number(draft.counted_stock),
+          notes: normalizeText(draft.notes),
+        });
+      })
+    );
+  };
+
+  const closeShift = async (count: InventoryCountRow) => {
+    setSaving(true);
+    setShiftStatus(null);
+    try {
+      await syncShiftDrafts(count.id);
+      await closeInventoryShift({
+        countId: count.id,
+        notes: normalizeText(closingNotesByShift[count.id]),
+      });
+      setShiftStatus({ type: "success", text: "Turno cerrado y stock actualizado con las diferencias del conteo." });
+      setShiftLineDrafts({});
+      setClosingNotesByShift((current) => ({ ...current, [count.id]: "" }));
+      load();
+    } catch (closeError) {
+      console.error("Error cerrando turno de inventario", closeError);
+      setShiftStatus({ type: "error", text: getInventorySubmitErrorMessage(closeError) });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const saveSimple = async <T extends { id: string }>(
     _table: DeletableTable,
     current: T | null,
@@ -449,6 +554,7 @@ export function InventoryAdminPage() {
           <div className="flex flex-wrap gap-2">
             <CommandButton icon={<Plus className="h-4 w-4" />} label="Nuevo item" onClick={() => openModal("item")} primary />
             <CommandButton icon={<Warehouse className="h-4 w-4" />} label="Registrar entrada" onClick={() => openModal("movement")} />
+            <CommandButton icon={<ClipboardCheck className="h-4 w-4" />} label="Abrir turno" onClick={() => openModal("shift")} />
             <CommandButton icon={<Archive className="h-4 w-4" />} label="Registrar merma" onClick={() => {
               openModal("movement");
               setMovementForm((current) => ({ ...current, movement_type: "merma" }));
@@ -475,8 +581,9 @@ export function InventoryAdminPage() {
 
       {activeTab === "resumen" ? (
         <div className="space-y-5">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-7">
             <SummaryCard label="Total items" value={String(activeItems.length)} tone="green" />
+            <SummaryCard label="Turnos abiertos" value={String(openShifts.length)} tone={openShifts.length > 0 ? "gold" : "green"} />
             <SummaryCard label="Stock bajo" value={String(lowStock.length)} tone="gold" />
             <SummaryCard label="Sin stock" value={String(outOfStock.length)} tone="red" />
             <SummaryCard label="Por vencer" value={String(expiringLots.length)} tone="gold" />
@@ -490,7 +597,7 @@ export function InventoryAdminPage() {
                 <button onClick={() => openModal("movement")} className="rounded-full bg-[rgba(198,162,123,0.28)] px-5 py-3 text-sm font-bold text-[var(--color-ink)]">Registrar compra / entrada</button>
                 <button onClick={() => { openModal("movement"); setMovementForm((current) => ({ ...current, movement_type: "merma" })); }} className="rounded-full bg-[rgba(154,107,67,0.14)] px-5 py-3 text-sm font-bold text-[var(--color-ink)]">Registrar merma</button>
                 <button onClick={() => { openModal("movement"); setMovementForm((current) => ({ ...current, movement_type: "transferencia" })); }} className="rounded-full bg-[var(--color-mocha)] px-5 py-3 text-sm font-bold text-white">Transferir ubicacion</button>
-                <button onClick={() => openModal("count")} className="rounded-full bg-[var(--color-mocha)] px-5 py-3 text-sm font-bold text-white">Crear conteo</button>
+                <button onClick={() => openModal("shift")} className="rounded-full bg-[var(--color-mocha)] px-5 py-3 text-sm font-bold text-white">Abrir turno de inventario</button>
                 <button onClick={() => setActiveTab("pedidos")} className="rounded-full bg-[rgba(110,74,47,0.92)] px-5 py-3 text-sm font-bold text-white">Pedidos a proveedor</button>
               </div>
             </Panel>
@@ -574,10 +681,41 @@ export function InventoryAdminPage() {
       ) : null}
 
       {activeTab === "conteos" ? (
-        <Panel eyebrow="Conteos" title="Conteos fisicos y diferencias" action={<CommandButton icon={<Plus className="h-4 w-4" />} label="Conteo" onClick={() => openModal("count")} primary />}>
+        <Panel eyebrow="Turnos" title="Apertura, conteo de cierre y diferencias" action={<CommandButton icon={<Plus className="h-4 w-4" />} label="Abrir turno" onClick={() => openModal("shift")} primary />}>
+          <div className="mb-5 rounded-[22px] border border-[rgba(198,162,123,0.18)] bg-[rgba(247,242,236,0.72)] px-4 py-3 text-sm leading-7 text-[var(--color-copy)]">
+            Al abrir un turno se guarda lo que el equipo deja en inventario. Al cerrar, registra el conteo fisico; el sistema calcula diferencias y actualiza stock solo cuando cierras el turno.
+          </div>
+          {shiftStatus ? (
+            <div className={`mb-4 rounded-[20px] border px-4 py-3 text-sm font-semibold ${shiftStatus.type === "error" ? "border-red-200 bg-red-50 text-red-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>
+              {shiftStatus.text}
+            </div>
+          ) : null}
+          <RowsEmpty rows={counts} empty="Sin turnos de inventario." render={(count) => (
+            <InventoryShiftCard
+              key={count.id}
+              count={count}
+              lines={countLinesByCount.get(count.id) ?? []}
+              itemMap={itemMap}
+              unitMap={unitMap}
+              locationName={locationMap.get(count.location_id ?? "")?.name ?? "Sin ubicacion"}
+              role={role}
+              saving={saving}
+              closingNotes={closingNotesByShift[count.id] ?? ""}
+              getLineDraft={getLineDraft}
+              onDraftChange={setShiftLineDraft}
+              onSaveLine={saveShiftLine}
+              onClosingNotesChange={(value) => setClosingNotesByShift((current) => ({ ...current, [count.id]: value }))}
+              onCloseShift={() => void closeShift(count)}
+              onArchive={() => void archive("inventory_counts", count.id)}
+              onRestore={() => void restoreRecord("inventory_counts", count.id).then(load)}
+              onHardDelete={() => void hardDeleteRecord("inventory_counts", count.id).then(load)}
+            />
+          )} />
+          <div className="hidden">
           <RowsEmpty rows={counts} empty="Sin conteos." render={(count) => (
             <RowCard key={count.id} title={`${count.count_date} · ${count.status}`} tags={[locationMap.get(count.location_id ?? "")?.name ?? "Sin lugar"]} detail={count.notes ?? "Sin notas"} deletedRow={count} actions={<CrudActions role={role} row={count} table="inventory_counts" onEdit={undefined} onArchive={() => void archive("inventory_counts", count.id)} onRestore={() => void restoreRecord("inventory_counts", count.id).then(load)} onHardDelete={() => void hardDeleteRecord("inventory_counts", count.id).then(load)} />} />
           )} />
+          </div>
         </Panel>
       ) : null}
 
@@ -653,6 +791,8 @@ export function InventoryAdminPage() {
             setMovementForm,
             countForm,
             setCountForm,
+            shiftForm,
+            setShiftForm,
             items: activeItems,
             categories,
             units,
@@ -749,6 +889,157 @@ function RowCard({
   );
 }
 
+function InventoryShiftCard({
+  count,
+  lines,
+  itemMap,
+  unitMap,
+  locationName,
+  role,
+  saving,
+  closingNotes,
+  getLineDraft,
+  onDraftChange,
+  onSaveLine,
+  onClosingNotesChange,
+  onCloseShift,
+  onArchive,
+  onRestore,
+  onHardDelete,
+}: {
+  count: InventoryCountRow;
+  lines: InventoryCountLineRow[];
+  itemMap: Map<string, InventoryItemRow>;
+  unitMap: Map<string, InventoryUnitRow>;
+  locationName: string;
+  role: ReturnType<typeof useAuth>["role"];
+  saving: boolean;
+  closingNotes: string;
+  getLineDraft: (line: InventoryCountLineRow) => ShiftLineDraft;
+  onDraftChange: (lineId: string, draft: ShiftLineDraft) => void;
+  onSaveLine: (line: InventoryCountLineRow) => void;
+  onClosingNotesChange: (value: string) => void;
+  onCloseShift: () => void;
+  onArchive: () => void;
+  onRestore: () => void;
+  onHardDelete?: () => void;
+}) {
+  const isOpen = count.status === "abierto";
+  const totalDifference = lines.reduce((sum, line) => {
+    const draft = getLineDraft(line);
+    return sum + (Number(draft.counted_stock ?? 0) - Number(line.expected_stock ?? 0));
+  }, 0);
+  const changedLines = lines.filter((line) => {
+    const draft = getLineDraft(line);
+    return Number(draft.counted_stock ?? 0) !== Number(line.expected_stock ?? 0);
+  });
+
+  return (
+    <div className="rounded-[24px] border border-[rgba(198,162,123,0.18)] bg-[rgba(247,242,236,0.74)] p-4">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div>
+          <div className="flex flex-wrap gap-2">
+            <span className={`rounded-full px-3 py-1 text-xs font-bold ${isOpen ? "bg-amber-100 text-amber-900" : "bg-emerald-100 text-emerald-900"}`}>
+              {isOpen ? "Turno abierto" : "Turno cerrado"}
+            </span>
+            <span className="rounded-full bg-white/75 px-3 py-1 text-xs font-bold text-[var(--color-copy)]">{locationName}</span>
+            <span className="rounded-full bg-white/75 px-3 py-1 text-xs font-bold text-[var(--color-copy)]">{formatDate(count.count_date)}</span>
+          </div>
+          <h3 className="mt-3 text-xl font-semibold text-[var(--color-ink)]">{count.shift_name || "Turno de inventario"}</h3>
+          <p className="mt-2 text-sm leading-6 text-[var(--color-copy)]">
+            Apertura: {new Date(count.opened_at ?? count.created_at).toLocaleString("es-BO")} - Items: {lines.length} - Diferencia: {formatInventoryNumber(totalDifference)}
+          </p>
+          <p className="mt-1 text-sm leading-6 text-[var(--color-copy)]">{count.notes ?? "Sin notas de apertura."}</p>
+          <DeletedStatusNote row={count} />
+        </div>
+        <div className="flex flex-wrap gap-2 xl:justify-end">
+          {isOpen ? (
+            <button onClick={onCloseShift} disabled={saving} className="rounded-full bg-[var(--color-mocha)] px-5 py-2 text-sm font-semibold text-white disabled:opacity-60">
+              {saving ? "Cerrando..." : "Cerrar turno"}
+            </button>
+          ) : null}
+          <DeleteActions role={role} row={count} compact onSoftDelete={onArchive} onRestore={onRestore} onHardDelete={onHardDelete} />
+        </div>
+      </div>
+
+      {isOpen ? (
+        <div className="mt-5 grid gap-3">
+          <div className="grid gap-3 xl:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr_1fr_auto]">
+            {lines.map((line) => {
+              const item = itemMap.get(line.item_id);
+              const draft = getLineDraft(line);
+              const unitLabel = getUnitLabel(item?.unit_id ?? null, item?.unit ?? "u", unitMap);
+              const expectedStock = Number(line.expected_stock ?? 0);
+              const countedStock = Number(draft.counted_stock ?? 0);
+              const difference = countedStock - expectedStock;
+
+              return (
+                <div key={line.id} className="contents">
+                  <div className="rounded-2xl bg-white/72 px-4 py-3">
+                    <p className="text-sm font-semibold">{item?.name ?? "Item"}</p>
+                    <p className="mt-1 text-xs text-[var(--color-copy)]">Unidad: {unitLabel}</p>
+                  </div>
+                  <MetricBox label="Dejado" value={`${formatInventoryNumber(line.opening_stock)} ${unitLabel}`} />
+                  <MetricBox label="Esperado" value={`${formatInventoryNumber(line.expected_stock)} ${unitLabel}`} />
+                  <label className="rounded-2xl bg-white/72 px-4 py-3">
+                    <span className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--color-copy)]">Contado</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={String(draft.counted_stock)}
+                      onChange={(event) => onDraftChange(line.id, { ...draft, counted_stock: Number(event.target.value) })}
+                      className="premium-input mt-2"
+                    />
+                  </label>
+                  <label className="rounded-2xl bg-white/72 px-4 py-3">
+                    <span className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--color-copy)]">Nota</span>
+                    <input value={draft.notes} onChange={(event) => onDraftChange(line.id, { ...draft, notes: event.target.value })} className="premium-input mt-2" />
+                  </label>
+                  <div className="flex items-center justify-between gap-2 rounded-2xl bg-white/72 px-4 py-3">
+                    <span className={`text-sm font-bold ${difference === 0 ? "text-emerald-700" : "text-amber-800"}`}>
+                      {formatInventoryNumber(difference)}
+                    </span>
+                    <button onClick={() => onSaveLine(line)} disabled={saving} className="rounded-full border border-[var(--color-border)] px-4 py-2 text-xs font-bold disabled:opacity-60">
+                      Guardar
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <label className="grid gap-2">
+            <span className="text-sm font-semibold">Notas de cierre</span>
+            <textarea value={closingNotes} onChange={(event) => onClosingNotesChange(event.target.value)} className="premium-input min-h-24" />
+          </label>
+        </div>
+      ) : (
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {(changedLines.length > 0 ? changedLines : lines.slice(0, 6)).map((line) => {
+            const item = itemMap.get(line.item_id);
+            const unitLabel = getUnitLabel(item?.unit_id ?? null, item?.unit ?? "u", unitMap);
+            return (
+              <MetricBox
+                key={line.id}
+                label={item?.name ?? "Item"}
+                value={`${formatInventoryNumber(line.counted_stock)} ${unitLabel} - dif. ${formatInventoryNumber(line.difference_stock)}`}
+              />
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MetricBox({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl bg-white/72 px-4 py-3">
+      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--color-copy)]">{label}</p>
+      <p className="mt-2 text-sm font-semibold text-[var(--color-ink)]">{value}</p>
+    </div>
+  );
+}
+
 function CrudActions({
   role,
   row,
@@ -836,6 +1127,7 @@ function modalTitle(modal: Exclude<ModalKey, null>, editing: boolean) {
     lot: "lote",
     movement: "movimiento",
     count: "conteo",
+    shift: "turno",
   };
   return `${editing ? "Editar" : "Nuevo"} ${labels[modal]}`;
 }
@@ -858,6 +1150,8 @@ function renderModalFields(props: {
   setMovementForm: (value: typeof emptyMovementForm) => void;
   countForm: typeof emptyCountForm;
   setCountForm: (value: typeof emptyCountForm) => void;
+  shiftForm: typeof emptyShiftForm;
+  setShiftForm: (value: typeof emptyShiftForm) => void;
   items: InventoryItemRow[];
   categories: InventoryCategoryRow[];
   units: InventoryUnitRow[];
@@ -1008,6 +1302,20 @@ function renderModalFields(props: {
         <TextField label="Referencia" value={f.reference} onChange={(reference) => set({ ...f, reference })} />
         <Field label="Fecha"><input type="datetime-local" value={f.movement_date} onChange={(event) => set({ ...f, movement_date: event.target.value })} className="premium-input" /></Field>
         <TextareaField label="Motivo" value={f.reason} onChange={(reason) => set({ ...f, reason })} />
+      </div>
+    );
+  }
+
+  if (props.modal === "shift") {
+    const f = props.shiftForm;
+    const set = props.setShiftForm;
+    return (
+      <div className="grid gap-4 md:grid-cols-2">
+        <TextField label="Nombre del turno" value={f.shift_name} onChange={(shift_name) => set({ ...f, shift_name })} />
+        <SelectField label="Ubicacion" value={f.location_id} onChange={(location_id) => set({ ...f, location_id })} options={props.locations.map((location) => ({ value: location.id, label: location.name }))} />
+        <Field label="Fecha"><input type="date" value={f.count_date} onChange={(event) => set({ ...f, count_date: event.target.value })} className="premium-input" /></Field>
+        <InlineHint text="Al abrir el turno se crea una linea por cada item activo de esa ubicacion con el stock actual como lo dejado por el turno anterior." />
+        <TextareaField label="Notas de apertura" value={f.notes} onChange={(notes) => set({ ...f, notes })} />
       </div>
     );
   }
@@ -1360,6 +1668,8 @@ function getInventorySubmitErrorMessage(error: unknown) {
   ) {
     return "La base remota todavia no tiene aplicada la migracion 20260529113000_inventory_presentations.sql. Ejecutala en Supabase, recarga la pagina y vuelve a intentar.";
   }
+
+  if (message) return message;
 
   return "No pudimos guardar el registro. Revisa los datos e intenta nuevamente.";
 }

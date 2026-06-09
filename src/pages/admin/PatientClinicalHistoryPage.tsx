@@ -8,6 +8,7 @@ import { z } from "zod";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { useAuth } from "../../hooks/useAuth";
+import { isDoctorRole } from "../../lib/roles";
 import { canSoftDelete, softDeleteRecord } from "../../services/adminDeletionService";
 import {
   createClinicalEvolution,
@@ -192,11 +193,11 @@ export function PatientClinicalHistoryPage() {
     });
   };
 
-  const currentDoctorId = role === "doctor" ? myDoctorProfile?.id ?? "" : noteForm.getValues("doctor_id");
-  const doctorReadOnly = role === "doctor";
+  const currentDoctorId = isDoctorRole(role) ? myDoctorProfile?.id ?? "" : noteForm.getValues("doctor_id");
+  const doctorReadOnly = isDoctorRole(role);
 
   const resetNoteForm = (noteType: ClinicalNoteType = "procedimiento") => {
-    noteForm.reset(emptyNote(role === "doctor" ? myDoctorProfile?.id ?? "" : "", noteType));
+    noteForm.reset(emptyNote(isDoctorRole(role) ? myDoctorProfile?.id ?? "" : "", noteType));
     setEditingHistoryId(null);
     resetPendingPhotos();
   };
@@ -213,7 +214,7 @@ export function PatientClinicalHistoryPage() {
         getInventoryItems(role === "superadmin"),
         getInventoryLots(role === "superadmin"),
         getClinicalInventoryUsages(id),
-        role === "doctor" ? Promise.resolve([] as DoctorProfileRow[]) : getAdminDoctors(role === "superadmin"),
+        isDoctorRole(role) ? Promise.resolve([] as DoctorProfileRow[]) : getAdminDoctors(role === "superadmin"),
         user?.id ? getMyDoctorProfile(user.id) : Promise.resolve(null),
       ]);
 
@@ -238,7 +239,7 @@ export function PatientClinicalHistoryPage() {
   }, [id, role, user?.id]);
 
   useEffect(() => {
-    const doctorId = role === "doctor" ? myDoctorProfile?.id ?? "" : "";
+    const doctorId = isDoctorRole(role) ? myDoctorProfile?.id ?? "" : "";
     if (doctorId) {
       noteForm.setValue("doctor_id", doctorId);
       evolutionForm.setValue("doctor_id", doctorId);
@@ -256,7 +257,7 @@ export function PatientClinicalHistoryPage() {
   }, [pendingPhotos]);
 
   const doctorOptions = useMemo(() => {
-    if (role === "doctor") return myDoctorProfile ? [myDoctorProfile] : [];
+    if (isDoctorRole(role)) return myDoctorProfile ? [myDoctorProfile] : [];
     return doctors.filter((doctor) => !doctor.is_deleted && doctor.is_active);
   }, [doctors, myDoctorProfile, role]);
 
@@ -300,7 +301,7 @@ export function PatientClinicalHistoryPage() {
 
   const canManageHistory = (doctorId?: string | null) => {
     if (role === "superadmin" || role === "admin") return true;
-    if (role === "doctor" && myDoctorProfile?.id) return doctorId === myDoctorProfile.id;
+    if (isDoctorRole(role) && myDoctorProfile?.id) return doctorId === myDoctorProfile.id;
     return false;
   };
 

@@ -19,6 +19,7 @@ type CreateDoctorBody = {
   instagram_url?: string;
   tiktok_url?: string;
   photo_url?: string;
+  access_role?: "doctor" | "doctor_inventory";
   is_featured?: boolean;
   is_active?: boolean;
 };
@@ -65,11 +66,12 @@ Deno.serve(async (request) => {
 
     const providedPassword = typeof body.password === "string" ? body.password : "";
     const password = providedPassword.trim().length > 0 ? providedPassword : crypto.randomUUID();
+    const accessRole = body.access_role === "doctor_inventory" ? "doctor_inventory" : "doctor";
     const { data: createdUser, error: createUserError } = await adminClient.auth.admin.createUser({
       email: body.email.trim(),
       password,
       email_confirm: true,
-      user_metadata: { full_name: body.full_name.trim(), role: "doctor" },
+      user_metadata: { full_name: body.full_name.trim(), role: accessRole },
     });
 
     if (createUserError || !createdUser.user) {
@@ -84,7 +86,7 @@ Deno.serve(async (request) => {
         email: body.email.trim(),
         phone: body.phone ?? null,
         city: body.city ?? null,
-        role: "doctor",
+        role: accessRole,
       })
       .throwOnError();
 
@@ -102,6 +104,7 @@ Deno.serve(async (request) => {
         instagram_url: body.instagram_url ?? null,
         tiktok_url: body.tiktok_url ?? null,
         photo_url: body.photo_url ?? null,
+        access_role: accessRole,
         is_featured: body.is_featured ?? false,
         is_active: body.is_active ?? true,
       })

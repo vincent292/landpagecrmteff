@@ -8,7 +8,7 @@ export const corsHeaders = {
   "Access-Control-Max-Age": "86400",
 };
 
-const staffRoles = new Set(["superadmin", "admin", "doctor", "assistant"]);
+const staffRoles = new Set(["superadmin", "admin", "doctor", "doctor_inventory", "assistant"]);
 const publicBucketAliases = new Set(["public-media", "public-gallery", "book-covers-public"]);
 const privateBucketAliases = new Set([
   "payment-receipts-private",

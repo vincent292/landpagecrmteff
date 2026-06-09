@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { supabase } from "../lib/supabaseClient";
+import { isDoctorRole } from "../lib/roles";
 import type { UserRole } from "../types/platform";
 import { getVisibleDeletionFilter } from "../services/adminDeletionService";
 import { getBookOrdersAdmin } from "../services/bookOrderService";
@@ -176,7 +177,7 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
   }, [userId]);
 
   useEffect(() => {
-    if (!userId || role !== "doctor") {
+    if (!userId || !role || !isDoctorRole(role)) {
       setDoctorProfileId(null);
       return;
     }
@@ -204,6 +205,7 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
     if (!userId) return;
 
     let active = true;
+    const doctorScoped = Boolean(role && isDoctorRole(role));
 
     async function loadInitialNotifications() {
       const enrollmentsFilter = getVisibleDeletionFilter("course_enrollments", false);
@@ -239,13 +241,13 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
             .from("appointment_reservations")
             .select("id, appointment_type, title, source, payment_receipt_path, payment_amount, payment_expires_at, doctor_id, status, created_at, payment_verified_at, appointment_date, start_time, patients(full_name)")
             .eq("is_deleted", false)
-            .order(role === "doctor" ? "payment_verified_at" : "created_at", { ascending: false })
+            .order(doctorScoped ? "payment_verified_at" : "created_at", { ascending: false })
             .limit(6);
-          if (role === "doctor" && doctorProfileId) query = query.eq("doctor_id", doctorProfileId);
+          if (doctorScoped && doctorProfileId) query = query.eq("doctor_id", doctorProfileId);
           return query;
         })(),
-        role === "doctor" ? Promise.resolve([]) : getBookOrdersAdmin().catch(() => []),
-        role !== "doctor" || !doctorProfileId
+        doctorScoped ? Promise.resolve([]) : getBookOrdersAdmin().catch(() => []),
+        !doctorScoped || !doctorProfileId
           ? Promise.resolve({ data: [], error: null })
           : supabase
               .from("appointments")
@@ -260,7 +262,7 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
       if (!active) return;
 
       const notifications: AdminNotification[] = [
-        ...(role === "doctor"
+        ...(doctorScoped
           ? []
           : (requestsResult.data ?? []).map((row) => ({
               id: `request-${row.id}`,
@@ -272,7 +274,7 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
               module: "solicitudes" as const,
               createdAt: row.created_at,
             }))),
-        ...(role === "doctor"
+        ...(doctorScoped
           ? []
           : (enrollmentsResult.data ?? []).map((row) => ({
               id: `enrollment-${row.id}`,
@@ -285,7 +287,7 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
               createdAt: row.created_at,
             }))),
         ...(promotionOrdersResult.data ?? [])
-          .filter(() => role !== "doctor")
+          .filter(() => !doctorScoped)
           .map((row) => ({
             id: `promotion-order-${row.id}`,
             entityId: row.id,
@@ -308,7 +310,7 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
         })),
         ...(reservationsResult.data ?? [])
           .filter((row) => isPaymentManagedReservation(row))
-          .filter(() => role !== "doctor")
+          .filter(() => !doctorScoped)
           .map((row) => ({
             id: `reservation-${row.id}`,
             entityId: row.id,
@@ -319,10 +321,10 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
             module: "pagos-reservas" as const,
             createdAt: row.created_at,
           })),
-        ...(role !== "doctor"
+        ...(!doctorScoped
           ? []
           : (doctorAppointmentsResult.data ?? []).map((row) => buildDoctorAppointmentNotification(row))),
-        ...(role !== "doctor"
+        ...(!doctorScoped
           ? []
           : (reservationsResult.data ?? [])
               .filter((row) => row.doctor_id === doctorProfileId)
@@ -352,6 +354,7 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
     if (!userId || role === "doctor") return;
 
     let active = true;
+    const inventoryOnly = role === "doctor_inventory";
 
     const prepend = (notification: AdminNotification) => {
       setItems((current) => {
@@ -376,7 +379,7 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "information_requests" },
         async (payload) => {
-          if (!active) return;
+          if (!active || inventoryOnly) return;
           const row = await getInformationRequestById(payload.new.id).catch(() => null);
           if (!row) return;
           prepend({
@@ -395,7 +398,7 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "course_enrollments" },
         async (payload) => {
-          if (!active) return;
+          if (!active || inventoryOnly) return;
           const row = await getEnrollmentById(payload.new.id).catch(() => null);
           if (!row) return;
           prepend({
@@ -414,7 +417,7 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "promotion_orders" },
         async (payload) => {
-          if (!active) return;
+          if (!active || inventoryOnly) return;
           const row = await getPromotionOrderById(payload.new.id).catch(() => null);
           if (!row) return;
           prepend({
@@ -433,7 +436,7 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "book_orders" },
         async (payload) => {
-          if (!active) return;
+          if (!active || inventoryOnly) return;
           const rows = await getBookOrdersAdmin().catch(() => []);
           const row = rows.find((item) => item.id === payload.new.id);
           if (!row) return;
@@ -453,7 +456,7 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "appointment_reservations" },
         async (payload) => {
-          if (!active) return;
+          if (!active || inventoryOnly) return;
           const row = await getReservationById(payload.new.id).catch(() => null);
           if (!row || !isPaymentManagedReservation(row)) return;
           prepend({
@@ -491,7 +494,7 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
   }, [doctorProfileId, role, userId]);
 
   useEffect(() => {
-    if (!userId || role !== "doctor" || !doctorProfileId) return;
+    if (!userId || !role || !isDoctorRole(role) || !doctorProfileId) return;
 
     let active = true;
 

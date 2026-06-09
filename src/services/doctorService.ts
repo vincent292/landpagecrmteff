@@ -16,6 +16,7 @@ export type DoctorProfileRow = DeletionMetadata & {
   instagram_url: string | null;
   tiktok_url: string | null;
   photo_url: string | null;
+  access_role: "doctor" | "doctor_inventory";
   is_featured: boolean;
   is_active: boolean;
   created_at: string;
@@ -67,6 +68,34 @@ export async function createDoctor(data: Record<string, unknown>) {
 
 export async function updateDoctor(id: string, data: Record<string, unknown>) {
   const { data: row, error } = await supabase.from("doctor_profiles").update(data).eq("id", id).select("*").single();
+  if (error) throw error;
+  return resolvePublicMediaFields(row as DoctorProfileRow, ["photo_url"]);
+}
+
+export async function updateMyDoctorProfile(data: {
+  fullName: string;
+  specialty?: string | null;
+  bio?: string | null;
+  city?: string | null;
+  phone?: string | null;
+  whatsapp?: string | null;
+  email?: string | null;
+  instagramUrl?: string | null;
+  tiktokUrl?: string | null;
+  photoUrl?: string | null;
+}) {
+  const { data: row, error } = await supabase.rpc("update_my_doctor_profile", {
+    p_full_name: data.fullName,
+    p_specialty: data.specialty ?? null,
+    p_bio: data.bio ?? null,
+    p_city: data.city ?? null,
+    p_phone: data.phone ?? null,
+    p_whatsapp: data.whatsapp ?? null,
+    p_email: data.email ?? null,
+    p_instagram_url: data.instagramUrl ?? null,
+    p_tiktok_url: data.tiktokUrl ?? null,
+    p_photo_url: data.photoUrl ?? null,
+  });
   if (error) throw error;
   return resolvePublicMediaFields(row as DoctorProfileRow, ["photo_url"]);
 }

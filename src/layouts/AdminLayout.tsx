@@ -6,7 +6,7 @@ import { BrandSignature } from "../components/common/BrandSignature";
 import { useAuth } from "../hooks/useAuth";
 import { useAdminNotifications } from "../hooks/useAdminNotifications";
 import { cn } from "../lib/cn";
-import { canAccessAdminModule, canManageUsers, roleLabels } from "../lib/roles";
+import { canAccessAdminModule, canManageUsers, isDoctorRole, roleLabels } from "../lib/roles";
 
 type AdminLink = {
   label: string;
@@ -28,6 +28,7 @@ const adminSections: AdminSection[] = [
     icon: Bell,
     links: [
       { label: "Dashboard", href: "/panel", module: "dashboard" },
+      { label: "Mi perfil medico", href: "/panel/mi-perfil", module: "mi-perfil" },
       { label: "Solicitudes", href: "/panel/solicitudes", module: "solicitudes" },
       { label: "Citas", href: "/panel/citas", module: "citas" },
       { label: "Calendario citas", href: "/panel/calendario-citas", module: "calendario-citas" },
@@ -94,6 +95,7 @@ export function AdminLayout() {
     .map((section) => ({
       ...section,
       links: section.links.filter((link) => {
+        if (link.module === "mi-perfil" && !isDoctorRole(role)) return false;
         if (link.label === "Usuarios" && !canManageUsers(role)) return false;
         return canAccessAdminModule(role, link.module);
       }),

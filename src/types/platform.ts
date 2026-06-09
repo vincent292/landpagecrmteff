@@ -1,6 +1,7 @@
 export type UserRole =
   | "superadmin"
   | "doctor"
+  | "doctor_inventory"
   | "admin"
   | "assistant"
   | "patient"

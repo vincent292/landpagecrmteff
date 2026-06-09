@@ -13,6 +13,7 @@ import { useFormDraft } from "../../hooks/useFormDraft";
 import { useWorkspaceState } from "../../hooks/useWorkspaceState";
 import { getCareModeLabel } from "../../lib/careMode";
 import { shouldHidePatientPhone } from "../../lib/patientPrivacy";
+import { isDoctorRole } from "../../lib/roles";
 import { hardDeleteRecord, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
 import { getAppointmentsAdmin, updateAppointment, updateAppointmentStatus, type AppointmentAdminRow } from "../../services/appointmentService";
 import { getAvailableSlots, type AvailableSlot } from "../../services/availabilityService";
@@ -107,7 +108,7 @@ export function ReservationsAdminPage() {
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [doctorProfileId, setDoctorProfileId] = useState<string | null>(null);
   const [doctorProfileName, setDoctorProfileName] = useState("");
-  const [doctorProfileResolved, setDoctorProfileResolved] = useState(role !== "doctor");
+  const [doctorProfileResolved, setDoctorProfileResolved] = useState(!isDoctorRole(role));
   const [cashOpen, setCashOpen] = useState(false);
   const [followUpWhatsappHref, setFollowUpWhatsappHref] = useState<string | null>(null);
   const [followUpWhatsappLabel, setFollowUpWhatsappLabel] = useState("");
@@ -169,11 +170,11 @@ export function ReservationsAdminPage() {
     enabled: patientModalOpen,
     isEmpty: (value) => !Object.values(value ?? {}).some((item) => typeof item === "string" && item.trim().length > 0),
   });
-  const doctorFieldLocked = role === "doctor" && Boolean(doctorProfileId);
+  const doctorFieldLocked = isDoctorRole(role) && Boolean(doctorProfileId);
 
   const load = () => {
-    if (role === "doctor" && !doctorProfileResolved) return;
-    if (role === "doctor" && !doctorProfileId) {
+    if (isDoctorRole(role) && !doctorProfileResolved) return;
+    if (isDoctorRole(role) && !doctorProfileId) {
       setRows([]);
       setAppointments([]);
       setDoctors([]);
@@ -184,11 +185,11 @@ export function ReservationsAdminPage() {
     setLoading(true);
     setError("");
     Promise.all([
-      getReservationsAdmin(role === "doctor" ? { doctor_id: doctorProfileId } : {}, role === "superadmin", role),
-      getAppointmentsAdmin(role === "superadmin", role === "doctor" ? doctorProfileId : null, role),
+      getReservationsAdmin(isDoctorRole(role) ? { doctor_id: doctorProfileId } : {}, role === "superadmin", role),
+      getAppointmentsAdmin(role === "superadmin", isDoctorRole(role) ? doctorProfileId : null, role),
       getPatients(false, role),
       getAdminDoctors().then((doctorRows) =>
-        role === "doctor" && doctorProfileId ? doctorRows.filter((doctor) => doctor.id === doctorProfileId) : doctorRows
+        isDoctorRole(role) && doctorProfileId ? doctorRows.filter((doctor) => doctor.id === doctorProfileId) : doctorRows
       ),
       getCashPaymentMethods(true),
       getCashRegisterSessions(),
@@ -208,7 +209,7 @@ export function ReservationsAdminPage() {
   };
 
   useEffect(() => {
-    if (role !== "doctor" || !profile?.id) {
+    if (!isDoctorRole(role) || !profile?.id) {
       setDoctorProfileId(null);
       setDoctorProfileName("");
       setDoctorProfileResolved(true);

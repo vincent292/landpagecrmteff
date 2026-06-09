@@ -1,5 +1,6 @@
 import type { UserRole } from "../types/platform";
 import { shouldHidePatientPhone } from "../lib/patientPrivacy";
+import { isDoctorRole } from "../lib/roles";
 import {
   getCourseEnrollments,
   type EnrollmentRow,
@@ -271,7 +272,7 @@ export async function getPaymentsAndReservationsFeed(options?: {
     ...reservationItems,
   ];
 
-  if (options?.role === "doctor") {
+  if (options?.role && isDoctorRole(options.role)) {
     const doctorId = options.doctorProfileId ?? null;
     items = items.filter((item) => {
       if (item.kind === "promotion" || item.kind === "reservation") {

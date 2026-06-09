@@ -6,6 +6,7 @@ import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteA
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { useAuth } from "../../hooks/useAuth";
 import { getCareModeLabel } from "../../lib/careMode";
+import { isDoctorRole } from "../../lib/roles";
 import { supabase } from "../../lib/supabaseClient";
 import { hardDeleteRecord, isSoftDeleted, restoreRecord, softDeleteRecord, type DeletableTable } from "../../services/adminDeletionService";
 import { getSignedUrl } from "../../services/storageService";
@@ -87,7 +88,7 @@ export function PaymentsAndReservationsAdminPage() {
   const load = async () => {
     setError("");
     const doctorProfile =
-      role === "doctor" && user?.id
+      isDoctorRole(role) && user?.id
         ? await getMyDoctorProfile(user.id).catch(() => null)
         : null;
     const [feed, methods, sessions] = await Promise.all([
@@ -127,7 +128,7 @@ export function PaymentsAndReservationsAdminPage() {
   }, [doctorProfileId, role]);
 
   const visibleKinds = useMemo(() => {
-    if (role === "doctor") {
+    if (isDoctorRole(role)) {
       return [
         { value: "promotion", label: "Promociones" },
         { value: "reservation", label: "Valoraciones y reservas" },

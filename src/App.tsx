@@ -43,6 +43,7 @@ const AdminCollectionPage = lazyPage<{ module: AdminModule }>(() => import("./pa
 const AdminDashboard = lazyPage(() => import("./pages/admin/AdminDashboard"), "AdminDashboard");
 const AppointmentsCalendarPage = lazyPage(() => import("./pages/admin/AppointmentsCalendarPage"), "AppointmentsCalendarPage");
 const AvailabilityAdminPage = lazyPage(() => import("./pages/admin/AvailabilityAdminPage"), "AvailabilityAdminPage");
+const DoctorProfileAdminPage = lazyPage(() => import("./pages/admin/DoctorProfileAdminPage"), "DoctorProfileAdminPage");
 const DoctorsAdminPage = lazyPage(() => import("./pages/admin/DoctorsAdminPage"), "DoctorsAdminPage");
 const BookTokensAdminPage = lazyPage(() => import("./pages/admin/BookTokensAdminPage"), "BookTokensAdminPage");
 const BooksAdminPage = lazyPage(() => import("./pages/admin/BooksAdminPage"), "BooksAdminPage");
@@ -153,6 +154,7 @@ export default function App() {
       <Route element={<ProtectedRoute requireStaff />}>
         <Route path="/panel" element={<AdminLayout />}>
           <Route index element={<AdminDashboard />} />
+          <Route path="mi-perfil" element={<DoctorProfileAdminPage />} />
           <Route path="pacientes" element={<PatientsPage />} />
           <Route path="doctoras" element={<DoctorsAdminPage />} />
           <Route path="pacientes/:id" element={<PatientDetailPage />} />

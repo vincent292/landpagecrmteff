@@ -9,6 +9,7 @@ import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
 import { hardDeleteRecord, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
 import { createDoctor, getAdminDoctors, updateDoctor, type DoctorProfileRow } from "../../services/doctorService";
+import { updateProfileRole } from "../../services/profileService";
 import { normalizeDocumentNumber } from "../../utils/documentNumber";
 
 const emptyDoctor = {
@@ -24,6 +25,7 @@ const emptyDoctor = {
   instagram_url: "",
   tiktok_url: "",
   photo_url: "",
+  access_role: "doctor",
   is_featured: false,
   is_active: true,
 };
@@ -86,6 +88,9 @@ export function DoctorsAdminPage() {
               <DeletedStatusNote row={doctor} />
               <div className="mt-4 inline-flex rounded-full bg-[rgba(216,194,174,0.24)] px-3 py-1 text-xs font-semibold text-[var(--color-mocha)]">
                 {doctor.profile_id ? "Cuenta reclamada" : "Pendiente de registro"}
+              </div>
+              <div className="mt-2 inline-flex rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-[var(--color-copy)]">
+                {doctor.access_role === "doctor_inventory" ? "Doctora + inventario" : "Solo doctora"}
               </div>
               <div className="mt-5 flex flex-wrap gap-2">
                 <button
@@ -150,6 +155,7 @@ function DoctorForm({ row, onClose, onSaved }: { row: DoctorProfileRow | null; o
     instagram_url: row?.instagram_url ?? "",
     tiktok_url: row?.tiktok_url ?? "",
     photo_url: row?.photo_url ?? "",
+    access_role: row?.access_role ?? "doctor",
   }));
   const [error, setError] = useState("");
 
@@ -175,9 +181,13 @@ function DoctorForm({ row, onClose, onSaved }: { row: DoctorProfileRow | null; o
       const payload = Object.fromEntries(Object.entries(values).map(([key, value]) => [key, value === "" ? null : value]));
       payload.full_name = fullName;
       payload.document_number = documentNumber;
+      payload.access_role = values.access_role === "doctor_inventory" ? "doctor_inventory" : "doctor";
 
       if (row) {
         await updateDoctor(row.id, payload);
+        if (row.profile_id) {
+          await updateProfileRole(row.profile_id, String(payload.access_role));
+        }
       } else {
         delete payload.profile_id;
         await createDoctor(payload);
@@ -233,6 +243,12 @@ function DoctorForm({ row, onClose, onSaved }: { row: DoctorProfileRow | null; o
               className="premium-input"
               readOnly
             />
+          </Field>
+          <Field label="Permiso de la doctora">
+            <select value={String(values.access_role ?? "doctor")} onChange={(event) => setValue("access_role", event.target.value)} className="premium-input">
+              <option value="doctor">Solo doctora</option>
+              <option value="doctor_inventory">Doctora + inventario</option>
+            </select>
           </Field>
           <Field label="WhatsApp de la doctora">
             <input value={String(values.whatsapp)} onChange={(event) => setValue("whatsapp", event.target.value)} className="premium-input" placeholder="5917XXXXXXX" />

@@ -152,10 +152,27 @@ export type InventoryCountRow = DeletionMetadata & {
   count_date: string;
   location_id: string | null;
   status: "abierto" | "cerrado";
+  shift_name: string | null;
   notes: string | null;
   created_by: string | null;
+  opened_by: string | null;
+  opened_at: string | null;
   closed_by: string | null;
   closed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type InventoryCountLineRow = {
+  id: string;
+  count_id: string;
+  item_id: string;
+  opening_stock: number;
+  expected_stock: number;
+  counted_stock: number;
+  difference_stock: number;
+  notes: string | null;
+  counted_by: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -255,6 +272,17 @@ export function getInventoryCounts(includeDeleted = false) {
   return listTable<InventoryCountRow>("inventory_counts", includeDeleted, "count_date", false);
 }
 
+export function getInventoryCountLines() {
+  return supabase
+    .from("inventory_count_lines")
+    .select("*")
+    .order("created_at", { ascending: true })
+    .then(({ data, error }) => {
+      if (error) throw error;
+      return (data ?? []) as InventoryCountLineRow[];
+    });
+}
+
 export async function createInventoryLocation(data: Record<string, unknown>) {
   const { data: row, error } = await supabase.from("inventory_locations").insert(data).select("*").single();
   if (error) throw error;
@@ -352,4 +380,45 @@ export async function recordInventoryCountLine(data: {
   });
   if (error) throw error;
   return row;
+}
+
+export async function openInventoryShift(data: {
+  locationId?: string | null;
+  shiftName?: string | null;
+  notes?: string | null;
+  countDate?: string | null;
+}) {
+  const { data: row, error } = await supabase.rpc("open_inventory_shift", {
+    p_location_id: data.locationId ?? null,
+    p_shift_name: data.shiftName ?? null,
+    p_notes: data.notes ?? null,
+    p_count_date: data.countDate ?? null,
+  });
+  if (error) throw error;
+  return row as InventoryCountRow;
+}
+
+export async function updateInventoryShiftLine(data: {
+  countId: string;
+  itemId: string;
+  countedStock: number;
+  notes?: string | null;
+}) {
+  const { data: row, error } = await supabase.rpc("update_inventory_shift_line", {
+    p_count_id: data.countId,
+    p_item_id: data.itemId,
+    p_counted_stock: data.countedStock,
+    p_notes: data.notes ?? null,
+  });
+  if (error) throw error;
+  return row as InventoryCountLineRow;
+}
+
+export async function closeInventoryShift(data: { countId: string; notes?: string | null }) {
+  const { data: row, error } = await supabase.rpc("close_inventory_shift", {
+    p_count_id: data.countId,
+    p_notes: data.notes ?? null,
+  });
+  if (error) throw error;
+  return row as InventoryCountRow;
 }

@@ -8,7 +8,7 @@ const corsHeaders = {
   "Access-Control-Max-Age": "86400",
 };
 
-const allowedRoles = new Set(["superadmin", "admin", "doctor"]);
+const allowedRoles = new Set(["superadmin", "admin", "doctor", "doctor_inventory"]);
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {

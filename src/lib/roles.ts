@@ -1,11 +1,12 @@
 import type { UserRole } from "../types/platform";
 
-export const staffRoles: UserRole[] = ["superadmin", "doctor", "admin", "assistant"];
+export const staffRoles: UserRole[] = ["superadmin", "doctor", "doctor_inventory", "admin", "assistant"];
 export const portalRoles: UserRole[] = ["patient", "student", "user"];
 
 export const roleLabels: Record<UserRole, string> = {
   superadmin: "Superusuario",
   doctor: "Doctora",
+  doctor_inventory: "Doctora + inventario",
   admin: "Administradora",
   assistant: "Asistente",
   patient: "Paciente",
@@ -30,7 +31,11 @@ export function isSiteAdminRole(role: UserRole) {
 }
 
 export function isDoctorRole(role: UserRole) {
-  return role === "doctor";
+  return role === "doctor" || role === "doctor_inventory";
+}
+
+export function canManageInventoryAsDoctor(role: UserRole) {
+  return role === "doctor_inventory";
 }
 
 export function isAssistantRole(role: UserRole) {
@@ -61,10 +66,11 @@ export function canAccessAdminModule(role: UserRole, module: string) {
       "inventario",
     ].includes(module);
   }
-  if (role !== "doctor") return false;
+  if (!isDoctorRole(role)) return false;
 
   return [
     "dashboard",
+    "mi-perfil",
     "pacientes",
     "libros",
     "tratamientos",
@@ -75,6 +81,7 @@ export function canAccessAdminModule(role: UserRole, module: string) {
     "disponibilidad",
     "citas",
     "galeria",
+    ...(canManageInventoryAsDoctor(role) ? ["inventario"] : []),
   ].includes(module);
 }
 
@@ -82,6 +89,7 @@ export function normalizeRole(role?: string | null): UserRole {
   if (
     role === "superadmin" ||
     role === "doctor" ||
+    role === "doctor_inventory" ||
     role === "admin" ||
     role === "assistant" ||
     role === "patient" ||
