@@ -3,7 +3,7 @@ import path from "node:path";
 
 const projectRoot = path.resolve(process.cwd());
 const publicDir = path.join(projectRoot, "public");
-const fallbackSiteUrl = "https://draestefanyballesteros.com";
+const fallbackSiteUrl = "https://www.draballesteros.com";
 const envFiles = [".env.production.local", ".env.production", ".env.local", ".env"];
 
 function readEnvValue(key) {

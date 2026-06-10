@@ -1,4 +1,4 @@
-const fallbackSiteUrl = "https://draestefanyballesteros.com";
+const fallbackSiteUrl = "https://www.draballesteros.com";
 
 function normalizeSiteUrl(value?: string | null) {
   const candidate = (value ?? "").trim();
