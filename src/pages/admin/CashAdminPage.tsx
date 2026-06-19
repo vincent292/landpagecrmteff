@@ -233,6 +233,8 @@ export function CashAdminPage() {
 
   const openSessions = useMemo(() => sessions.filter((session) => !session.is_deleted && session.status === "abierta"), [sessions]);
   const activeMovements = useMemo(() => movements.filter((row) => !isSoftDeleted(row) && row.status !== "anulado"), [movements]);
+  const paymentMethodKindMap = useMemo(() => new Map(paymentMethods.map((method) => [method.code, method.method_kind])), [paymentMethods]);
+  const isCashPaymentMethod = (paymentMethod: string) => paymentMethodKindMap.get(paymentMethod) === "cash" || paymentMethod.toLowerCase() === "efectivo";
   const filteredMovements = useMemo(() => {
     const search = query.trim().toLowerCase();
     return movements.filter((row) => {
@@ -250,12 +252,12 @@ export function CashAdminPage() {
     const map = new Map<string, number>();
     sessions.forEach((session) => {
       const movementDelta = movements
-        .filter((row) => row.register_session_id === session.id && !isSoftDeleted(row) && row.status !== "anulado")
+        .filter((row) => row.register_session_id === session.id && !isSoftDeleted(row) && row.status !== "anulado" && isCashPaymentMethod(row.payment_method))
         .reduce((sum, row) => sum + (row.movement_type === "ingreso" ? Number(row.amount) : -Number(row.amount)), 0);
       map.set(session.id, Number(session.opening_amount ?? 0) + movementDelta);
     });
     return map;
-  }, [movements, sessions]);
+  }, [movements, paymentMethodKindMap, sessions]);
 
   const sessionMovementSummaryMap = useMemo(() => {
     const map = new Map<string, { income: number; expense: number; net: number }>();
@@ -277,10 +279,12 @@ export function CashAdminPage() {
     return map;
   }, [movements, sessions]);
 
-  const totalDifference = counts.reduce((sum, row) => sum + Number(row.difference_amount ?? 0), 0);
   const sessionWithoutDrawer = sessions.filter((row) => !row.is_deleted && !row.drawer_id).length;
   const today = getBoliviaDateInputValue();
   const summaryDate = dateFilter || today;
+  const totalDifference = counts
+    .filter((row) => !isSoftDeleted(row) && (sessionMap.get(row.session_id)?.session_date ?? row.created_at.slice(0, 10)) === summaryDate)
+    .reduce((sum, row) => sum + Math.abs(Number(row.difference_amount ?? 0)), 0);
   const summaryMovements = useMemo(
     () => activeMovements.filter((row) => row.movement_date === summaryDate),
     [activeMovements, summaryDate]
@@ -416,6 +420,8 @@ export function CashAdminPage() {
   };
 
   const openMovementModal = (movement?: CashMovementRow) => {
+    setWarning("");
+    setNotice("");
     setEditingMovement(movement ?? null);
     setMovementAttachmentFile(null);
     if (movement) {
@@ -511,8 +517,18 @@ export function CashAdminPage() {
 
   const submitMovement = async () => {
     setSaving(true);
+    setWarning("");
+    setNotice("");
     try {
       const session = sessionMap.get(movementForm.register_session_id);
+      const requiresAttachment = !isCashPaymentMethod(movementForm.payment_method);
+      const hasAttachment = movementAttachmentFile != null || Boolean(editingMovement?.attachment_path);
+
+      if (requiresAttachment && !hasAttachment) {
+        setWarning("Para QR, transferencia, tarjeta u otro metodo no efectivo debes subir comprobante o imagen.");
+        return;
+      }
+
       const attachmentPath =
         movementAttachmentFile != null
           ? await uploadCashMovementAttachment(movementAttachmentFile, editingMovement?.id ?? crypto.randomUUID())
@@ -749,8 +765,8 @@ export function CashAdminPage() {
           <SummaryCard icon={<Archive className="h-5 w-5" />} label="Egresos del dia" caption={summaryDateLabel} value={formatMoney(summaryExpense)} onClick={() => { setDateFilter(summaryDate); setActiveTab("movimientos"); }} />
           <SummaryCard icon={<Calculator className="h-5 w-5" />} label="Neto del dia" caption={summaryDateLabel} value={formatMoney(summaryNet)} onClick={() => { setDateFilter(summaryDate); setActiveTab("movimientos"); }} />
           <SummaryCard icon={<Wallet className="h-5 w-5" />} label="Caja abierta ahora" value={formatMoney(openNowNet)} onClick={() => setActiveTab("sesiones")} />
-          <SummaryCard icon={<Calculator className="h-5 w-5" />} label="Esperado abierto" value={formatMoney(openNowExpected)} onClick={() => setActiveTab("sesiones")} />
-          <SummaryCard icon={<Calculator className="h-5 w-5" />} label="Diferencias de arqueo" value={formatMoney(totalDifference)} onClick={() => setActiveTab("arqueos")} />
+          <SummaryCard icon={<Calculator className="h-5 w-5" />} label="Efectivo esperado" value={formatMoney(openNowExpected)} onClick={() => setActiveTab("sesiones")} />
+          <SummaryCard icon={<Calculator className="h-5 w-5" />} label="Diferencias de arqueo" caption={summaryDateLabel} value={formatMoney(totalDifference)} onClick={() => setActiveTab("arqueos")} />
           <SummaryCard icon={<Building2 className="h-5 w-5" />} label="Sesiones sin caja" value={String(sessionWithoutDrawer)} onClick={() => setActiveTab("configuracion")} />
         </div>
       </section>
@@ -788,7 +804,7 @@ export function CashAdminPage() {
                 <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">
                   Ingresos {formatMoney(openNowIncome)} - egresos {formatMoney(openNowExpense)} - neto {formatMoney(openNowNet)}
                   <br />
-                  Esperado al cerrar {formatMoney(openNowExpected)}
+                  Efectivo esperado al cerrar {formatMoney(openNowExpected)}
                 </p>
               </div>
               {openSessionSummaries.length === 0 ? <EmptyState label="No hay cajas abiertas en este momento." /> : null}
@@ -800,7 +816,7 @@ export function CashAdminPage() {
                     <br />
                     Ingresos {formatMoney(income)} - egresos {formatMoney(expense)} - neto {formatMoney(net)}
                     <br />
-                    Esperado al cerrar {formatMoney(expectedAmount)}
+                    Efectivo esperado al cerrar {formatMoney(expectedAmount)}
                   </p>
                 </div>
               ))}
@@ -836,7 +852,7 @@ export function CashAdminPage() {
                         <br />
                         Ingresos {formatMoney(movementSummary.income)} - egresos {formatMoney(movementSummary.expense)} - neto {formatMoney(movementSummary.net)}
                         <br />
-                        Esperado al cerrar {formatMoney(expectedAmount)}
+                        Efectivo esperado al cerrar {formatMoney(expectedAmount)}
                         <br />
                         {session.status === "cerrada"
                           ? `Contado ${formatMoney(session.closing_counted_amount ?? 0)} - diferencia ${formatMoney(session.closing_difference_amount ?? 0)}`
@@ -1172,9 +1188,14 @@ export function CashAdminPage() {
             <div className="md:col-span-2 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
               <label className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-full border border-[var(--color-border)] bg-white/80 px-4 py-2 text-sm font-semibold sm:w-auto">
                 <Receipt className="h-4 w-4" />
-                {movementAttachmentFile ? "Cambiar comprobante" : editingMovement?.attachment_path ? "Reemplazar comprobante" : "Subir comprobante o factura"}
+                {movementAttachmentFile ? "Cambiar comprobante" : editingMovement?.attachment_path ? "Reemplazar comprobante" : isCashPaymentMethod(movementForm.payment_method) ? "Subir comprobante o factura" : "Subir comprobante obligatorio"}
                 <input type="file" accept="image/*,.pdf" className="hidden" onChange={(event) => setMovementAttachmentFile(event.target.files?.[0] ?? null)} />
               </label>
+              {!isCashPaymentMethod(movementForm.payment_method) ? (
+                <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-900">
+                  Obligatorio para pagos no efectivos
+                </span>
+              ) : null}
               {editingMovement?.attachment_path ? (
                 <button onClick={() => void openMovementAttachment(editingMovement.attachment_path)} className="rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-semibold">
                   Ver comprobante actual
@@ -1222,8 +1243,9 @@ export function CashAdminPage() {
         <ModalShell title={countForm.countType === "cierre" ? "Cerrar caja con arqueo" : "Registrar arqueo"} onClose={() => setModal(null)} maxWidthClassName="max-w-4xl">
           <div className="grid gap-4">
             <div className="rounded-[24px] border border-[var(--color-border)] bg-[rgba(247,242,236,0.74)] p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-accent-strong)]">Esperado segun movimientos</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-accent-strong)]">Efectivo esperado segun movimientos</p>
               <p className="mt-2 text-2xl font-semibold">{formatMoney(sessionExpectedMap.get(countForm.sessionId) ?? 0)}</p>
+              <p className="mt-2 text-sm text-[var(--color-copy)]">QR, transferencia y tarjeta quedan en movimientos, pero no entran al conteo fisico.</p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {denominations.map((item) => (

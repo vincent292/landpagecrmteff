@@ -136,7 +136,9 @@ export function AdminDashboard() {
           .reduce((sum, item) => sum + Number(item.amount ?? 0), 0)
       );
       setCashDifferenceTotal(
-        cashCountRows.reduce((sum, item) => sum + Math.abs(Number(item.difference_amount ?? 0)), 0)
+        cashCountRows
+          .filter((item) => cashSessionRows.find((session) => session.id === item.session_id)?.session_date === today)
+          .reduce((sum, item) => sum + Math.abs(Number(item.difference_amount ?? 0)), 0)
       );
       setInventoryLowStock(
         inventoryItemRows.filter(
@@ -434,7 +436,7 @@ export function AdminDashboard() {
               />
               <PriorityItem
                 title="Controlar caja del dia"
-                detail={`${cashOpenSessions} cajas abiertas y ${formatMoney(cashDifferenceTotal)} en diferencias acumuladas.`}
+                detail={`${cashOpenSessions} cajas abiertas y ${formatMoney(cashDifferenceTotal)} en diferencias de hoy.`}
                 href="/panel/caja"
               />
               <PriorityItem
