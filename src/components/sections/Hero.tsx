@@ -13,7 +13,7 @@ gsap.registerPlugin(ScrollTrigger);
 const quickLinks = [
   { href: "/tratamientos", label: "Tratamientos", detail: "Ver opciones" },
   { href: "/promociones", label: "Promociones", detail: "Ofertas activas" },
-  { href: "/cursos", label: "Cursos", detail: "Fechas e inscripcion" },
+  { href: "/academy", label: "Academy", detail: "Fechas e inscripcion" },
 ];
 
 type HeroProps = {

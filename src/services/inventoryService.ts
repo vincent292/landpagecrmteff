@@ -156,8 +156,10 @@ export type InventoryCountRow = DeletionMetadata & {
   notes: string | null;
   created_by: string | null;
   opened_by: string | null;
+  opened_by_profile?: InventoryCountActor | null;
   opened_at: string | null;
   closed_by: string | null;
+  closed_by_profile?: InventoryCountActor | null;
   closed_at: string | null;
   created_at: string;
   updated_at: string;
@@ -175,6 +177,13 @@ export type InventoryCountLineRow = {
   counted_by: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type InventoryCountActor = {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  role: string | null;
 };
 
 export async function getInventoryItems(includeDeleted = false) {
@@ -268,8 +277,37 @@ export function getInventoryMovements(includeDeleted = false) {
   return listTable<InventoryMovementRow>("inventory_movements", includeDeleted, "movement_date", false);
 }
 
-export function getInventoryCounts(includeDeleted = false) {
-  return listTable<InventoryCountRow>("inventory_counts", includeDeleted, "count_date", false);
+export async function getInventoryCounts(includeDeleted = false) {
+  let query = supabase.from("inventory_counts").select("*").order("count_date", { ascending: false }).order("created_at", { ascending: false });
+  const filter = getVisibleDeletionFilter("inventory_counts", includeDeleted);
+  if (filter.column) query = query.eq(filter.column, filter.value);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const rows = (data ?? []) as InventoryCountRow[];
+  const actorIds = Array.from(
+    new Set(
+      rows
+        .flatMap((row) => [row.opened_by, row.created_by, row.closed_by])
+        .filter((id): id is string => Boolean(id))
+    )
+  );
+
+  if (actorIds.length === 0) return rows;
+
+  const { data: profiles, error: profilesError } = await supabase
+    .from("profiles")
+    .select("id, full_name, email, role")
+    .in("id", actorIds);
+  if (profilesError) throw profilesError;
+
+  const profileMap = new Map((profiles ?? []).map((profile) => [profile.id, profile as InventoryCountActor]));
+  return rows.map((row) => ({
+    ...row,
+    opened_by_profile: profileMap.get(row.opened_by ?? row.created_by ?? "") ?? null,
+    closed_by_profile: profileMap.get(row.closed_by ?? "") ?? null,
+  }));
 }
 
 export function getInventoryCountLines() {

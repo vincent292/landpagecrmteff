@@ -28,7 +28,8 @@ export function WhatsAppButton() {
 
   const message = getMessage(pathname);
   const href = buildWhatsAppHref(settings.whatsapp, message);
-  const floatingPosition = pathname.startsWith("/cursos/") ? "bottom-24 md:bottom-5" : "bottom-5";
+  const isAcademyDetail = pathname.startsWith("/academy/") || pathname.startsWith("/cursos/");
+  const floatingPosition = isAcademyDetail ? "bottom-24 md:bottom-5" : "bottom-5";
 
   if (!href) {
     return null;
@@ -52,8 +53,8 @@ function getMessage(pathname: string) {
   if (pathname.startsWith("/tratamientos/")) {
     return "Hola, quiero mas informacion sobre este tratamiento de la Dra. Estefany.";
   }
-  if (pathname.startsWith("/cursos/")) {
-    return "Hola, quiero mas informacion sobre este curso de la Dra. Estefany.";
+  if (pathname.startsWith("/academy/") || pathname.startsWith("/cursos/")) {
+    return "Hola, quiero mas informacion sobre este programa de Academy de la Dra. Estefany.";
   }
   if (pathname.startsWith("/agenda")) {
     return "Hola, quiero mas informacion sobre una actividad de la agenda.";

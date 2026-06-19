@@ -108,6 +108,12 @@ const appointmentTypeOptions = ["Valoracion estetica", "Control", "Procedimiento
 const galleryCategories = ["Eventos", "Tratamientos", "Cursos", "Testimonios", "Antes y despues autorizados", "Videos"];
 const userRoles = ["superadmin", "doctor", "doctor_inventory", "admin", "assistant", "patient", "student", "user"] as const;
 
+function getModuleDisplayName(module: Module) {
+  if (module === "cursos") return "Academy";
+  if (module === "inscripciones") return "Inscripciones";
+  return module;
+}
+
 export function AdminCollectionPage({ module }: Props) {
   const { role, profile, user } = useAuth();
   const [rows, setRows] = useState<AdminRow[]>([]);
@@ -209,7 +215,7 @@ export function AdminCollectionPage({ module }: Props) {
     setEnrollmentApproval({
       enrollmentId: row.id,
       studentName: row.full_name ?? row.email ?? "Alumno",
-      courseTitle: row.courses?.title ?? "Curso",
+      courseTitle: row.courses?.title ?? "Academy",
       amount: Number(row.payment_amount ?? row.courses?.price ?? 0),
       paymentMethod: row.payment_method ?? paymentMethods.find((method) => method.is_default)?.code ?? "qr",
       notes: row.admin_notes ?? "",
@@ -254,7 +260,7 @@ export function AdminCollectionPage({ module }: Props) {
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--color-accent-strong)]">Administración</p>
-          <h1 className="font-display mt-3 text-5xl font-semibold capitalize">{module}</h1>
+          <h1 className="font-display mt-3 text-5xl font-semibold capitalize">{getModuleDisplayName(module)}</h1>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--color-copy)]">
             Gestion centralizada con estados, filtros y formularios listos para operar.
           </p>
@@ -342,7 +348,7 @@ export function AdminCollectionPage({ module }: Props) {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">Inscripciones</p>
-                <h2 className="font-display mt-2 text-4xl font-semibold">Aprobar pago del curso</h2>
+                <h2 className="font-display mt-2 text-4xl font-semibold">Aprobar inscripcion Academy</h2>
               </div>
               <button onClick={() => setEnrollmentApproval(null)} className="rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-semibold">
                 Cerrar
@@ -1526,7 +1532,7 @@ function getTitle(module: Module, row: AdminRow) {
 
 function getMeta(module: Module, row: AdminRow) {
   if (module === "solicitudes" && "interest_title" in row) return `${row.phone} · ${row.city ?? "Sin ciudad"} · ${row.interest_title ?? "General"}`;
-  if (module === "inscripciones" && "courses" in row) return `${row.courses?.title ?? "Curso"} · ${row.phone ?? "Sin celular"} · ${row.status} · ${row.payment_receipt_path ? "Con comprobante" : "Sin comprobante"}`;
+  if (module === "inscripciones" && "courses" in row) return `${row.courses?.title ?? "Academy"} · ${row.phone ?? "Sin celular"} · ${row.status} · ${row.payment_receipt_path ? "Con comprobante" : "Sin comprobante"}`;
   if (module === "usuarios" && "role" in row) {
     return `${row.city ?? "Sin ciudad"} · ${roleLabels[(row.role as keyof typeof roleLabels) ?? "user"] ?? row.role}`;
   }
@@ -1541,13 +1547,13 @@ function whatsappHref(row: AdminRow, module: Module) {
 
   if (module === "inscripciones" && "courses" in row) {
     const studentName = row.full_name?.trim() || "hola";
-    const courseTitle = row.courses?.title ?? "tu curso";
+    const courseTitle = row.courses?.title ?? "tu programa de Academy";
 
     if (row.status === "Confirmado") {
-      return `https://wa.me/${cleaned}?text=${encodeURIComponent(`Hola ${studentName}, tu inscripción al curso "${courseTitle}" fue aprobada. Ingresa a tu plataforma para ver recursos, actualizaciones y próximos pasos.`)}`;
+      return `https://wa.me/${cleaned}?text=${encodeURIComponent(`Hola ${studentName}, tu inscripción a Academy en "${courseTitle}" fue aprobada. Ingresa a tu plataforma para ver recursos, actualizaciones y proximos pasos.`)}`;
     }
 
-    return `https://wa.me/${cleaned}?text=${encodeURIComponent(`Hola ${studentName}, te escribimos de parte de la Dra. sobre tu inscripción al curso "${courseTitle}".`)}`;
+    return `https://wa.me/${cleaned}?text=${encodeURIComponent(`Hola ${studentName}, te escribimos de parte de la Dra. sobre tu inscripcion a Academy en "${courseTitle}".`)}`;
   }
 
   if (module === "solicitudes" && "whatsapp_prefill_message" in row && row.whatsapp_prefill_message?.trim()) {

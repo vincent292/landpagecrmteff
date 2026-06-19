@@ -194,7 +194,7 @@ export function AdminDashboard() {
         <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           <Metric icon={<CalendarDays className="h-5 w-5" />} label="Citas propias" value={String(activeReservations.length)} href="/panel/citas" />
           <Metric icon={<Sparkles className="h-5 w-5" />} label="Tratamientos propios" value={String(treatmentsCount)} href="/panel/tratamientos" />
-          <Metric icon={<GraduationCap className="h-5 w-5" />} label="Cursos propios" value={String(coursesCount)} href="/panel/cursos" />
+          <Metric icon={<GraduationCap className="h-5 w-5" />} label="Academy propia" value={String(coursesCount)} href="/panel/academy" />
           <Metric icon={<ClipboardList className="h-5 w-5" />} label="Agenda propia" value={String(eventsCount)} href="/panel/agenda" />
           <Metric icon={<ReceiptText className="h-5 w-5" />} label="Libros propios" value={String(booksCount)} href="/panel/libros" />
           <Metric icon={<Users className="h-5 w-5" />} label="Galeria propia" value={String(galleryCount)} href="/panel/galeria" />
@@ -297,7 +297,7 @@ export function AdminDashboard() {
       <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
         <Metric icon={<MessagesSquare className="h-5 w-5" />} label="Solicitudes nuevas" value={String(newRequests)} href="/panel/solicitudes" />
         <Metric icon={<ClipboardList className="h-5 w-5" />} label="Total solicitudes" value={String(requests.length)} href="/panel/solicitudes" />
-        <Metric icon={<GraduationCap className="h-5 w-5" />} label="Cursos activos" value={String(coursesCount)} href="/panel/cursos" />
+        <Metric icon={<GraduationCap className="h-5 w-5" />} label="Academy activa" value={String(coursesCount)} href="/panel/academy" />
         <Metric icon={<Users className="h-5 w-5" />} label="Inscripciones pendientes" value={String(enrollmentsPending)} href="/panel/inscripciones" />
         <Metric icon={<CalendarDays className="h-5 w-5" />} label="Citas agendadas" value={String(activeReservations.length)} href="/panel/citas" />
         <Metric icon={<Sparkles className="h-5 w-5" />} label="Tratamientos activos" value={String(treatmentsCount)} href="/panel/tratamientos" />
@@ -428,7 +428,7 @@ export function AdminDashboard() {
                 href="/panel/solicitudes"
               />
               <PriorityItem
-                title="Revisar inscripciones pendientes"
+                title="Revisar inscripciones Academy"
                 detail={`${enrollmentsPending} registros esperan confirmacion.`}
                 href="/panel/inscripciones"
               />
@@ -454,7 +454,7 @@ export function AdminDashboard() {
             <h2 className="text-xl font-semibold text-[var(--color-ink)]">Resumen operativo</h2>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               <QuickCard label="Solicitudes abiertas" value={String(requests.filter((item) => item.status !== "Finalizado" && item.status !== "Descartado").length)} href="/panel/solicitudes" />
-              <QuickCard label="Cursos publicados" value={String(coursesCount)} href="/panel/cursos" />
+              <QuickCard label="Academy publicada" value={String(coursesCount)} href="/panel/academy" />
               <QuickCard label="Agenda visible" value={String(eventsCount)} href="/panel/agenda" />
               <QuickCard label="Catalogo activo" value={String(treatmentsCount)} href="/panel/tratamientos" />
               <QuickCard label="Caja abierta hoy" value={String(cashOpenSessions)} href="/panel/caja" />

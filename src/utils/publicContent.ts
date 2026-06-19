@@ -31,7 +31,8 @@ const agendaTypeAliases: Record<string, string> = {
   "presentacion": "Presentacion",
   "presentación": "Presentacion",
   "jornada": "Jornada",
-  "curso": "Curso",
+  "curso": "Academy",
+  "academy": "Academy",
   "consulta": "Consulta",
   "promocion": "Promocion",
   "promoción": "Promocion",
@@ -56,7 +57,7 @@ export const publicAgendaTypes = [
   "Cirugia",
   "Presentacion",
   "Jornada",
-  "Curso",
+  "Academy",
   "Consulta",
 ] as const;
 

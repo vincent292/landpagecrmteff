@@ -34,16 +34,16 @@ export function CoursesPage() {
   return (
     <section className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24">
       <Seo
-        title="Cursos de estética y formación clínica | Dra. Estefany Ballesteros"
-        description="Revisa cursos, workshops y programas de formacion para profesionales y estudiantes del area estetica."
-        path="/cursos"
+        title="Academy de estetica y formacion clinica | Dra. Estefany Ballesteros"
+        description="Revisa los programas de Academy, workshops y formacion para profesionales y estudiantes del area estetica."
+        path="/academy"
         image="/doctora/dra3.jpg"
-        keywords={["cursos estetica Bolivia", "formacion clinica estetica", "workshop medicina estetica"]}
+        keywords={["academy estetica Bolivia", "formacion clinica estetica", "workshop medicina estetica"]}
       />
       <PageIntro
-        eyebrow="Cursos"
-        title="Programas de formación para profesionales y estudiantes del área estética."
-        text="Consulta las próximas fechas, revisa el contenido de cada programa y completa tu inscripción desde el detalle del curso."
+        eyebrow="Academy"
+        title="Programas de formacion para profesionales y estudiantes del area estetica."
+        text="Consulta las proximas fechas, revisa el contenido de cada programa y completa tu inscripcion desde el detalle."
       />
       <div className="mt-8 max-w-xs">
         <select value={city} onChange={(event) => setCity(event.target.value)} className="premium-input">
@@ -60,7 +60,7 @@ export function CoursesPage() {
         <div className="grid gap-6 md:grid-cols-2">
           {filteredCourses.map((course) => (
             <article key={course.id} className="overflow-hidden rounded-[30px] border border-[var(--color-border)] bg-white/60 shadow-[0_18px_48px_rgba(110,74,47,0.08)]">
-              <ContentCover src={course.cover_image} alt={course.title} label="Curso" wrapperClassName="h-72 w-full" />
+              <ContentCover src={course.cover_image} alt={course.title} label="Academy" wrapperClassName="h-72 w-full" />
               <div className="p-6">
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-accent-strong)]">
                   {getDisplayCity(course.city)} · {course.modality ?? "Modalidad por confirmar"}
@@ -73,11 +73,11 @@ export function CoursesPage() {
                   <span>{formatMoney(course.price)} · {course.available_slots ?? 0} cupos</span>
                 </div>
                 <div className="mt-6 flex flex-wrap gap-3">
-                  <Link to={`/cursos/${course.slug}`} className="inline-flex rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white">
-                    Ver curso
+                  <Link to={`/academy/${course.slug}`} className="inline-flex rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white">
+                    Ver programa
                   </Link>
                   <button type="button" onClick={() => setInterest(course)} className="rounded-full border border-[var(--color-border)] px-6 py-3 text-sm font-semibold">
-                    Pedir información
+                    Pedir informacion
                   </button>
                 </div>
               </div>

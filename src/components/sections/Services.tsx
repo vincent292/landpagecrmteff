@@ -43,7 +43,7 @@ type HighlightCard =
       payload: PromotionRow;
     }
   | {
-      kind: "Curso";
+      kind: "Academy";
       id: string;
       title: string;
       description: string;
@@ -104,14 +104,14 @@ export function Services() {
 
         if (course) {
           nextCards.push({
-            kind: "Curso",
+            kind: "Academy",
             id: course.id,
             title: course.title,
-            description: course.short_description ?? course.description ?? "Revisa el contenido, la modalidad y la fecha del curso.",
+            description: course.short_description ?? course.description ?? "Revisa el contenido, la modalidad y la fecha del programa.",
             image: course.cover_image,
             category: `${getDisplayCity(course.city)} · ${normalizeAgendaType(course.modality ?? "Curso")}`,
             primaryLabel: "Inscribirme",
-            moreHref: `/cursos/${course.slug}`,
+            moreHref: `/academy/${course.slug}`,
             interestType: "Curso",
             payload: course,
           });
@@ -130,7 +130,7 @@ export function Services() {
     () => [
       { href: "/tratamientos", label: "Ver tratamientos" },
       { href: "/promociones", label: "Ver promociones" },
-      { href: "/cursos", label: "Ver cursos" },
+      { href: "/academy", label: "Ver Academy" },
     ],
     []
   );
@@ -140,7 +140,7 @@ export function Services() {
       <SectionReveal id="servicios" className="mx-auto max-w-7xl px-6 py-28 md:px-8 md:py-36">
         <SectionHeading
           eyebrow="Servicios"
-          title="Tratamientos, promociones y cursos conectados al panel de forma centralizada."
+          title="Tratamientos, promociones y Academy conectados al panel de forma centralizada."
           description="Cuando el equipo publique nuevo contenido desde administración, se mostrará aquí automáticamente."
           align="center"
         />
@@ -184,14 +184,14 @@ export function Services() {
                   </div>
                 ) : null}
 
-                {card.kind === "Curso" ? (
+                {card.kind === "Academy" ? (
                   <p className="mt-5 text-sm text-[var(--color-copy)]">
                     {formatDateTimeLine(card.payload.start_date, card.payload.start_time)}
                   </p>
                 ) : null}
 
                 <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-                  {card.kind === "Curso" ? (
+                  {card.kind === "Academy" ? (
                     <Link
                       to={card.moreHref}
                       className="rounded-full bg-[var(--color-mocha)] px-5 py-3 text-center text-sm font-semibold text-white"
@@ -257,7 +257,7 @@ export function Services() {
         contentPrice={
           interest?.kind === "Promocion"
             ? interest.payload.promo_price ?? null
-            : interest?.kind === "Curso"
+            : interest?.kind === "Academy"
               ? interest.payload.price ?? null
               : null
         }

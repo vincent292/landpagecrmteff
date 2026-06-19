@@ -58,7 +58,7 @@ const adminSections: AdminSection[] = [
       { label: "Doctoras", href: "/panel/doctoras", module: "doctoras" },
       { label: "Tratamientos", href: "/panel/tratamientos", module: "tratamientos" },
       { label: "Promociones", href: "/panel/promociones", module: "promociones" },
-      { label: "Cursos", href: "/panel/cursos", module: "cursos" },
+      { label: "Academy", href: "/panel/academy", module: "cursos" },
       { label: "Galeria", href: "/panel/galeria", module: "galeria" },
     ],
   },
@@ -80,7 +80,8 @@ export function AdminLayout() {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const mobileNotificationsRef = useRef<HTMLDivElement | null>(null);
   const desktopNotificationsRef = useRef<HTMLDivElement | null>(null);
-  const activeModule = location.pathname.replace(/^\/panel\/?/, "").split("/")[0] || "dashboard";
+  const normalizeAdminModule = (value: string) => (value === "academy" ? "cursos" : value);
+  const activeModule = normalizeAdminModule(location.pathname.replace(/^\/panel\/?/, "").split("/")[0] || "dashboard");
   const { items: notifications, unreadCount, unreadByModule, markAllAsSeen } = useAdminNotifications(user?.id ?? null, role);
   const persistentBadgeByModule = useMemo(() => {
     const badges = { ...unreadByModule };

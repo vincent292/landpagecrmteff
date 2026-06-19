@@ -751,7 +751,7 @@ export function SiteSettingsAdminPage() {
                 ))}
                 {communityOptions.length === 0 ? (
                   <div className="rounded-[24px] border border-dashed border-[var(--color-border)] bg-[rgba(247,242,236,0.58)] p-5 text-sm leading-7 text-[var(--color-copy)]">
-                    Crea opciones como "Promociones VIP", "Cursos" o comunidades por ciudad para que el widget responda con enlaces concretos.
+                    Crea opciones como "Promociones VIP", "Academy" o comunidades por ciudad para que el widget responda con enlaces concretos.
                   </div>
                 ) : null}
               </div>
@@ -800,7 +800,7 @@ export function SiteSettingsAdminPage() {
                       QR general de pagos
                     </p>
                     <h2 className="font-display mt-2 text-3xl font-semibold">
-                      Una sola imagen para cursos, citas y pagos futuros
+                      Una sola imagen para Academy, citas y pagos futuros
                     </h2>
                   </div>
                   {values.payment_qr_updated_at ? (
@@ -816,7 +816,7 @@ export function SiteSettingsAdminPage() {
                       label="Imagen QR general"
                       value={paymentQrDraft}
                       folder="site-settings/general-payment-qr"
-                      helperText="Sube aqui la imagen QR general que se mostrara en cursos, citas y cualquier flujo de pago."
+                      helperText="Sube aqui la imagen QR general que se mostrara en Academy, citas y cualquier flujo de pago."
                       aspectRatio={1}
                       optimize={false}
                       onChange={setPaymentQrDraft}
@@ -857,7 +857,7 @@ export function SiteSettingsAdminPage() {
                   <div className="rounded-[24px] bg-[rgba(247,242,236,0.78)] p-5">
                     <p className="text-sm font-semibold text-[var(--color-ink)]">Uso del QR</p>
                     <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">
-                      Este QR general se replica para cursos, citas y cualquier otro flujo de pago
+                      Este QR general se replica para Academy, citas y cualquier otro flujo de pago
                       del sitio. Para cambiarlo se necesita la clave y se guarda auditoria de
                       usuario, fecha y motivo.
                     </p>

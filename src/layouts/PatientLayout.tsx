@@ -17,7 +17,7 @@ const patientLinks: PatientLink[] = [
   { label: "Inicio", href: "/mi-panel", module: "dashboard" },
   { label: "Perfil", href: "/mi-panel/perfil", module: "perfil" },
   { label: "Citas", href: "/mi-panel/citas", module: "citas" },
-  { label: "Cursos", href: "/mi-panel/cursos", module: "cursos" },
+  { label: "Academy", href: "/mi-panel/academy", module: "cursos" },
   { label: "Promociones", href: "/mi-panel/promociones", module: "promociones" },
   { label: "Planes de pago", href: "/mi-panel/planes-pago", module: "planes-pago" },
   { label: "Tarjetas ahorro", href: "/mi-panel/tarjetas-ahorro", module: "tarjetas-ahorro" },

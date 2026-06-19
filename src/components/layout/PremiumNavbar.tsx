@@ -8,7 +8,7 @@ import { BrandSignature } from "../common/BrandSignature";
 const publicLinks = [
   { label: "Tratamientos", href: "/tratamientos" },
   { label: "Promociones", href: "/promociones" },
-  { label: "Cursos", href: "/cursos" },
+  { label: "Academy", href: "/academy" },
   { label: "Libros", href: "/libros" },
   { label: "Agenda", href: "/agenda" },
   { label: "Galeria", href: "/galeria" },

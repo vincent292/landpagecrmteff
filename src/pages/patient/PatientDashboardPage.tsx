@@ -132,7 +132,7 @@ export function PatientDashboardPage() {
           Bienvenida, {profile?.full_name?.split(" ")[0] ?? "de nuevo"}.
         </h1>
         <p className="mt-4 max-w-2xl text-sm leading-7 text-[var(--color-copy)] md:text-base">
-          Bienvenida/o, {profile?.full_name ?? "a tu portal"}. Aqui puedes consultar tus citas, recetas, cuidados y libros adquiridos.
+          Bienvenida/o, {profile?.full_name ?? "a tu portal"}. Aqui puedes consultar tus citas, recetas, cuidados, Academy y libros adquiridos.
         </p>
         {!profile?.document_number ? (
           <div className="mt-5 rounded-[22px] border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
@@ -151,7 +151,7 @@ export function PatientDashboardPage() {
         <SummaryCard label="Recetas activas" value={String(summary.prescriptions.length)} />
         <SummaryCard label="Libros disponibles" value={String(summary.books.length)} />
         <SummaryCard label="Pedidos de libros" value={String(summary.ordersPending)} />
-        <SummaryCard label="Cursos pendientes" value={String(summary.courseEnrollmentsPending)} />
+        <SummaryCard label="Inscripciones Academy" value={String(summary.courseEnrollmentsPending)} />
         <SummaryCard label="Promociones pendientes" value={String(summary.promotionOrdersPending)} />
         <SummaryCard label="Planes de pago" value={String(summary.paymentPlansActive)} />
         <SummaryCard

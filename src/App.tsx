@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, type ComponentType } from "react";
 
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useParams } from "react-router-dom";
 
 import { ProtectedRoute } from "./components/platform/ProtectedRoute";
 import { RouteLoadingScreen } from "./components/common/RouteLoadingScreen";
@@ -98,6 +98,11 @@ const TreatmentDetailPage = lazyPage(() => import("./pages/platform/TreatmentDet
 const TreatmentsPage = lazyPage(loadTreatmentsPage, "TreatmentsPage");
 const DoctorsPage = lazyPage(loadDoctorsPage, "DoctorsPage");
 
+function LegacyCourseDetailRedirect() {
+  const { slug } = useParams();
+  return <Navigate to={slug ? `/academy/${slug}` : "/academy"} replace />;
+}
+
 export default function App() {
   useEffect(() => {
     const preload = () => {
@@ -132,8 +137,10 @@ export default function App() {
         <Route path="/tratamientos/:slug" element={<TreatmentDetailPage />} />
         <Route path="/promociones" element={<PromotionsPage />} />
         <Route path="/promociones/:slug" element={<PromotionDetailPage />} />
-        <Route path="/cursos" element={<CoursesPage />} />
-        <Route path="/cursos/:slug" element={<CourseDetailPage />} />
+        <Route path="/academy" element={<CoursesPage />} />
+        <Route path="/academy/:slug" element={<CourseDetailPage />} />
+        <Route path="/cursos" element={<Navigate to="/academy" replace />} />
+        <Route path="/cursos/:slug" element={<LegacyCourseDetailRedirect />} />
         <Route path="/libros" element={<BooksPage />} />
         <Route path="/libros/:slug" element={<BookDetailPage />} />
         <Route path="/comprar-libro/:slug" element={<BuyBookPage />} />
@@ -165,7 +172,8 @@ export default function App() {
           <Route path="pacientes/:id/cuidados" element={<PatientCaresAdminPage />} />
           <Route path="tratamientos" element={<AdminCollectionPage module="tratamientos" />} />
           <Route path="promociones" element={<AdminCollectionPage module="promociones" />} />
-          <Route path="cursos" element={<AdminCollectionPage module="cursos" />} />
+          <Route path="academy" element={<AdminCollectionPage module="cursos" />} />
+          <Route path="cursos" element={<Navigate to="/panel/academy" replace />} />
           <Route path="inscripciones" element={<AdminCollectionPage module="inscripciones" />} />
           <Route path="solicitudes" element={<AdminCollectionPage module="solicitudes" />} />
           <Route path="agenda" element={<AdminCollectionPage module="agenda" />} />
@@ -196,7 +204,8 @@ export default function App() {
           <Route index element={<PatientDashboardPage />} />
           <Route path="perfil" element={<PatientProfilePage />} />
           <Route path="citas" element={<PatientAppointmentsPage />} />
-          <Route path="cursos" element={<PatientCoursesPage />} />
+          <Route path="academy" element={<PatientCoursesPage />} />
+          <Route path="cursos" element={<Navigate to="/mi-panel/academy" replace />} />
           <Route path="promociones" element={<PatientPromotionsPage />} />
           <Route path="planes-pago" element={<PatientPaymentPlansPage />} />
           <Route path="tarjetas-ahorro" element={<PatientSavingsCardsPage />} />

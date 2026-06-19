@@ -61,9 +61,9 @@ export function PatientCoursesPage() {
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
-  if (loading) return <LoadingState label="Cargando tus cursos..." />;
-  if (error) return <ErrorState label="No pudimos cargar tus inscripciones." />;
-  if (items.length === 0) return <EmptyState label="Todavia no tienes inscripciones a cursos." />;
+  if (loading) return <LoadingState label="Cargando tu Academy..." />;
+  if (error) return <ErrorState label="No pudimos cargar tus inscripciones de Academy." />;
+  if (items.length === 0) return <EmptyState label="Todavia no tienes inscripciones en Academy." />;
 
   return (
     <div className="grid gap-4">
@@ -81,13 +81,13 @@ export function PatientCoursesPage() {
             <div className="grid gap-0 lg:grid-cols-[260px_1fr]">
               <ContentCover
                 src={item.courses?.cover_image}
-                alt={item.courses?.title ?? "Curso"}
-                label="Curso"
+                alt={item.courses?.title ?? "Programa Academy"}
+                label="Academy"
                 wrapperClassName="h-full min-h-56 w-full"
               />
               <div className="p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h2 className="text-lg font-semibold">{item.courses?.title ?? "Curso"}</h2>
+                  <h2 className="text-lg font-semibold">{item.courses?.title ?? "Programa Academy"}</h2>
                   <span className="rounded-full bg-[rgba(216,194,174,0.26)] px-3 py-1 text-xs font-semibold text-[var(--color-mocha)]">
                     {item.status}
                   </span>
@@ -101,7 +101,7 @@ export function PatientCoursesPage() {
                 </p>
 
                 <div className="mt-4 rounded-[20px] bg-[rgba(247,242,236,0.78)] p-4">
-                  <p className="text-sm font-semibold">Pago e inscripcion</p>
+                  <p className="text-sm font-semibold">Pago e inscripcion Academy</p>
                   {paymentQrImage ? (
                     <img src={paymentQrImage} alt="QR general de pagos" className="mt-3 h-40 w-40 rounded-[18px] object-cover" />
                   ) : null}

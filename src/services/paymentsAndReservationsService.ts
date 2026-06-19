@@ -185,7 +185,7 @@ export async function getPaymentsAndReservationsFeed(options?: {
     id: row.id,
     kind: "course",
     createdAt: row.created_at,
-    title: row.courses?.title ?? "Curso",
+    title: row.courses?.title ?? "Academy",
     customerName: row.full_name ?? "Alumno",
     phone: row.phone ?? null,
     email: row.email ?? null,
@@ -199,7 +199,7 @@ export async function getPaymentsAndReservationsFeed(options?: {
     notes: row.admin_notes ?? null,
     doctorId: null,
     fixedAmount: row.courses?.price != null,
-    sourceLabel: "Inscripcion con pago",
+    sourceLabel: "Inscripcion Academy con pago",
     row,
   }));
 

@@ -22,7 +22,7 @@ import { ContentCover } from "../ui/ContentCover";
 
 type SpotlightItem = {
   id: string;
-  kind: "Promocion" | "Tratamiento" | "Curso" | "Libro";
+  kind: "Promocion" | "Tratamiento" | "Academy" | "Libro";
   title: string;
   description: string;
   image: string | null;
@@ -84,16 +84,16 @@ function buildTreatmentItems(rows: TreatmentRow[]) {
 function buildCourseItems(rows: CourseRow[]) {
   return rows.slice(0, 2).map<SpotlightItem>((course) => ({
     id: `course-${course.id}`,
-    kind: "Curso",
+    kind: "Academy",
     title: course.title,
     description:
       truncate(course.short_description ?? course.description, 170) ||
-      "Explora este curso activo y revisa su modalidad, fecha y contenido.",
+      "Explora este programa activo y revisa su modalidad, fecha y contenido.",
     image: course.cover_image,
-    href: `/cursos/${course.slug}`,
-    badge: "Curso disponible",
+    href: `/academy/${course.slug}`,
+    badge: "Programa Academy",
     meta: formatDateTimeLine(course.start_date, course.start_time),
-    ctaLabel: "Ver curso",
+    ctaLabel: "Ver programa",
   }));
 }
 
@@ -387,7 +387,7 @@ export function WelcomeSpotlightModal({ enabled = true }: WelcomeSpotlightModalP
             {multiple ? (
               <div className="mt-6 flex flex-col gap-4 border-t border-[var(--color-border)] pt-5 sm:mt-8 sm:flex-row sm:items-center sm:justify-between sm:pt-6">
                 <p className="max-w-md text-sm leading-6 text-[var(--color-copy)]">
-                  Desliza o usa las flechas para recorrer promociones, tratamientos, cursos y libros destacados.
+                  Desliza o usa las flechas para recorrer promociones, tratamientos, Academy y libros destacados.
                 </p>
                 <div className="flex items-center justify-between gap-3 sm:justify-end">
                   <button

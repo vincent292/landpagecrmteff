@@ -10,7 +10,7 @@ import { InstagramIcon } from "../ui/InstagramIcon";
 const quickLinks = [
   { label: "Tratamientos", href: "/tratamientos" },
   { label: "Promociones", href: "/promociones" },
-  { label: "Cursos", href: "/cursos" },
+  { label: "Academy", href: "/academy" },
   { label: "Libros", href: "/libros" },
   { label: "Agenda", href: "/agenda" },
   { label: "Galeria", href: "/galeria" },

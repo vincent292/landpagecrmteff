@@ -140,7 +140,7 @@ export function PaymentsAndReservationsAdminPage() {
       { value: "promotion", label: "Promociones" },
       { value: "reservation", label: "Valoraciones y reservas" },
       { value: "manual_reservation", label: "Citas manuales" },
-      { value: "course", label: "Cursos" },
+      { value: "course", label: "Academy" },
       { value: "book", label: "Libros" },
     ] as const;
   }, [role]);
@@ -410,7 +410,7 @@ export function PaymentsAndReservationsAdminPage() {
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--color-copy)]">
               Aqui revisamos todo lo que implique comprobante, aprobacion, caja y seguimiento de horarios:
-              promociones, cursos, libros, valoraciones y reservas de pago.
+              promociones, Academy, libros, valoraciones y reservas de pago.
             </p>
           </div>
           <div className={`rounded-[24px] border px-4 py-3 text-sm font-semibold ${cashOpen ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
@@ -798,7 +798,7 @@ function buildApprovedWhatsappMessage(
   }
 
   if (item.kind === "course") {
-    return `Hola ${patientName}, tu pago${paymentLabel} fue aprobado. Tu inscripcion al curso "${item.title}" ya quedo confirmada y puedes seguir los proximos pasos desde tu plataforma.`;
+    return `Hola ${patientName}, tu pago${paymentLabel} fue aprobado. Tu inscripcion a Academy en "${item.title}" ya quedo confirmada y puedes seguir los proximos pasos desde tu plataforma.`;
   }
 
   if (item.kind === "book") {

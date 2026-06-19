@@ -28,7 +28,7 @@ type AgendaItem = {
   title: string;
   city: string | null;
   event_type: string;
-  request_type: "Evento" | "Promoción" | "Curso";
+  request_type: "Evento" | "Promoción" | "Academy";
   event_date: string | null;
   end_date?: string | null;
   start_time: string | null;
@@ -93,8 +93,8 @@ export function AgendaPage() {
             request_id: course.id,
             title: course.title,
             city: course.city,
-            event_type: "Curso",
-            request_type: "Curso" as const,
+            event_type: "Academy",
+            request_type: "Academy" as const,
             event_date: course.start_date,
             end_date: null,
             start_time: course.start_time,
@@ -224,7 +224,7 @@ export function AgendaPage() {
         open={Boolean(interest)}
         interest={interest?.title ?? ""}
         interestId={interest?.request_id}
-        interestType={interest?.request_type ?? "Evento"}
+        interestType={interest?.request_type === "Academy" ? "Curso" : interest?.request_type ?? "Evento"}
         onClose={() => setInterest(null)}
       />
     </section>

@@ -159,9 +159,9 @@ function buildCourseNotification(row: {
   if (row.status === "Confirmado") {
     return {
       id: `course-confirmed-${row.id}`,
-      title: "Inscripcion confirmada",
-      detail: getJoinedTitle(row.courses) ?? "Curso",
-      href: "/mi-panel/cursos",
+      title: "Inscripcion Academy confirmada",
+      detail: getJoinedTitle(row.courses) ?? "Academy",
+      href: "/mi-panel/academy",
       module: "cursos" as const,
       createdAt: row.created_at,
     };
@@ -170,9 +170,9 @@ function buildCourseNotification(row: {
   if (row.status === "Rechazado") {
     return {
       id: `course-rejected-${row.id}`,
-      title: "Inscripcion rechazada",
-      detail: row.admin_notes?.trim() ? `${getJoinedTitle(row.courses) ?? "Curso"} - ${row.admin_notes.trim()}` : getJoinedTitle(row.courses) ?? "Curso",
-      href: "/mi-panel/cursos",
+      title: "Inscripcion Academy rechazada",
+      detail: row.admin_notes?.trim() ? `${getJoinedTitle(row.courses) ?? "Academy"} - ${row.admin_notes.trim()}` : getJoinedTitle(row.courses) ?? "Academy",
+      href: "/mi-panel/academy",
       module: "cursos" as const,
       createdAt: row.created_at,
     };

@@ -486,6 +486,17 @@ export function InventoryAdminPage() {
   };
 
   const closeShift = async (count: InventoryCountRow) => {
+    const openerId = count.opened_by ?? count.created_by;
+    if (!actorId) {
+      setShiftStatus({ type: "error", text: "No pudimos identificar a la responsable conectada." });
+      return;
+    }
+
+    if (openerId && openerId !== actorId) {
+      setShiftStatus({ type: "error", text: "Solo la responsable que abrio este turno puede cerrarlo." });
+      return;
+    }
+
     setSaving(true);
     setShiftStatus(null);
     try {
@@ -699,6 +710,7 @@ export function InventoryAdminPage() {
               unitMap={unitMap}
               locationName={locationMap.get(count.location_id ?? "")?.name ?? "Sin ubicacion"}
               role={role}
+              actorId={actorId}
               saving={saving}
               closingNotes={closingNotesByShift[count.id] ?? ""}
               getLineDraft={getLineDraft}
@@ -711,11 +723,6 @@ export function InventoryAdminPage() {
               onHardDelete={() => void hardDeleteRecord("inventory_counts", count.id).then(load)}
             />
           )} />
-          <div className="hidden">
-          <RowsEmpty rows={counts} empty="Sin conteos." render={(count) => (
-            <RowCard key={count.id} title={`${count.count_date} · ${count.status}`} tags={[locationMap.get(count.location_id ?? "")?.name ?? "Sin lugar"]} detail={count.notes ?? "Sin notas"} deletedRow={count} actions={<CrudActions role={role} row={count} table="inventory_counts" onEdit={undefined} onArchive={() => void archive("inventory_counts", count.id)} onRestore={() => void restoreRecord("inventory_counts", count.id).then(load)} onHardDelete={() => void hardDeleteRecord("inventory_counts", count.id).then(load)} />} />
-          )} />
-          </div>
         </Panel>
       ) : null}
 
@@ -896,6 +903,7 @@ function InventoryShiftCard({
   unitMap,
   locationName,
   role,
+  actorId,
   saving,
   closingNotes,
   getLineDraft,
@@ -913,6 +921,7 @@ function InventoryShiftCard({
   unitMap: Map<string, InventoryUnitRow>;
   locationName: string;
   role: ReturnType<typeof useAuth>["role"];
+  actorId: string | null;
   saving: boolean;
   closingNotes: string;
   getLineDraft: (line: InventoryCountLineRow) => ShiftLineDraft;
@@ -925,6 +934,8 @@ function InventoryShiftCard({
   onHardDelete?: () => void;
 }) {
   const isOpen = count.status === "abierto";
+  const openerId = count.opened_by ?? count.created_by;
+  const canClose = isOpen && Boolean(actorId) && (!openerId || openerId === actorId);
   const totalDifference = lines.reduce((sum, line) => {
     const draft = getLineDraft(line);
     return sum + (Number(draft.counted_stock ?? 0) - Number(line.expected_stock ?? 0));
@@ -946,18 +957,23 @@ function InventoryShiftCard({
             <span className="rounded-full bg-white/75 px-3 py-1 text-xs font-bold text-[var(--color-copy)]">{formatDate(count.count_date)}</span>
           </div>
           <h3 className="mt-3 text-xl font-semibold text-[var(--color-ink)]">{count.shift_name || "Turno de inventario"}</h3>
-          <p className="mt-2 text-sm leading-6 text-[var(--color-copy)]">
-            Apertura: {new Date(count.opened_at ?? count.created_at).toLocaleString("es-BO")} - Items: {lines.length} - Diferencia: {formatInventoryNumber(totalDifference)}
-          </p>
+            <p className="mt-2 text-sm leading-6 text-[var(--color-copy)]">
+              {formatInventoryShiftAudit(count)} - Items: {lines.length} - Diferencia: {formatInventoryNumber(totalDifference)}
+            </p>
           <p className="mt-1 text-sm leading-6 text-[var(--color-copy)]">{count.notes ?? "Sin notas de apertura."}</p>
           <DeletedStatusNote row={count} />
         </div>
-        <div className="flex flex-wrap gap-2 xl:justify-end">
-          {isOpen ? (
-            <button onClick={onCloseShift} disabled={saving} className="rounded-full bg-[var(--color-mocha)] px-5 py-2 text-sm font-semibold text-white disabled:opacity-60">
-              {saving ? "Cerrando..." : "Cerrar turno"}
-            </button>
-          ) : null}
+          <div className="flex flex-wrap gap-2 xl:justify-end">
+            {isOpen ? (
+              <button
+                onClick={onCloseShift}
+                disabled={saving || !canClose}
+                className="rounded-full bg-[var(--color-mocha)] px-5 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                title={canClose ? "Cerrar este turno" : "Solo puede cerrar la responsable que abrio el turno"}
+              >
+                {saving ? "Cerrando..." : canClose ? "Cerrar turno" : "Solo responsable"}
+              </button>
+            ) : null}
           <DeleteActions role={role} row={count} compact onSoftDelete={onArchive} onRestore={onRestore} onHardDelete={onHardDelete} />
         </div>
       </div>
@@ -1536,6 +1552,41 @@ function formatInventoryNumber(value?: number | string | null) {
   return Number.isInteger(parsed) ? String(parsed) : parsed.toLocaleString("es-BO", { maximumFractionDigits: 2 });
 }
 
+function formatInventoryShiftAudit(count: InventoryCountRow) {
+  const openedBy = formatInventoryShiftActor(count.opened_by_profile, count.opened_by ?? count.created_by, "responsable sin identificar");
+  const openedAt = formatDateTime(count.opened_at ?? count.created_at);
+  const closedBy = count.closed_by ? formatInventoryShiftActor(count.closed_by_profile, count.closed_by, "responsable sin identificar") : null;
+  const closedAt = formatDateTime(count.closed_at);
+  const parts = [`Apertura: ${openedAt || "sin fecha"} por ${openedBy}`];
+
+  if (count.status === "cerrado") {
+    parts.push(`Cierre: ${closedAt || "sin fecha"} por ${closedBy ?? "sin responsable"}`);
+  } else {
+    parts.push("Pendiente de cierre por la misma responsable");
+  }
+
+  return parts.join(" - ");
+}
+
+function formatInventoryShiftActor(
+  actor: InventoryCountRow["opened_by_profile"] | InventoryCountRow["closed_by_profile"] | null | undefined,
+  actorId?: string | null,
+  fallback = "equipo medico"
+) {
+  return actor?.full_name ?? actor?.email ?? actorId ?? fallback;
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return "";
+  return new Date(value).toLocaleString("es-BO", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function hasPresentationConfig(presentationUnitId?: string | null, unitsPerPresentation?: number | null) {
   return Boolean(presentationUnitId) && Number(unitsPerPresentation ?? 0) > 1;
 }
@@ -1666,7 +1717,23 @@ function getInventorySubmitErrorMessage(error: unknown) {
     detail.includes("presentation_unit_id") ||
     detail.includes("units_per_presentation")
   ) {
-    return "La base remota todavia no tiene aplicada la migracion 20260529113000_inventory_presentations.sql. Ejecutala en Supabase, recarga la pagina y vuelve a intentar.";
+    if (detail.includes("close_inventory_count")) {
+      return "La base remota todavia no tiene aplicada la migracion 20260619120000_inventory_count_closing.sql. Ejecutala en Supabase, recarga la pagina y vuelve a intentar.";
+    }
+
+    if (detail.includes("presentation_unit_id") || detail.includes("units_per_presentation")) {
+      return "La base remota todavia no tiene aplicada la migracion 20260529113000_inventory_presentations.sql. Ejecutala en Supabase, recarga la pagina y vuelve a intentar.";
+    }
+
+    return "La base remota todavia no tiene aplicada una migracion de inventario pendiente. Ejecuta las migraciones nuevas en Supabase, recarga la pagina y vuelve a intentar.";
+  }
+
+  if (detail.includes("solo la responsable")) {
+    return "Solo la responsable que abrio este turno puede cerrarlo.";
+  }
+
+  if (detail.includes("ya esta cerrado")) {
+    return "Este turno de inventario ya esta cerrado.";
   }
 
   if (message) return message;

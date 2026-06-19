@@ -261,7 +261,7 @@ function buildSuggestedMessage(
   }
 
   if (interestType === "Curso" && cleanTitle) {
-    return `${intro}${bridge}me gustaria saber mas sobre el curso ${cleanTitle}.`;
+    return `${intro}${bridge}me gustaria saber mas sobre el programa Academy ${cleanTitle}.`;
   }
 
   if (interestType === "Libro" && cleanTitle) {

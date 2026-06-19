@@ -96,12 +96,12 @@ export function CourseDetailPage() {
     };
   }, [showAuthPrompt, showEnrollmentModal]);
 
-  if (!slug) return <Navigate to="/cursos" replace />;
+  if (!slug) return <Navigate to="/academy" replace />;
   if (loading) return <section className="mx-auto max-w-7xl px-6 py-16"><LoadingState /></section>;
   if (error) return <section className="mx-auto max-w-7xl px-6 py-16"><ErrorState /></section>;
-  if (!course) return <section className="mx-auto max-w-7xl px-6 py-16"><EmptyState label="No encontramos este curso." /></section>;
+  if (!course) return <section className="mx-auto max-w-7xl px-6 py-16"><EmptyState label="No encontramos este programa de Academy." /></section>;
 
-  const detailPath = `/cursos/${course.slug}`;
+  const detailPath = `/academy/${course.slug}`;
   const paymentQrImage = settings?.payment_qr_image ?? settings?.course_qr_payment_image ?? null;
   const canSubmitEnrollment =
     form.full_name.trim().length > 0 &&
@@ -139,7 +139,7 @@ export function CourseDetailPage() {
     }
 
     if (!paymentQrImage) {
-      setFlashMessage("error", "Aun no configuramos el QR de pago para cursos.");
+      setFlashMessage("error", "Aun no configuramos el QR de pago para Academy.");
       return;
     }
 
@@ -180,7 +180,7 @@ export function CourseDetailPage() {
 
       await refreshEnrollment();
       setReceiptFile(null);
-      setFlashMessage("success", "Tu inscripcion fue enviada con el comprobante. El equipo revisara el pago para aprobarla o rechazarla.");
+      setFlashMessage("success", "Tu inscripcion a Academy fue enviada con el comprobante. El equipo revisara el pago para aprobarla o rechazarla.");
     } catch (saveError) {
       console.error("Error guardando inscripcion al curso", {
         courseId: course.id,
@@ -224,12 +224,12 @@ export function CourseDetailPage() {
           <ContentCover
             src={course.cover_image}
             alt={course.title}
-            label="Curso"
+            label="Academy"
             wrapperClassName="aspect-[4/3] w-full rounded-[24px] md:aspect-[16/11]"
           />
         </div>
         <div className="rounded-[32px] border border-[var(--color-border)] bg-white/72 p-6 shadow-[0_18px_48px_rgba(110,74,47,0.08)] md:p-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--color-accent-strong)]">Curso</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--color-accent-strong)]">Academy</p>
           <h1 className="font-display mt-4 text-4xl font-semibold leading-[0.95] sm:text-5xl lg:text-6xl">{course.title}</h1>
           <DoctorByline doctor={course.doctor_profiles} />
           <p className="mt-6 text-base leading-8 text-[var(--color-copy)]">{course.description}</p>
@@ -271,7 +271,7 @@ export function CourseDetailPage() {
           ) : null}
           {!user ? (
             <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
-              Para inscribirte te pediremos iniciar sesion o crear tu cuenta.
+              Para inscribirte en Academy te pediremos iniciar sesion o crear tu cuenta.
             </p>
           ) : null}
           {enrollment ? (
@@ -305,7 +305,7 @@ export function CourseDetailPage() {
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">Acceso requerido</p>
           <h2 className="font-display mt-3 text-3xl font-semibold sm:text-4xl">Para inscribirte primero debes acceder a tu cuenta</h2>
           <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
-            Si ya revisaste el curso y quieres avanzar, entra con tu cuenta o registrate para continuar con el pago y subir tu comprobante.
+            Si ya revisaste este programa de Academy y quieres avanzar, entra con tu cuenta o registrate para continuar con el pago y subir tu comprobante.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link
@@ -331,8 +331,8 @@ export function CourseDetailPage() {
         <ModalShell onClose={() => setShowEnrollmentModal(false)} maxWidthClassName="max-w-5xl">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">Inscripcion</p>
-              <h2 className="font-display mt-3 text-3xl font-semibold sm:text-4xl">Confirma tus datos, paga y sube tu comprobante</h2>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">Academy</p>
+              <h2 className="font-display mt-3 text-3xl font-semibold sm:text-4xl">Confirma tus datos, paga y completa tu inscripcion</h2>
             </div>
             {enrollment?.status ? (
               <span className="rounded-full bg-[rgba(216,194,174,0.26)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-mocha)]">
@@ -392,7 +392,7 @@ export function CourseDetailPage() {
                 </>
               ) : (
                 <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
-                  Aun no configuramos el QR de pago para cursos. El admin puede subirlo desde Panel / Configuracion.
+                  Aun no configuramos el QR de pago para Academy. El admin puede subirlo desde Panel / Configuracion.
                 </p>
               )}
               <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
