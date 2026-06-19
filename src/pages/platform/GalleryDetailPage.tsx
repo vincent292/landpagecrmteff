@@ -16,7 +16,7 @@ type DetailMediaItem = {
 };
 
 function getComparisonStageLabel(index: number) {
-  return index === 0 ? "Antes" : "Despues";
+  return index === 0 ? "Antes" : "Después";
 }
 
 function getComparisonCardTitle(index: number, item: DetailMediaItem) {
@@ -38,7 +38,7 @@ function getComparisonCardDescription(index: number, item: DetailMediaItem, albu
     return `${stage} del proceso relacionado con ${album.treatment_name}.`;
   }
 
-  return `${stage} de la comparacion autorizada publicada en esta galeria.`;
+  return `${stage} de la comparación autorizada publicada en esta galería.`;
 }
 
 export function GalleryDetailPage() {
@@ -73,7 +73,7 @@ export function GalleryDetailPage() {
   return (
     <section className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24">
       <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--color-accent-strong)]">
-        {album.category ?? "Galeria"} · {getDisplayCity(album.city)} · {formatPublicDate(album.event_date)}
+        {album.category ?? "Galería"} · {getDisplayCity(album.city)} · {formatPublicDate(album.event_date)}
       </p>
       <h1 className="font-display mt-4 max-w-4xl text-5xl font-semibold leading-[0.92] text-[var(--color-ink)] md:text-6xl">
         {album.title}
@@ -92,7 +92,7 @@ export function GalleryDetailPage() {
             <div className="mt-5 flex flex-col gap-3 rounded-[24px] bg-[rgba(247,242,236,0.78)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-accent-strong)]">
-                  Comparacion interactiva
+                  Comparación interactiva
                 </p>
                 <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">
                   Mueve la barra central para revelar el cambio entre ambas etapas y comparar el resultado de forma natural.
@@ -114,11 +114,11 @@ export function GalleryDetailPage() {
               Resumen del caso
             </p>
             <p className="mt-4 text-base leading-8 text-[var(--color-copy)]">
-              {album.description || "Comparacion publica autorizada para mostrar el contraste visual entre dos momentos del proceso."}
+              {album.description || "Comparación pública autorizada para mostrar el contraste visual entre dos momentos del proceso."}
             </p>
 
             <div className="mt-6 grid gap-3">
-              <InfoCard label="Categoria" value={album.category ?? "Galeria"} />
+              <InfoCard label="Categoría" value={album.category ?? "Galería"} />
               <InfoCard label="Ciudad" value={getDisplayCity(album.city)} />
               <InfoCard label="Fecha" value={formatPublicDate(album.event_date)} />
               {album.treatment_name ? <InfoCard label="Tratamiento" value={album.treatment_name} /> : null}

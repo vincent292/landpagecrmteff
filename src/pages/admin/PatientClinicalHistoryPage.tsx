@@ -30,7 +30,7 @@ import { formatDate } from "../../utils/text";
 const maxPhotoSize = 20 * 1024 * 1024;
 
 const noteTypes: Array<{ id: ClinicalNoteType; label: string; title: string }> = [
-  { id: "historia_base", label: "Historia clinica", title: "Historia clinica base" },
+  { id: "historia_base", label: "Historia clínica", title: "Historia clínica base" },
   { id: "preconsulta", label: "Preconsulta", title: "Evaluacion previa" },
   { id: "procedimiento", label: "Procedimiento", title: "Atencion realizada" },
   { id: "postconsulta", label: "Postconsulta", title: "Control posterior" },
@@ -47,7 +47,7 @@ const tabs = [
 const noteSchema = z.object({
   note_type: z.enum(["historia_base", "preconsulta", "procedimiento", "postconsulta"]),
   doctor_id: z.string().min(1, "Selecciona la doctora responsable"),
-  session_title: z.string().min(3, "Escribe el titulo clinico"),
+  session_title: z.string().min(3, "Escribe el título clínico"),
   session_date: z.string().min(1, "Selecciona la fecha"),
   session_time: z.string().optional(),
   reason_for_consultation: z.string().min(3, "Describe el motivo o contexto"),
@@ -69,9 +69,9 @@ const noteSchema = z.object({
 });
 
 const evolutionSchema = z.object({
-  clinical_history_id: z.string().min(1, "Selecciona la nota clinica"),
+  clinical_history_id: z.string().min(1, "Selecciona la nota clínica"),
   doctor_id: z.string().min(1, "Selecciona la doctora responsable"),
-  title: z.string().min(3, "Escribe el titulo del control"),
+  title: z.string().min(3, "Escribe el título del control"),
   description: z.string().min(6, "Describe la evolucion"),
   treatment_performed: z.string().optional(),
   recommendations: z.string().optional(),
@@ -114,7 +114,7 @@ function emptyNote(doctorId = "", noteType: ClinicalNoteType = "procedimiento"):
   return {
     note_type: noteType,
     doctor_id: doctorId,
-    session_title: noteType === "historia_base" ? "Historia clinica base" : "",
+    session_title: noteType === "historia_base" ? "Historia clínica base" : "",
     session_date: getTodayValue(),
     session_time: getCurrentTimeValue(),
     reason_for_consultation: "",
@@ -314,7 +314,7 @@ export function PatientClinicalHistoryPage() {
     const nextPending: PendingPhoto[] = [];
     for (const file of Array.from(fileList)) {
       if (!file.type.startsWith("image/")) {
-        setStatus({ type: "error", text: "Solo se permiten imagenes." });
+        setStatus({ type: "error", text: "Solo se permiten imágenes." });
         continue;
       }
       if (file.size > maxPhotoSize) {
@@ -377,9 +377,9 @@ export function PatientClinicalHistoryPage() {
       await load();
       resetNoteForm(values.note_type);
       setActiveTab(values.note_type);
-      setStatus({ type: "success", text: editingHistoryId ? "Registro clinico actualizado." : "Registro clinico guardado." });
+      setStatus({ type: "success", text: editingHistoryId ? "Registro clínico actualizado." : "Registro clínico guardado." });
     } catch {
-      setStatus({ type: "error", text: "No pudimos guardar el registro clinico." });
+      setStatus({ type: "error", text: "No pudimos guardar el registro clínico." });
     } finally {
       setSavingNote(false);
     }
@@ -402,7 +402,7 @@ export function PatientClinicalHistoryPage() {
 
   const saveInventoryUsage = async () => {
     if (!inventoryForm.item_id || Number(inventoryForm.quantity) <= 0) {
-      setStatus({ type: "error", text: "Selecciona el insumo y una cantidad valida." });
+      setStatus({ type: "error", text: "Selecciona el insumo y una cantidad válida." });
       return;
     }
 
@@ -416,7 +416,7 @@ export function PatientClinicalHistoryPage() {
         lotId: inventoryForm.lot_id || null,
         quantity: Number(inventoryForm.quantity),
         unitLabel: selectedItem?.unit ?? null,
-        notes: inventoryForm.notes || `Uso clinico de ${selectedItem?.name ?? "insumo"}`,
+        notes: inventoryForm.notes || `Uso clínico de ${selectedItem?.name ?? "insumo"}`,
       });
       setInventoryForm({ clinical_history_id: inventoryForm.clinical_history_id, item_id: "", lot_id: "", quantity: 1, notes: "" });
       await load();
@@ -424,7 +424,7 @@ export function PatientClinicalHistoryPage() {
     } catch (error) {
       const detail = error instanceof Error ? error.message : "";
       if (detail.toLowerCase().includes("stock negativo") || detail.toLowerCase().includes("cantidad negativa")) {
-        setStatus({ type: "error", text: "No alcanza el stock disponible. Revisa si el item esta cargado en unidades internas correctas o si falta ajustar el lote." });
+        setStatus({ type: "error", text: "No alcanza el stock disponible. Revisa si el ítem está cargado en unidades internas correctas o si falta ajustar el lote." });
       } else {
         setStatus({ type: "error", text: "No pudimos descontar el insumo. Revisa stock, lote y permisos." });
       }
@@ -480,7 +480,7 @@ export function PatientClinicalHistoryPage() {
         actorEmail: profile?.email ?? user.email ?? null,
       });
       await load();
-      setStatus({ type: "success", text: "Registro clinico borrado de la vista activa." });
+      setStatus({ type: "success", text: "Registro clínico borrado de la vista activa." });
     } catch {
       setStatus({ type: "error", text: "No pudimos borrar el registro de la vista." });
     }
@@ -491,8 +491,8 @@ export function PatientClinicalHistoryPage() {
     setActiveTab(noteType);
   };
 
-  if (loading) return <LoadingState label="Cargando expediente clinico..." />;
-  if (error) return <ErrorState label="No pudimos cargar el expediente clinico." />;
+  if (loading) return <LoadingState label="Cargando expediente clínico..." />;
+  if (error) return <ErrorState label="No pudimos cargar el expediente clínico." />;
   if (!patient) return <EmptyState label="No encontramos este paciente." />;
 
   const renderedNotes = noteTypes.some((item) => item.id === activeTab) ? notesByType[activeNoteType] : histories;
@@ -505,7 +505,7 @@ export function PatientClinicalHistoryPage() {
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">
-              Expediente clinico
+              Expediente clínico
             </p>
             <h1 className="mt-2 font-display text-4xl font-semibold lg:text-5xl">{patient.full_name}</h1>
             <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">
@@ -514,7 +514,7 @@ export function PatientClinicalHistoryPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <button onClick={() => startNewNote("historia_base")} className="rounded-full bg-[var(--color-mocha)] px-5 py-3 text-sm font-semibold text-white">
-              Historia clinica
+              Historia clínica
             </button>
             <button onClick={() => startNewNote("procedimiento")} className="rounded-full border border-[var(--color-border)] px-5 py-3 text-sm font-semibold">
               Nuevo procedimiento
@@ -556,14 +556,14 @@ export function PatientClinicalHistoryPage() {
             <SummaryMetric label="Preconsultas" value={String(notesByType.preconsulta.length)} />
             <SummaryMetric label="Procedimientos" value={String(notesByType.procedimiento.length)} />
             <SummaryMetric label="Insumos usados" value={String(inventoryUsages.length)} />
-            <SummaryMetric label="Fotos clinicas" value={String(photos.length)} />
+            <SummaryMetric label="Fotos clínicas" value={String(photos.length)} />
             <SummaryMetric label="Postconsultas" value={String(notesByType.postconsulta.length + evolutions.length)} />
           </div>
           <div className="rounded-[8px] border border-[var(--color-border)] bg-white/75 p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-accent-strong)]">Lectura rapida</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-accent-strong)]">Lectura rápida</p>
             <h2 className="mt-2 text-2xl font-semibold">{latestProcedure?.session_title ?? baseHistory?.session_title ?? "Sin atenciones registradas"}</h2>
             <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">
-              {latestProcedure?.diagnosis ?? baseHistory?.diagnosis ?? baseHistory?.reason_for_consultation ?? "Registra la historia clinica base para tener el contexto medico del paciente."}
+              {latestProcedure?.diagnosis ?? baseHistory?.diagnosis ?? baseHistory?.reason_for_consultation ?? "Registra la historia clínica base para tener el contexto médico del paciente."}
             </p>
             <div className="mt-5 flex flex-wrap gap-2">
               {noteTypes.map((type) => (
@@ -613,15 +613,15 @@ export function PatientClinicalHistoryPage() {
             <div className="mt-5 grid gap-4">
               <Field label="Relacionado con">
                 <select value={inventoryForm.clinical_history_id} onChange={(event) => setInventoryForm({ ...inventoryForm, clinical_history_id: event.target.value })} className="premium-input">
-                  <option value="">Sin nota especifica</option>
+                  <option value="">Sin nota específica</option>
                   {histories.map((history) => (
                     <option key={history.id} value={history.id}>
-                      {history.session_title ?? "Nota clinica"} - {formatDate(history.session_date ?? history.created_at)}
+                      {history.session_title ?? "Nota clínica"} - {formatDate(history.session_date ?? history.created_at)}
                     </option>
                   ))}
                 </select>
               </Field>
-              <Field label="Item de inventario">
+              <Field label="Ítem de inventario">
                 <select value={inventoryForm.item_id} onChange={(event) => setInventoryForm({ ...inventoryForm, item_id: event.target.value, lot_id: "" })} className="premium-input">
                   <option value="">Selecciona item</option>
                   {inventoryItems.filter((item) => !item.is_deleted && item.is_active).map((item) => (
@@ -646,11 +646,11 @@ export function PatientClinicalHistoryPage() {
               </Field>
               {selectedItem ? (
                 <p className="text-xs text-[var(--color-copy)]">
-                  Se descuenta del stock global compartido entre todas las doctoras. {formatPresentationHint(selectedItem, filteredLots.find((lot) => lot.id === inventoryForm.lot_id) ?? null) ?? "Registra siempre la cantidad real usada en la unidad interna del item."}
+                  Se descuenta del stock global compartido entre todas las doctoras. {formatPresentationHint(selectedItem, filteredLots.find((lot) => lot.id === inventoryForm.lot_id) ?? null) ?? "Registra siempre la cantidad real usada en la unidad interna del ítem."}
                 </p>
               ) : null}
               <Field label="Notas">
-                <textarea value={inventoryForm.notes} onChange={(event) => setInventoryForm({ ...inventoryForm, notes: event.target.value })} className="premium-input min-h-24" placeholder="Ej. Toxina botulinica aplicada en zona frontal" />
+                <textarea value={inventoryForm.notes} onChange={(event) => setInventoryForm({ ...inventoryForm, notes: event.target.value })} className="premium-input min-h-24" placeholder="Ej. Toxina botulínica aplicada en zona frontal" />
               </Field>
               <button disabled={savingInventory} onClick={() => void saveInventoryUsage()} className="w-fit rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white">
                 {savingInventory ? "Descontando..." : "Registrar y descontar"}
@@ -662,7 +662,7 @@ export function PatientClinicalHistoryPage() {
             <h2 className="text-xl font-semibold">Insumos usados en el paciente</h2>
             <div className="mt-5 space-y-3">
               {inventoryUsages.length === 0 ? (
-                <EmptyState label="Aun no hay insumos usados en este paciente." />
+                <EmptyState label="Aún no hay insumos usados en este paciente." />
               ) : (
                 inventoryUsages.map((usage) => (
                   <div key={usage.id} className="rounded-[8px] bg-[rgba(247,242,236,0.78)] p-4">
@@ -684,13 +684,13 @@ export function PatientClinicalHistoryPage() {
         <section className="rounded-[8px] border border-[var(--color-border)] bg-white/75 p-5">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
-              <h2 className="text-xl font-semibold">Galeria clinica del expediente</h2>
-              <p className="mt-2 text-sm text-[var(--color-copy)]">Fotos asociadas a notas clinicas, visibles o privadas segun criterio medico.</p>
+              <h2 className="text-xl font-semibold">Galería clínica del expediente</h2>
+              <p className="mt-2 text-sm text-[var(--color-copy)]">Fotos asociadas a notas clínicas, visibles o privadas según criterio médico.</p>
             </div>
-            <Link to={`/panel/pacientes/${id}/fotos`} className="rounded-full border border-[var(--color-border)] px-5 py-3 text-sm font-semibold">Abrir galeria completa</Link>
+            <Link to={`/panel/pacientes/${id}/fotos`} className="rounded-full border border-[var(--color-border)] px-5 py-3 text-sm font-semibold">Abrir galería completa</Link>
           </div>
           <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {photos.length === 0 ? <EmptyState label="No hay fotos clinicas registradas." /> : photos.map((photo) => (
+            {photos.length === 0 ? <EmptyState label="No hay fotos clínicas registradas." /> : photos.map((photo) => (
               <div key={photo.id} className="rounded-[8px] bg-[rgba(247,242,236,0.78)] p-3">
                 <img src={photo.signed_url ?? ""} alt={photo.photo_type} className="h-48 w-full rounded-[8px] object-cover" />
                 <p className="mt-3 font-semibold">{photo.treatment_name ?? photo.photo_type}</p>
@@ -703,23 +703,23 @@ export function PatientClinicalHistoryPage() {
 
       {activeTab === "documentos" ? (
         <section className="grid gap-5 xl:grid-cols-2">
-          <DocumentAction title="Historia clinica completa" detail="Resumen imprimible del expediente, antecedentes y atenciones." onPrint={() => window.print()} />
-          <DocumentAction title="Receta medica" detail="Abre la seccion de recetas para imprimir indicaciones y firma." href={`/panel/pacientes/${id}/recetas`} />
+          <DocumentAction title="Historia clínica completa" detail="Resumen imprimible del expediente, antecedentes y atenciones." onPrint={() => window.print()} />
+          <DocumentAction title="Receta médica" detail="Abre la sección de recetas para imprimir indicaciones y firma." href={`/panel/pacientes/${id}/recetas`} />
           <DocumentAction title="Consentimiento / procedimiento" detail="Imprime la nota de procedimiento con espacio para firmas." onPrint={() => window.print()} />
-          <DocumentAction title="Galeria y evolucion" detail="Fotos y controles posteriores para archivo clinico." href={`/panel/pacientes/${id}/fotos`} />
+          <DocumentAction title="Galería y evolución" detail="Fotos y controles posteriores para archivo clínico." href={`/panel/pacientes/${id}/fotos`} />
         </section>
       ) : null}
 
       {activeTab === "postconsulta" ? (
         <section className="rounded-[8px] border border-[var(--color-border)] bg-white/75 p-5">
-          <h2 className="text-xl font-semibold">Control de evolucion</h2>
+          <h2 className="text-xl font-semibold">Control de evolución</h2>
           <form onSubmit={saveEvolution} className="mt-5 grid gap-4">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <Field label="Nota relacionada" error={evolutionForm.formState.errors.clinical_history_id?.message}>
                 <select {...evolutionForm.register("clinical_history_id")} className="premium-input">
                   <option value="">Selecciona una nota</option>
                   {histories.map((history) => (
-                    <option key={history.id} value={history.id}>{history.session_title ?? "Nota clinica"}</option>
+                    <option key={history.id} value={history.id}>{history.session_title ?? "Nota clínica"}</option>
                   ))}
                 </select>
               </Field>
@@ -733,7 +733,7 @@ export function PatientClinicalHistoryPage() {
                   </select>
                 )}
               </Field>
-              <Field label="Titulo" error={evolutionForm.formState.errors.title?.message}>
+              <Field label="Título" error={evolutionForm.formState.errors.title?.message}>
                 <input {...evolutionForm.register("title")} className="premium-input" />
               </Field>
               <Field label="Tratamiento">
@@ -741,7 +741,7 @@ export function PatientClinicalHistoryPage() {
               </Field>
             </div>
             <div className="grid gap-4 xl:grid-cols-2">
-              <Field label="Evolucion clinica" error={evolutionForm.formState.errors.description?.message}>
+              <Field label="Evolución clínica" error={evolutionForm.formState.errors.description?.message}>
                 <textarea {...evolutionForm.register("description")} className="premium-input min-h-28" />
               </Field>
               <Field label="Recomendaciones">
@@ -783,7 +783,7 @@ function ClinicalNoteForm({
   onSelectFiles: (fileList: FileList | null) => void;
   onCancel: () => void;
 }) {
-  const title = noteTypes.find((item) => item.id === noteType)?.title ?? "Registro clinico";
+  const title = noteTypes.find((item) => item.id === noteType)?.title ?? "Registro clínico";
 
   useEffect(() => {
     noteForm.setValue("note_type", noteType);
@@ -812,7 +812,7 @@ function ClinicalNoteForm({
               </select>
             )}
           </Field>
-          <Field label="Titulo clinico" error={noteForm.formState.errors.session_title?.message}>
+          <Field label="Título clínico" error={noteForm.formState.errors.session_title?.message}>
             <input {...noteForm.register("session_title")} className="premium-input" />
           </Field>
         </div>
@@ -824,7 +824,7 @@ function ClinicalNoteForm({
           <Field label="Hora">
             <input type="time" {...noteForm.register("session_time")} className="premium-input" />
           </Field>
-          <Field label="Impresion diagnostica">
+          <Field label="Impresión diagnóstica">
             <input {...noteForm.register("diagnosis")} className="premium-input" />
           </Field>
         </div>
@@ -837,15 +837,15 @@ function ClinicalNoteForm({
           <div className="grid gap-4 xl:grid-cols-2">
             <Field label="Antecedentes personales y familiares"><textarea {...noteForm.register("medical_history")} className="premium-input min-h-28" /></Field>
             <Field label="Alergias y contraindicaciones"><textarea {...noteForm.register("allergies")} className="premium-input min-h-28" /></Field>
-            <Field label="Medicacion actual"><textarea {...noteForm.register("current_medications")} className="premium-input min-h-28" /></Field>
+            <Field label="Medicación actual"><textarea {...noteForm.register("current_medications")} className="premium-input min-h-28" /></Field>
             <Field label="Procedimientos previos"><textarea {...noteForm.register("previous_procedures")} className="premium-input min-h-28" /></Field>
           </div>
         ) : null}
 
         {noteType === "preconsulta" ? (
           <div className="grid gap-4 xl:grid-cols-2">
-            <Field label="Evaluacion previa"><textarea {...noteForm.register("pre_consultation_notes")} className="premium-input min-h-28" /></Field>
-            <Field label="Plan terapeutico propuesto"><textarea {...noteForm.register("treatment_plan")} className="premium-input min-h-28" /></Field>
+            <Field label="Evaluación previa"><textarea {...noteForm.register("pre_consultation_notes")} className="premium-input min-h-28" /></Field>
+            <Field label="Plan terapéutico propuesto"><textarea {...noteForm.register("treatment_plan")} className="premium-input min-h-28" /></Field>
             <Field label="Consentimiento e indicaciones previas"><textarea {...noteForm.register("consent_notes")} className="premium-input min-h-28" /></Field>
             <Field label="Observaciones"><textarea {...noteForm.register("observations")} className="premium-input min-h-28" /></Field>
           </div>
@@ -862,7 +862,7 @@ function ClinicalNoteForm({
 
         {noteType === "postconsulta" ? (
           <div className="grid gap-4 xl:grid-cols-2">
-            <Field label="Evolucion postconsulta"><textarea {...noteForm.register("post_consultation_notes")} className="premium-input min-h-28" /></Field>
+            <Field label="Evolución postconsulta"><textarea {...noteForm.register("post_consultation_notes")} className="premium-input min-h-28" /></Field>
             <Field label="Recomendaciones y control"><textarea {...noteForm.register("treatment_plan")} className="premium-input min-h-28" /></Field>
           </div>
         ) : null}
@@ -877,8 +877,8 @@ function ClinicalNoteForm({
             <p className="font-semibold">Fotos opcionales</p>
           </div>
           <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <Field label="Imagenes"><input type="file" accept="image/*" multiple onChange={(event) => onSelectFiles(event.target.files)} className="premium-input" /></Field>
-            <Field label="Tipo"><select {...noteForm.register("photo_type")} className="premium-input"><option value="antes">Antes</option><option value="despues">Despues</option><option value="evolucion">Evolucion</option><option value="otro">Otro</option></select></Field>
+            <Field label="Imágenes"><input type="file" accept="image/*" multiple onChange={(event) => onSelectFiles(event.target.files)} className="premium-input" /></Field>
+            <Field label="Tipo"><select {...noteForm.register("photo_type")} className="premium-input"><option value="antes">Antes</option><option value="despues">Después</option><option value="evolucion">Evolución</option><option value="otro">Otro</option></select></Field>
             <Field label="Visible"><label className="premium-input flex items-center gap-3"><input type="checkbox" {...noteForm.register("is_visible_to_patient")} />Paciente</label></Field>
             <Field label="Notas"><input {...noteForm.register("photo_notes")} className="premium-input" /></Field>
           </div>
@@ -931,8 +931,8 @@ function NotesList({
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-accent-strong)]">
                   {formatDate(note.session_date ?? note.created_at)} - {formatClinicalTime(note.session_time, note.created_at)}
                 </p>
-                <h3 className="mt-2 text-xl font-semibold">{note.session_title ?? "Registro clinico"}</h3>
-                <p className="mt-1 text-sm text-[var(--color-copy)]">Doctora: {note.doctor_profiles?.full_name ?? note.profiles?.full_name ?? "Equipo medico"}</p>
+                <h3 className="mt-2 text-xl font-semibold">{note.session_title ?? "Registro clínico"}</h3>
+                <p className="mt-1 text-sm text-[var(--color-copy)]">Doctora: {note.doctor_profiles?.full_name ?? note.profiles?.full_name ?? "Equipo médico"}</p>
               </div>
               {canManage ? (
                 <div className="flex gap-2">

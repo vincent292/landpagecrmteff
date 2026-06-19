@@ -34,11 +34,11 @@ export function TreatmentsPage() {
   return (
     <section className="mx-auto w-full max-w-7xl overflow-x-clip px-4 py-14 sm:px-6 md:px-8 md:py-24">
       <Seo
-        title="Tratamientos esteticos y medicina ortomolecular | Dra. Estefany Ballesteros"
-        description="Explora tratamientos esteticos y protocolos de medicina ortomolecular con enfoque medico, informacion clara y opciones de reserva."
+        title="Tratamientos estéticos y medicina ortomolecular | Dra. Estefany Ballesteros"
+        description="Explora tratamientos estéticos y protocolos de medicina ortomolecular con enfoque médico, información clara y opciones de reserva."
         path="/tratamientos"
         image="/doctora/dra2.jpg"
-        keywords={["tratamientos esteticos", "medicina ortomolecular", "armonizacion facial", "tratamientos faciales Bolivia"]}
+        keywords={["tratamientos estéticos", "medicina ortomolecular", "armonización facial", "tratamientos faciales Bolivia"]}
       />
       <PageIntro eyebrow="Tratamientos" title="Protocolos médicos personalizados para resultados naturales y seguros." />
       <div className="mt-8 w-full max-w-xs min-w-0">
@@ -73,7 +73,7 @@ export function TreatmentsPage() {
                       </Link>
                       {treatment.requires_assessment ? (
                         <Link to={`/tratamientos/${treatment.slug}?accion=valoracion`} className="rounded-full border border-[var(--color-border)] px-5 py-3 text-center text-sm font-semibold transition hover:bg-white/80">
-                          Reservar valoracion
+                          Reservar valoración
                         </Link>
                       ) : null}
                       <button

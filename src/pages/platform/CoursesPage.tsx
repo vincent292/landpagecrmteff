@@ -34,16 +34,16 @@ export function CoursesPage() {
   return (
     <section className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24">
       <Seo
-        title="Academy de estetica y formacion clinica | Dra. Estefany Ballesteros"
-        description="Revisa los programas de Academy, workshops y formacion para profesionales y estudiantes del area estetica."
+        title="Academy de estética y formación clínica | Dra. Estefany Ballesteros"
+        description="Revisa los programas de Academy, workshops y formación para profesionales y estudiantes del área estética."
         path="/academy"
         image="/doctora/dra3.jpg"
-        keywords={["academy estetica Bolivia", "formacion clinica estetica", "workshop medicina estetica"]}
+        keywords={["academy estética Bolivia", "formación clínica estética", "workshop medicina estética"]}
       />
       <PageIntro
         eyebrow="Academy"
-        title="Programas de formacion para profesionales y estudiantes del area estetica."
-        text="Consulta las proximas fechas, revisa el contenido de cada programa y completa tu inscripcion desde el detalle."
+        title="Programas de formación para profesionales y estudiantes del área estética."
+        text="Consulta las próximas fechas, revisa el contenido de cada programa y completa tu inscripción desde el detalle."
       />
       <div className="mt-8 max-w-xs">
         <select value={city} onChange={(event) => setCity(event.target.value)} className="premium-input">
@@ -77,7 +77,7 @@ export function CoursesPage() {
                     Ver programa
                   </Link>
                   <button type="button" onClick={() => setInterest(course)} className="rounded-full border border-[var(--color-border)] px-6 py-3 text-sm font-semibold">
-                    Pedir informacion
+                    Pedir información
                   </button>
                 </div>
               </div>

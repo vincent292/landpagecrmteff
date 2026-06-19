@@ -13,7 +13,7 @@ const quickLinks = [
   { label: "Academy", href: "/academy" },
   { label: "Libros", href: "/libros" },
   { label: "Agenda", href: "/agenda" },
-  { label: "Galeria", href: "/galeria" },
+  { label: "Galería", href: "/galeria" },
   { label: "Contacto", href: "/contacto" },
 ];
 
@@ -79,7 +79,7 @@ export function Footer() {
         </div>
 
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-accent-strong)]">Enlaces rapidos</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-accent-strong)]">Enlaces rápidos</p>
           <nav className="mt-4 grid gap-2 text-sm text-[var(--color-copy)]">
             {quickLinks.map((item) => (
               <Link key={item.href} to={item.href} className="transition hover:text-[var(--color-ink)]">

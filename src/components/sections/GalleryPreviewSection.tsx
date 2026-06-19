@@ -25,9 +25,9 @@ export function GalleryPreviewSection() {
   return (
     <SectionReveal id="galeria-destacada" className="mx-auto max-w-7xl px-6 py-24 md:px-8 md:py-28">
       <SectionHeading
-        eyebrow="Galeria"
+        eyebrow="Galería"
         title="Momentos compartidos de jornadas, cursos y resultados autorizados."
-        description="La galeria publica se organiza desde el panel para mostrar carruseles y comparaciones autorizadas."
+        description="La galería pública se organiza desde el panel para mostrar carruseles y comparaciones autorizadas."
         align="center"
       />
 

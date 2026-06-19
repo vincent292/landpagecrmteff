@@ -190,7 +190,7 @@ export function Hero({ onRequestInfo }: HeroProps) {
               className="mt-4 max-w-2xl text-sm leading-7 text-[var(--color-copy)] md:text-base"
             >
               Si buscas una doctora de medicina estetica en Bolivia con criterio
-              medico, atencion cercana y resultados naturales, aqui puedes revisar
+              médico, atención cercana y resultados naturales, aquí puedes revisar
               tratamientos, promociones, agenda y cursos desde un solo lugar.
             </p>
 
@@ -200,7 +200,7 @@ export function Hero({ onRequestInfo }: HeroProps) {
             >
               <SoftButton href="/reservar-cita">Reservar valoracion</SoftButton>
               <SoftButton onClick={onRequestInfo} variant="secondary">
-                Pedir informacion
+                Pedir información
               </SoftButton>
             </div>
 

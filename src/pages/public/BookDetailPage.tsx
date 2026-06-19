@@ -56,7 +56,7 @@ export function BookDetailPage() {
                 onClick={() => setShowInfoModal(true)}
                 className="rounded-full border border-[var(--color-border)] px-6 py-3 text-sm font-semibold"
               >
-                Pedir informacion
+                Pedir información
               </button>
               <button
                 type="button"
@@ -69,11 +69,11 @@ export function BookDetailPage() {
           </div>
           {!user ? (
             <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
-              No necesitas iniciar sesion para comprar. Si luego te registras con el mismo carnet, veras esta compra en tu panel y en tus descargas.
+              No necesitas iniciar sesión para comprar. Si luego te registras con el mismo carnet, verás esta compra en tu panel y en tus descargas.
             </p>
           ) : (
             <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
-              Como ya tienes sesion iniciada, esta compra quedara ligada a tu cuenta y a tu carnet para que luego puedas descargarla desde tu panel.
+              Como ya tienes sesión iniciada, esta compra quedará ligada a tu cuenta y a tu carnet para que luego puedas descargarla desde tu panel.
             </p>
           )}
         </div>

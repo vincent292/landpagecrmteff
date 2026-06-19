@@ -11,7 +11,7 @@ const publicLinks = [
   { label: "Academy", href: "/academy" },
   { label: "Libros", href: "/libros" },
   { label: "Agenda", href: "/agenda" },
-  { label: "Galeria", href: "/galeria" },
+  { label: "Galería", href: "/galeria" },
   { label: "Doctoras", href: "/doctoras" },
   { label: "Contacto", href: "/contacto" },
 ];
@@ -67,7 +67,7 @@ export function PremiumNavbar() {
               <BrandSignature
                 asChild
                 className="min-w-0"
-                subtitle="Medicina estetica"
+                subtitle="Medicina estética"
                 textClassName="text-[1.55rem] sm:text-[1.8rem] lg:text-[1.95rem]"
                 subtitleClassName="hidden sm:block"
               />
@@ -102,7 +102,7 @@ export function PremiumNavbar() {
                 type="button"
                 onClick={() => setMenuOpen((current) => !current)}
                 className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[rgba(184,138,90,0.18)] bg-[rgba(255,249,244,0.72)] text-[var(--color-ink)] lg:hidden"
-                aria-label={menuOpen ? "Cerrar menu" : "Abrir menu"}
+                aria-label={menuOpen ? "Cerrar menú" : "Abrir menú"}
               >
                 {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
               </button>

@@ -12,7 +12,7 @@ import { getMediaKind } from "../../services/mediaStorageService";
 import { formatPublicDate, getDisplayCity } from "../../utils/publicContent";
 import { PageIntro } from "./TreatmentsPage";
 
-const galleryCategories = ["Todas", "Eventos", "Tratamientos", "Cursos", "Testimonios", "Antes y despues autorizados", "Videos"];
+const galleryCategories = ["Todas", "Eventos", "Tratamientos", "Cursos", "Testimonios", "Antes y después autorizados", "Videos"];
 
 export function GalleryPage() {
   const [albums, setAlbums] = useState<GalleryAlbumRow[]>([]);
@@ -43,15 +43,15 @@ export function GalleryPage() {
     <section className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24">
       <Seo
         title="Galería estética y antes y después | Dra. Estefany Ballesteros"
-        description="Explora la galeria publica con jornadas, tratamientos, cursos, videos y comparaciones antes y despues autorizadas."
+        description="Explora la galería pública con jornadas, tratamientos, cursos, videos y comparaciones antes y después autorizadas."
         path="/galeria"
         image="/doctora/dra5.jpg"
-        keywords={["galeria estetica", "antes y despues autorizados", "casos esteticos Bolivia"]}
+        keywords={["galería estética", "antes y después autorizados", "casos estéticos Bolivia"]}
       />
       <PageIntro
-        eyebrow="Galeria"
-        title="Contenido publico organizado por categorias, ciudades y material autorizado."
-        text="La galeria distingue jornadas, cursos, tratamientos y comparaciones autorizadas para la parte publica del sitio."
+        eyebrow="Galería"
+        title="Contenido público organizado por categorías, ciudades y material autorizado."
+        text="La galería distingue jornadas, cursos, tratamientos y comparaciones autorizadas para la parte pública del sitio."
       />
 
       <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -69,10 +69,10 @@ export function GalleryPage() {
       </div>
 
       <div className="mt-12">
-        {loading ? <LoadingState label="Cargando galeria..." /> : null}
-        {error ? <ErrorState label="No pudimos cargar la galeria publica." /> : null}
+        {loading ? <LoadingState label="Cargando galería..." /> : null}
+        {error ? <ErrorState label="No pudimos cargar la galería pública." /> : null}
         {!loading && !error && filteredAlbums.length === 0 ? (
-          <EmptyState label="Todavia no hay albumes publicos para estos filtros." />
+          <EmptyState label="Todavía no hay álbumes públicos para estos filtros." />
         ) : null}
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
           {filteredAlbums.map((album) => {
@@ -88,7 +88,7 @@ export function GalleryPage() {
                     beforeSrc={comparisonItems[0].image_url}
                     afterSrc={comparisonItems[1].image_url}
                     beforeLabel={comparisonItems[0].caption ?? "Antes"}
-                    afterLabel={comparisonItems[1].caption ?? "Despues"}
+                    afterLabel={comparisonItems[1].caption ?? "Después"}
                     className="h-80 w-full"
                     imageClassName="transition duration-700 group-hover:scale-[1.02]"
                   />

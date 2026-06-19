@@ -1,4 +1,4 @@
-export function LoadingState({ label = "Cargando informacion..." }: { label?: string }) {
+export function LoadingState({ label = "Cargando información..." }: { label?: string }) {
   return (
     <div className="rounded-[28px] border border-[var(--color-border)] bg-white/70 p-6 shadow-[0_18px_50px_rgba(62,42,31,0.06)]">
       <div className="mx-auto max-w-2xl">
@@ -16,7 +16,7 @@ export function LoadingState({ label = "Cargando informacion..." }: { label?: st
   );
 }
 
-export function ErrorState({ label = "No pudimos cargar la informacion." }: { label?: string }) {
+export function ErrorState({ label = "No pudimos cargar la información." }: { label?: string }) {
   return (
     <div className="rounded-[28px] border border-red-200 bg-red-50 p-8 text-center text-sm text-red-700">
       {label}
@@ -24,7 +24,7 @@ export function ErrorState({ label = "No pudimos cargar la informacion." }: { la
   );
 }
 
-export function EmptyState({ label = "Todavia no hay resultados publicados." }: { label?: string }) {
+export function EmptyState({ label = "Todavía no hay resultados publicados." }: { label?: string }) {
   return (
     <div className="rounded-[28px] border border-[var(--color-border)] bg-white/60 p-8 text-center text-sm text-[var(--color-copy)]">
       {label}

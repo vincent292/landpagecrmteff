@@ -79,21 +79,21 @@ export function TreatmentDetailPage() {
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             {treatment.requires_assessment ? (
               <button onClick={() => setShowAssessmentModal(true)} className="rounded-full bg-[var(--color-caramel)] px-6 py-3.5 text-sm font-semibold text-white">
-                Reservar valoracion
+                Reservar valoración
               </button>
             ) : null}
             <button onClick={() => setOpen(true)} className="rounded-full border border-[var(--color-border)] px-6 py-3.5 text-sm font-semibold">
               Pedir información
             </button>
             <Link to="/tratamientos" className="rounded-full border border-[var(--color-border)] px-6 py-3.5 text-center text-sm font-semibold">
-              Ver mas tratamientos
+              Ver más tratamientos
             </Link>
           </div>
         </div>
       </div>
       {treatment.public_info ? (
         <div className="mt-10 rounded-[28px] border border-[var(--color-border)] bg-white/72 p-6">
-          <h2 className="text-2xl font-semibold">Informacion para tu solicitud</h2>
+          <h2 className="text-2xl font-semibold">Información para tu solicitud</h2>
           <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
             {treatment.public_info}
           </p>
@@ -101,7 +101,7 @@ export function TreatmentDetailPage() {
       ) : null}
       <div className="mt-14 grid gap-6 lg:grid-cols-3">
         <DetailBlock title="Beneficios" items={listFromText(treatment.benefits)} />
-        <DetailBlock title="Cuidados antes y despues" items={listFromText(treatment.care_instructions)} />
+        <DetailBlock title="Cuidados antes y después" items={listFromText(treatment.care_instructions)} />
         <DetailBlock title="Resultados esperados" items={listFromText(treatment.expected_results)} />
       </div>
       <InfoRequestModal
@@ -123,7 +123,7 @@ export function TreatmentDetailPage() {
         context={{
           type: "treatment",
           id: treatment.id,
-          title: `Valoracion previa para ${treatment.title}`,
+          title: `Valoración previa para ${treatment.title}`,
           city: treatment.city,
           doctor_id: treatment.doctor_id ?? null,
           agenda_tag: treatment.agenda_tag ?? null,
@@ -147,7 +147,7 @@ function DetailBlock({ title, items }: { title: string; items: string[] }) {
           {items.map((item) => <li key={item}>- {item}</li>)}
         </ul>
       ) : (
-        <p className="mt-4 text-sm text-[var(--color-copy)]">Informacion en preparacion.</p>
+        <p className="mt-4 text-sm text-[var(--color-copy)]">Información en preparación.</p>
       )}
     </div>
   );

@@ -607,9 +607,9 @@ export function ReservationsAdminPage() {
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--color-accent-strong)]">Reservas y citas</p>
-          <h1 className="font-display mt-3 text-5xl font-semibold">Agenda clinica conectada con caja</h1>
+          <h1 className="font-display mt-3 text-5xl font-semibold">Agenda clínica conectada con caja</h1>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--color-copy)]">
-            Busca pacientes por nombre o carnet, registra fichas clinicas rapidas y separa claramente la creacion de nuevas citas del seguimiento diario.
+            Busca pacientes por nombre o carnet, registra fichas clínicas rápidas y separa claramente la creación de nuevas citas del seguimiento diario.
           </p>
         </div>
       </div>
@@ -649,7 +649,7 @@ export function ReservationsAdminPage() {
           >
             <p className="text-xs font-semibold uppercase tracking-[0.22em] opacity-80">Citas programadas</p>
             <p className="mt-2 text-xl font-semibold">{rows.length + appointments.length} registros activos</p>
-            <p className="mt-2 text-sm opacity-80">Revisa reservas con pago y citas internas desde una sola vista mucho mas clara.</p>
+            <p className="mt-2 text-sm opacity-80">Revisa reservas con pago y citas internas desde una sola vista mucho más clara.</p>
           </button>
         </div>
       </section>
@@ -659,11 +659,11 @@ export function ReservationsAdminPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-2xl font-semibold">Crear cita manual</h2>
-              <p className="mt-1 text-sm text-[var(--color-copy)]">Si no encuentras a la paciente, usa el icono para crear una ficha clinica rapida sin salir de esta vista.</p>
+              <p className="mt-1 text-sm text-[var(--color-copy)]">Si no encuentras a la paciente, usa el ícono para crear una ficha clínica rápida sin salir de esta vista.</p>
             </div>
             <div className="inline-flex items-center gap-2 rounded-full bg-[rgba(198,162,123,0.16)] px-4 py-2 text-xs font-semibold text-[var(--color-mocha)]">
               <CalendarClock className="h-4 w-4" />
-              {selectedPatient?.profile_id ? "Tiene acceso al portal" : selectedPatient ? "Ficha clinica sin cuenta aun" : "Esperando paciente"}
+              {selectedPatient?.profile_id ? "Tiene acceso al portal" : selectedPatient ? "Ficha clínica sin cuenta aún" : "Esperando paciente"}
             </div>
           </div>
 
@@ -701,8 +701,8 @@ export function ReservationsAdminPage() {
                         setPatientModalOpen(true);
                       }}
                       className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-[var(--color-border)] bg-white/80 text-[var(--color-mocha)] transition hover:bg-[rgba(198,162,123,0.12)]"
-                      aria-label="Crear paciente rapido"
-                      title="Crear paciente rapido"
+                      aria-label="Crear paciente rápido"
+                      title="Crear paciente rápido"
                     >
                       <UserRoundPlus className="h-5 w-5" />
                     </button>
@@ -731,7 +731,7 @@ export function ReservationsAdminPage() {
                         </div>
                       ) : (
                         <div className="grid gap-3 p-4">
-                          <p className="text-sm text-[var(--color-copy)]">No encontramos coincidencias. Puedes crear una ficha rapida y seguir desde aqui mismo.</p>
+                          <p className="text-sm text-[var(--color-copy)]">No encontramos coincidencias. Puedes crear una ficha rápida y seguir desde aquí mismo.</p>
                           <button
                             type="button"
                             onMouseDown={(event) => event.preventDefault()}
@@ -749,7 +749,7 @@ export function ReservationsAdminPage() {
                             className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-semibold"
                           >
                             <UserRoundPlus className="h-4 w-4" />
-                            Crear paciente desde aqui
+                            Crear paciente desde aquí
                           </button>
                         </div>
                       )}
@@ -771,7 +771,7 @@ export function ReservationsAdminPage() {
                       </p>
                     </div>
                     <span className="inline-flex rounded-full bg-white px-3 py-1 text-xs font-semibold text-[var(--color-mocha)]">
-                      {selectedPatient.profile_id ? "Cuenta vinculada" : "Solo ficha clinica"}
+                      {selectedPatient.profile_id ? "Cuenta vinculada" : "Solo ficha clínica"}
                     </span>
                   </div>
                 </div>
@@ -1133,7 +1133,7 @@ export function ReservationsAdminPage() {
 
       {patientModalOpen ? (
         <ModalShell
-          title="Crear paciente rapido"
+          title="Crear paciente rápido"
           onClose={() => {
             setPatientModalOpen(false);
             setPatientModalError("");

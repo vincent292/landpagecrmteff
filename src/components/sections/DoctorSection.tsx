@@ -132,7 +132,7 @@ export function DoctorSection() {
           >
             <Quote className="h-5 w-5 text-[var(--color-accent-strong)]" />
             <p className="mt-3 font-display text-2xl font-semibold leading-7 text-[var(--color-ink)]">
-              Belleza natural con criterio medico, escucha real y una mirada
+              Belleza natural con criterio médico, escucha real y una mirada
               cercana.
             </p>
           </div>
@@ -150,7 +150,7 @@ export function DoctorSection() {
             data-gsap="doctor-copy"
             className="font-display text-5xl font-semibold leading-[0.94] text-[var(--color-ink)] md:text-6xl"
           >
-            Un enfoque medico al servicio de tu bienestar y tu imagen.
+            Un enfoque médico al servicio de tu bienestar y tu imagen.
           </h2>
 
           <p
@@ -167,7 +167,7 @@ export function DoctorSection() {
             data-gsap="doctor-copy"
             className="mt-5 text-base leading-8 text-[var(--color-copy)] md:text-lg"
           >
-            Con mas de 5 anos de experiencia, su enfoque incluye
+            Con más de 5 años de experiencia, su enfoque incluye
             bioestimuladores, toxina botulinica, rellenos y protocolos de
             medicina estetica pensados para respetar la anatomia, la seguridad y
             la identidad de cada paciente. Las certificaciones y actualizaciones

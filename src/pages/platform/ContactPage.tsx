@@ -21,10 +21,10 @@ export function ContactPage() {
     <section className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24">
       <Seo
         title="Contacto y ubicación | Dra. Estefany Ballesteros"
-        description="Encuentra ubicacion, WhatsApp, telefono, correo y horarios de atencion para coordinar tu consulta con Dra. Estefany Ballesteros."
+        description="Encuentra ubicación, WhatsApp, teléfono, correo y horarios de atención para coordinar tu consulta con Dra. Estefany Ballesteros."
         path="/contacto"
         image="/doctora/dra1.jpg"
-        keywords={["contacto doctora estetica", "WhatsApp Dra. Estefany", "ubicacion consultorio estetica"]}
+        keywords={["contacto doctora estética", "WhatsApp Dra. Estefany", "ubicación consultorio estética"]}
       />
       <PageIntro
         eyebrow="Contacto"
@@ -96,7 +96,7 @@ export function ContactPage() {
         </div>
       </div>
 
-      <InfoRequestModal open={open} interest="Ubicacion y contacto" onClose={() => setOpen(false)} />
+      <InfoRequestModal open={open} interest="Ubicación y contacto" onClose={() => setOpen(false)} />
     </section>
   );
 }

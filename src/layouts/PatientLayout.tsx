@@ -98,13 +98,13 @@ export function PatientLayout() {
             onClose={() => setNotificationsOpen(false)}
             containerRef={mobileNotificationsRef}
             subtitle="Citas, pagos, recetas, cuidados y descargas privadas."
-            emptyLabel="Todavia no tienes novedades nuevas."
+            emptyLabel="Todavía no tienes novedades nuevas."
           />
           <button
             type="button"
             onClick={() => void signOut()}
             className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--color-border)] bg-white/75"
-            aria-label="Cerrar sesion"
+            aria-label="Cerrar sesión"
           >
             <LogOut className="h-4 w-4" />
           </button>
@@ -174,7 +174,7 @@ export function PatientLayout() {
           className="mt-auto hidden w-full items-center justify-center gap-2 rounded-full border border-[var(--color-border)] px-4 py-3 pt-8 text-sm font-semibold lg:inline-flex"
         >
           <LogOut className="h-4 w-4" />
-          Cerrar sesion
+          Cerrar sesión
         </button>
       </aside>
 
@@ -186,7 +186,7 @@ export function PatientLayout() {
                 {profile?.full_name ?? user?.email ?? "Paciente"}
               </p>
               <p className="text-xs text-[var(--color-copy)]">
-                Tu informacion, tus pagos y tus documentos privados viven aqui.
+                Tu información, tus pagos y tus documentos privados viven aquí.
               </p>
             </div>
 
@@ -203,7 +203,7 @@ export function PatientLayout() {
               containerRef={desktopNotificationsRef}
               desktopOnly
               subtitle="Citas, pagos, recetas, cuidados y descargas privadas."
-              emptyLabel="Todavia no tienes novedades nuevas."
+              emptyLabel="Todavía no tienes novedades nuevas."
             />
           </div>
         </header>

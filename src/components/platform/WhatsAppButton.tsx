@@ -51,13 +51,13 @@ export function WhatsAppButton() {
 
 function getMessage(pathname: string) {
   if (pathname.startsWith("/tratamientos/")) {
-    return "Hola, quiero mas informacion sobre este tratamiento de la Dra. Estefany.";
+    return "Hola, quiero más información sobre este tratamiento de la Dra. Estefany.";
   }
   if (pathname.startsWith("/academy/") || pathname.startsWith("/cursos/")) {
-    return "Hola, quiero mas informacion sobre este programa de Academy de la Dra. Estefany.";
+    return "Hola, quiero más información sobre este programa de Academy de la Dra. Estefany.";
   }
   if (pathname.startsWith("/agenda")) {
-    return "Hola, quiero mas informacion sobre una actividad de la agenda.";
+    return "Hola, quiero más información sobre una actividad de la agenda.";
   }
-  return "Hola, quiero mas informacion sobre la atencion de la Dra. Estefany Ballesteros.";
+  return "Hola, quiero más información sobre la atención de la Dra. Estefany Ballesteros.";
 }

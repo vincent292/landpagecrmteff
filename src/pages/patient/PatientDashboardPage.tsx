@@ -207,7 +207,7 @@ export function PatientDashboardPage() {
               ) : null}
             </div>
           ) : (
-            <EmptyState label="Todavia no tienes una cita programada." />
+            <EmptyState label="Todavía no tienes una cita programada." />
           )}
         </div>
 
@@ -220,7 +220,7 @@ export function PatientDashboardPage() {
                 <p className="mt-2 line-clamp-4 whitespace-pre-line text-sm leading-7 text-[var(--color-copy)]">{item.prescription_text}</p>
               </div>
             ))}
-            {summary.prescriptions.length === 0 && <EmptyState label="Cuando enviemos nuevas recetas, apareceran aqui." />}
+            {summary.prescriptions.length === 0 && <EmptyState label="Cuando enviemos nuevas recetas, aparecerán aquí." />}
           </div>
         </div>
       </section>
@@ -228,7 +228,7 @@ export function PatientDashboardPage() {
       <section className="grid gap-6 xl:grid-cols-[1fr_1fr]">
         <div className="rounded-[28px] border border-[var(--color-border)] bg-white/75 p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-xl font-semibold">Tus proximas citas</h2>
+            <h2 className="text-xl font-semibold">Tus próximas citas</h2>
             <Link to="/mi-panel/citas" className="text-sm font-semibold text-[var(--color-mocha)]">
               Ver todas
             </Link>
@@ -243,14 +243,14 @@ export function PatientDashboardPage() {
                   </span>
                 </div>
                 <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">
-                  {formatDate(item.date)} Â· {item.time?.slice(0, 5)}
+                  {formatDate(item.date)} · {item.time?.slice(0, 5)}
                   <br />
                   {item.location ?? "Lugar por confirmar"}
-                  {item.doctor ? ` Â· ${item.doctor}` : ""}
+                  {item.doctor ? ` · ${item.doctor}` : ""}
                 </p>
               </div>
             ))}
-            {upcomingItems.length === 0 ? <EmptyState label="Todavia no tienes actividades proximas." /> : null}
+            {upcomingItems.length === 0 ? <EmptyState label="Todavía no tienes actividades próximas." /> : null}
           </div>
         </div>
 
@@ -268,7 +268,7 @@ export function PatientDashboardPage() {
                 <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">{item.care_instructions}</p>
               </div>
             ))}
-            {summary.cares.length === 0 && <EmptyState label="Cuando enviemos cuidados posteriores, apareceran aqui." />}
+            {summary.cares.length === 0 && <EmptyState label="Cuando enviemos cuidados posteriores, aparecerán aquí." />}
           </div>
         </div>
       </section>
@@ -288,7 +288,7 @@ export function PatientDashboardPage() {
         />
         <QuickLinkCard
           title="Completar mi perfil"
-          detail="Agrega contacto de emergencia, direccion y datos clinicos para un mejor seguimiento."
+          detail="Agrega contacto de emergencia, dirección y datos clínicos para un mejor seguimiento."
           href="/mi-panel/perfil"
           label="Editar perfil"
         />

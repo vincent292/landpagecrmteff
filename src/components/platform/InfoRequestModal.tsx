@@ -218,7 +218,7 @@ export function InfoRequestModal({
             </div>
             <label className="flex gap-3 text-sm leading-6 text-[var(--color-copy)] md:col-span-2">
               <input type="checkbox" {...register("privacy_accepted")} className="mt-1" />
-              Acepto la politica de privacidad y autorizo el contacto para recibir informacion.
+              Acepto la política de privacidad y autorizo el contacto para recibir información.
             </label>
             {errors.privacy_accepted?.message ? (
               <p className="text-sm text-red-700 md:col-span-2">{errors.privacy_accepted.message}</p>
@@ -253,30 +253,30 @@ function buildSuggestedMessage(
   const cleanTitle = interestTitle.trim();
 
   if (interestType === "Tratamiento" && cleanTitle) {
-    return `${intro}${bridge}me gustaria saber mas sobre el tratamiento ${cleanTitle}.`;
+    return `${intro}${bridge}me gustaría saber más sobre el tratamiento ${cleanTitle}.`;
   }
 
   if (interestType === "Promoci\u00f3n" && cleanTitle) {
-    return `${intro}${bridge}me gustaria saber mas sobre la promocion ${cleanTitle}.`;
+    return `${intro}${bridge}me gustaría saber más sobre la promoción ${cleanTitle}.`;
   }
 
   if (interestType === "Curso" && cleanTitle) {
-    return `${intro}${bridge}me gustaria saber mas sobre el programa Academy ${cleanTitle}.`;
+    return `${intro}${bridge}me gustaría saber más sobre el programa Academy ${cleanTitle}.`;
   }
 
   if (interestType === "Libro" && cleanTitle) {
-    return `${intro}${bridge}me gustaria saber mas sobre el libro ${cleanTitle}.`;
+    return `${intro}${bridge}me gustaría saber más sobre el libro ${cleanTitle}.`;
   }
 
   if (interestType === "Evento" && cleanTitle) {
-    return `${intro}${bridge}me gustaria saber mas sobre el evento ${cleanTitle}.`;
+    return `${intro}${bridge}me gustaría saber más sobre el evento ${cleanTitle}.`;
   }
 
   if (cleanTitle && cleanTitle.toLowerCase() !== "consulta general") {
-    return `${intro}${bridge}me gustaria saber mas sobre ${cleanTitle}.`;
+    return `${intro}${bridge}me gustaría saber más sobre ${cleanTitle}.`;
   }
 
-  return `${intro}${bridge}me gustaria saber mas sobre la atencion de la Dra. Estefany.`;
+  return `${intro}${bridge}me gustaría saber más sobre la atención de la Dra. Estefany.`;
 }
 
 function Field({

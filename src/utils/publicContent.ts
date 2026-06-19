@@ -34,8 +34,8 @@ const agendaTypeAliases: Record<string, string> = {
   "curso": "Academy",
   "academy": "Academy",
   "consulta": "Consulta",
-  "promocion": "Promocion",
-  "promoción": "Promocion",
+  "promocion": "Promoción",
+  "promoción": "Promoción",
   "evento": "Evento",
 };
 

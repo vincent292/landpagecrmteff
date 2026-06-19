@@ -670,7 +670,7 @@ export function CashAdminPage() {
       await closeCashRegisterSession(
         sessionId,
         expectedAmount,
-        "Cierre rapido sin arqueo manual."
+        "Cierre rápido sin arqueo manual."
       );
       load();
     } finally {
@@ -689,7 +689,7 @@ export function CashAdminPage() {
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">Caja integral</p>
             <h1 className="font-display mt-3 text-5xl font-semibold">Apertura, arqueo, cierre e ingresos del sistema</h1>
             <p className="mt-4 max-w-3xl text-sm leading-7 text-[var(--color-copy)]">
-              Caja ahora recibe pagos manuales y tambien lo aprobado desde cursos, libros y citas. Todo queda con sesion, metodo, origen y trazabilidad.
+              Caja ahora recibe pagos manuales y también lo aprobado desde cursos, libros y citas. Todo queda con sesión, método, origen y trazabilidad.
             </p>
           </div>
 
@@ -840,7 +840,7 @@ export function CashAdminPage() {
                         <br />
                         {session.status === "cerrada"
                           ? `Contado ${formatMoney(session.closing_counted_amount ?? 0)} - diferencia ${formatMoney(session.closing_difference_amount ?? 0)}`
-                          : "Caja todavia abierta"}
+                          : "Caja todavía abierta"}
                       </p>
                       {session.location_name || drawer?.location_name ? (
                         <p className="text-sm text-[var(--color-copy)]">Lugar: {session.location_name ?? drawer?.location_name}</p>
@@ -915,7 +915,7 @@ export function CashAdminPage() {
                         <br />
                         {row.source_module ?? "Manual"} - {row.reference_name ?? "Sin referencia"}
                         <br />
-                        Caja {drawer?.name ?? "sin caja"} - apertura {session?.session_date ?? "sin sesion"}
+                        Caja {drawer?.name ?? "sin caja"} - apertura {session?.session_date ?? "sin sesión"}
                       </p>
                       <DeletedStatusNote row={row} />
                     </div>
@@ -954,7 +954,7 @@ export function CashAdminPage() {
                         <span className="rounded-full bg-[rgba(198,162,123,0.16)] px-3 py-1 text-xs font-semibold text-[var(--color-mocha)]">{count.count_type}</span>
                         {drawer ? <span className="rounded-full bg-[rgba(62,42,31,0.08)] px-3 py-1 text-xs font-semibold text-[var(--color-copy)]">{drawer.name}</span> : null}
                       </div>
-                      <h3 className="mt-3 text-lg font-semibold">{formatDate(count.created_at)} - {session?.session_date ?? "Sin sesion"}</h3>
+                      <h3 className="mt-3 text-lg font-semibold">{formatDate(count.created_at)} - {session?.session_date ?? "Sin sesión"}</h3>
                       <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">
                         Esperado {formatMoney(count.expected_amount)} - contado {formatMoney(count.counted_amount)}
                         <br />
@@ -995,7 +995,7 @@ export function CashAdminPage() {
                     <div>
                       <p className="font-semibold">{drawer.name}</p>
                       <p className="mt-2 text-sm text-[var(--color-copy)]">
-                        {drawer.city ?? "Sin ciudad"} - {drawer.location_name ?? "Sin ubicacion"}
+                        {drawer.city ?? "Sin ciudad"} - {drawer.location_name ?? "Sin ubicación"}
                         <br />
                         Base sugerida {formatMoney(drawer.base_amount)}
                       </p>
@@ -1253,7 +1253,7 @@ export function CashAdminPage() {
         <ModalShell title="Canjear tarjeta de ahorro" onClose={() => setModal(null)} maxWidthClassName="max-w-4xl">
           <div className="grid gap-4">
             <div className="rounded-[24px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-7 text-amber-900">
-              Usa aqui el token cuando la paciente ya tenga todas sus cuotas aprobadas. Si el tratamiento cuesta mas que
+              Usa aquí el token cuando la paciente ya tenga todas sus cuotas aprobadas. Si el tratamiento cuesta más que
               el saldo acumulado, registraremos solo la diferencia restante como nuevo ingreso en caja.
             </div>
 

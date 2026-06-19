@@ -1,0 +1,344 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [5 0 R 7 0 R 9 0 R 11 0 R] /Count 4 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 6 0 R >>
+endobj
+6 0 obj
+<< /Length 5688 >>
+stream
+q 0.431 0.290 0.184 rg 46.00 628.00 503.00 168.00 re f Q
+BT /F2 9.50 Tf 0.937 0.898 0.855 rg 76.00 754.00 Td (MANUAL OPERATIVO) Tj ET
+BT /F2 29.00 Tf 1.000 1.000 1.000 rg 76.00 714.00 Td (Turnos de Inventario) Tj ET
+BT /F1 12.00 Tf 1.000 1.000 1.000 rg 76.00 778.96 Td (Apertura, conteo fisico, cierre responsable y trazabilidad del modulo de) Tj ET
+BT /F1 12.00 Tf 1.000 1.000 1.000 rg 76.00 761.92 Td (inventario.) Tj ET
+q 0.431 0.290 0.184 rg 0.431 0.290 0.184 RG 0.60 w 46.00 577.00 145.00 25.00 re B Q
+BT /F2 9.50 Tf 1.000 1.000 1.000 rg 52.00 587.00 Td (Campo) Tj ET
+q 0.431 0.290 0.184 rg 0.431 0.290 0.184 RG 0.60 w 191.00 577.00 358.00 25.00 re B Q
+BT /F2 9.50 Tf 1.000 1.000 1.000 rg 197.00 587.00 Td (Detalle) Tj ET
+q 0.937 0.898 0.855 rg 0.847 0.761 0.682 RG 0.60 w 46.00 552.00 145.00 25.00 re B Q
+BT /F2 9.20 Tf 0.169 0.129 0.106 rg 52.00 563.00 Td (Modulo) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 191.00 552.00 358.00 25.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 197.00 563.00 Td (Panel / Inventario / Conteos) Tj ET
+q 0.937 0.898 0.855 rg 0.847 0.761 0.682 RG 0.60 w 46.00 527.00 145.00 25.00 re B Q
+BT /F2 9.20 Tf 0.169 0.129 0.106 rg 52.00 538.00 Td (Dirigido a) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 191.00 527.00 358.00 25.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 197.00 538.00 Td (Doctoras, asistentes y administracion) Tj ET
+q 0.937 0.898 0.855 rg 0.847 0.761 0.682 RG 0.60 w 46.00 502.00 145.00 25.00 re B Q
+BT /F2 9.20 Tf 0.169 0.129 0.106 rg 52.00 513.00 Td (Objetivo) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 191.00 502.00 358.00 25.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 197.00 513.00 Td (Evitar cierres duplicados, dejar auditoria y proteger el historial existente) Tj ET
+q 0.937 0.898 0.855 rg 0.847 0.761 0.682 RG 0.60 w 46.00 477.00 145.00 25.00 re B Q
+BT /F2 9.20 Tf 0.169 0.129 0.106 rg 52.00 488.00 Td (Fecha) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 191.00 477.00 358.00 25.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 197.00 488.00 Td (18/06/2026) Tj ET
+q 1.000 0.976 0.957 rg 0.847 0.761 0.682 RG 0.80 w 46.00 401.00 503.00 62.00 re B Q
+q 0.435 0.478 0.376 rg 46.00 401.00 6.00 62.00 re f Q
+BT /F2 11.00 Tf 0.435 0.478 0.376 rg 62.00 446.00 Td (Punto importante) Tj ET
+BT /F1 10.50 Tf 0.169 0.129 0.106 rg 62.00 432.00 Td (Este flujo no borra inventarios anteriores. Los turnos abiertos existentes siguen registrados y) Tj ET
+BT /F1 10.50 Tf 0.169 0.129 0.106 rg 62.00 418.00 Td (solo cambian cuando la responsable que los abrio realiza el cierre.) Tj ET
+BT /F2 21.00 Tf 0.431 0.290 0.184 rg 46.00 375.00 Td (1. Que es un turno de inventario) Tj ET
+q 0.937 0.898 0.855 RG 1.00 w 46.00 367.00 m 549.00 367.00 l S Q
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 46.00 343.38 Td (Un turno de inventario es una fotografia operativa del stock en una ubicacion. Al abrirlo, el sistema) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 46.00 327.76 Td (guarda cuanto habia en ese momento. Al cerrarlo, la responsable registra el conteo fisico y el) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 46.00 312.14 Td (sistema calcula diferencias.) Tj ET
+BT /F2 11.00 Tf 0.431 0.290 0.184 rg 49.00 287.14 Td (?) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 64.00 287.14 Td (El turno abierto queda visible en Inventario > Conteos.) Tj ET
+BT /F2 11.00 Tf 0.431 0.290 0.184 rg 49.00 268.14 Td (?) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 64.00 268.14 Td (Cada turno guarda fecha y hora de apertura.) Tj ET
+BT /F2 11.00 Tf 0.431 0.290 0.184 rg 49.00 249.14 Td (?) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 64.00 249.14 Td (Cada turno guarda quien lo abrio y quien lo cerro.) Tj ET
+BT /F2 11.00 Tf 0.431 0.290 0.184 rg 49.00 230.14 Td (?) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 64.00 230.14 Td (El cierre actualiza el stock solo al finalizar el turno.) Tj ET
+q 1.000 0.976 0.957 rg 0.847 0.761 0.682 RG 0.80 w 46.00 164.14 503.00 62.00 re B Q
+q 0.541 0.290 0.231 rg 46.00 164.14 6.00 62.00 re f Q
+BT /F2 11.00 Tf 0.541 0.290 0.231 rg 62.00 209.14 Td (Regla de seguridad) Tj ET
+BT /F1 10.50 Tf 0.169 0.129 0.106 rg 62.00 195.14 Td (Solo la responsable que abrio el turno puede cerrarlo. Si otra persona entra, vera el turno pero no) Tj ET
+BT /F1 10.50 Tf 0.169 0.129 0.106 rg 62.00 181.14 Td (podra completar el cierre.) Tj ET
+BT /F2 21.00 Tf 0.431 0.290 0.184 rg 46.00 138.14 Td (2. Flujo diario recomendado) Tj ET
+q 0.937 0.898 0.855 RG 1.00 w 46.00 130.14 m 549.00 130.14 l S Q
+q 0.431 0.290 0.184 rg 0.431 0.290 0.184 RG 0.60 w 46.00 97.14 105.00 25.00 re B Q
+BT /F2 9.50 Tf 1.000 1.000 1.000 rg 52.00 107.14 Td (Momento) Tj ET
+q 0.431 0.290 0.184 rg 0.431 0.290 0.184 RG 0.60 w 151.00 97.14 205.00 25.00 re B Q
+BT /F2 9.50 Tf 1.000 1.000 1.000 rg 157.00 107.14 Td (Accion) Tj ET
+q 0.431 0.290 0.184 rg 0.431 0.290 0.184 RG 0.60 w 356.00 97.14 193.00 25.00 re B Q
+BT /F2 9.50 Tf 1.000 1.000 1.000 rg 362.00 107.14 Td (Resultado) Tj ET
+q 0.937 0.898 0.855 rg 0.847 0.761 0.682 RG 0.60 w 46.00 61.14 105.00 36.00 re B Q
+BT /F2 9.20 Tf 0.169 0.129 0.106 rg 52.00 83.14 Td (Inicio) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 151.00 61.14 205.00 36.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 157.00 83.14 Td (Abrir turno en Inventario > Conteos.) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 356.00 61.14 193.00 36.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 362.00 83.14 Td (Se guarda stock inicial, hora y) Tj ET
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 362.00 72.14 Td (responsable.) Tj ET
+q 0.847 0.761 0.682 RG 0.60 w 46.00 32.00 m 549.00 32.00 l S Q
+BT /F1 8.00 Tf 0.435 0.353 0.298 rg 188.14 20.00 Td (Manual de Turnos de Inventario - Dra. Estefany Ballesteros) Tj ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 8 0 R >>
+endobj
+8 0 obj
+<< /Length 6746 >>
+stream
+q 0.937 0.898 0.855 rg 0.847 0.761 0.682 RG 0.60 w 46.00 760.00 105.00 36.00 re B Q
+BT /F2 9.20 Tf 0.169 0.129 0.106 rg 52.00 782.00 Td (Durante el dia) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 151.00 760.00 205.00 36.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 157.00 782.00 Td (Registrar entradas, salidas, mermas o uso) Tj ET
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 157.00 771.00 Td (clinico.) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 356.00 760.00 193.00 36.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 362.00 782.00 Td (El sistema mantiene el stock actualizado.) Tj ET
+q 0.937 0.898 0.855 rg 0.847 0.761 0.682 RG 0.60 w 46.00 724.00 105.00 36.00 re B Q
+BT /F2 9.20 Tf 0.169 0.129 0.106 rg 52.00 746.00 Td (Antes del cierre) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 151.00 724.00 205.00 36.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 157.00 746.00 Td (Revisar lineas del turno abierto.) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 356.00 724.00 193.00 36.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 362.00 746.00 Td (Se compara stock esperado contra conteo) Tj ET
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 362.00 735.00 Td (fisico.) Tj ET
+q 0.937 0.898 0.855 rg 0.847 0.761 0.682 RG 0.60 w 46.00 688.00 105.00 36.00 re B Q
+BT /F2 9.20 Tf 0.169 0.129 0.106 rg 52.00 710.00 Td (Cierre) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 151.00 688.00 205.00 36.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 157.00 710.00 Td (Registrar conteo fisico y cerrar turno.) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 356.00 688.00 193.00 36.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 362.00 710.00 Td (Se calculan diferencias y se actualiza) Tj ET
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 362.00 699.00 Td (stock final.) Tj ET
+q 0.937 0.898 0.855 rg 0.847 0.761 0.682 RG 0.60 w 46.00 652.00 105.00 36.00 re B Q
+BT /F2 9.20 Tf 0.169 0.129 0.106 rg 52.00 674.00 Td (Revision) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 151.00 652.00 205.00 36.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 157.00 674.00 Td (Consultar historial de turnos cerrados.) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 356.00 652.00 193.00 36.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 362.00 674.00 Td (Queda evidencia de fecha, hora y) Tj ET
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 362.00 663.00 Td (responsable.) Tj ET
+BT /F2 21.00 Tf 0.431 0.290 0.184 rg 46.00 626.00 Td (3. Como abrir un turno) Tj ET
+q 0.937 0.898 0.855 RG 1.00 w 46.00 618.00 m 549.00 618.00 l S Q
+BT /F2 11.00 Tf 0.431 0.290 0.184 rg 49.00 595.00 Td (?) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 64.00 595.00 Td (Entrar al panel administrativo.) Tj ET
+BT /F2 11.00 Tf 0.431 0.290 0.184 rg 49.00 576.00 Td (?) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 64.00 576.00 Td (Abrir Inventario.) Tj ET
+BT /F2 11.00 Tf 0.431 0.290 0.184 rg 49.00 557.00 Td (?) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 64.00 557.00 Td (Entrar a la pestana Conteos.) Tj ET
+BT /F2 11.00 Tf 0.431 0.290 0.184 rg 49.00 538.00 Td (?) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 64.00 538.00 Td (Presionar Abrir turno.) Tj ET
+BT /F2 11.00 Tf 0.431 0.290 0.184 rg 49.00 519.00 Td (?) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 64.00 519.00 Td (Elegir ubicacion si corresponde, escribir nombre del turno y notas de apertura.) Tj ET
+BT /F2 11.00 Tf 0.431 0.290 0.184 rg 49.00 500.00 Td (?) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 64.00 500.00 Td (Guardar.) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 46.00 480.38 Td (Al guardar, el sistema crea las lineas del turno con el stock actual de los items activos. Eso permite) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 46.00 464.76 Td (comparar luego cuanto se dejo al inicio y cuanto se conto al cierre.) Tj ET
+BT /F2 21.00 Tf 0.431 0.290 0.184 rg 46.00 442.76 Td (4. Como registrar el conteo de cierre) Tj ET
+q 0.937 0.898 0.855 RG 1.00 w 46.00 434.76 m 549.00 434.76 l S Q
+BT /F2 11.00 Tf 0.431 0.290 0.184 rg 49.00 411.76 Td (?) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 64.00 411.76 Td (Entrar a Inventario > Conteos.) Tj ET
+BT /F2 11.00 Tf 0.431 0.290 0.184 rg 49.00 392.76 Td (?) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 64.00 392.76 Td (Buscar el turno abierto.) Tj ET
+BT /F2 11.00 Tf 0.431 0.290 0.184 rg 49.00 373.76 Td (?) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 64.00 373.76 Td (En cada item, revisar el campo Esperado.) Tj ET
+BT /F2 11.00 Tf 0.431 0.290 0.184 rg 49.00 354.76 Td (?) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 64.00 354.76 Td (Escribir el stock fisico real en Contado.) Tj ET
+BT /F2 11.00 Tf 0.431 0.290 0.184 rg 49.00 335.76 Td (?) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 64.00 335.76 Td (Agregar nota si hay diferencia o explicacion.) Tj ET
+BT /F2 11.00 Tf 0.431 0.290 0.184 rg 49.00 316.76 Td (?) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 64.00 316.76 Td (Presionar Guardar en la linea si se desea guardar parcialmente.) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 46.00 297.14 Td (La diferencia se calcula automaticamente como Contado menos Esperado. Si el resultado es 0, el) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 46.00 281.52 Td (stock fisico coincide con el sistema. Si es positivo o negativo, esa diferencia se aplicara al cerrar el) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 46.00 265.90 Td (turno.) Tj ET
+BT /F2 21.00 Tf 0.431 0.290 0.184 rg 46.00 243.90 Td (5. Como cerrar el turno) Tj ET
+q 0.937 0.898 0.855 RG 1.00 w 46.00 235.90 m 549.00 235.90 l S Q
+BT /F2 11.00 Tf 0.431 0.290 0.184 rg 49.00 212.90 Td (?) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 64.00 212.90 Td (Verificar que todos los items tengan el conteo correcto.) Tj ET
+BT /F2 11.00 Tf 0.431 0.290 0.184 rg 49.00 193.90 Td (?) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 64.00 193.90 Td (Escribir notas de cierre si corresponde.) Tj ET
+BT /F2 11.00 Tf 0.431 0.290 0.184 rg 49.00 174.90 Td (?) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 64.00 174.90 Td (Presionar Cerrar turno.) Tj ET
+BT /F2 11.00 Tf 0.431 0.290 0.184 rg 49.00 155.90 Td (?) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 64.00 155.90 Td (El sistema guarda los conteos pendientes antes de cerrar.) Tj ET
+BT /F2 11.00 Tf 0.431 0.290 0.184 rg 49.00 136.90 Td (?) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 64.00 136.90 Td (El sistema actualiza el stock final y registra movimientos de tipo conteo cuando hay diferencia.) Tj ET
+BT /F2 11.00 Tf 0.431 0.290 0.184 rg 49.00 117.90 Td (?) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 64.00 117.90 Td (El turno cambia de abierto a cerrado y ya no puede reabrirse desde la pantalla.) Tj ET
+q 0.847 0.761 0.682 RG 0.60 w 46.00 32.00 m 549.00 32.00 l S Q
+BT /F1 8.00 Tf 0.435 0.353 0.298 rg 188.14 20.00 Td (Manual de Turnos de Inventario - Dra. Estefany Ballesteros) Tj ET
+endstream
+endobj
+9 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 10 0 R >>
+endobj
+10 0 obj
+<< /Length 7369 >>
+stream
+q 1.000 0.976 0.957 rg 0.847 0.761 0.682 RG 0.80 w 46.00 734.00 503.00 62.00 re B Q
+q 0.541 0.290 0.231 rg 46.00 734.00 6.00 62.00 re f Q
+BT /F2 11.00 Tf 0.541 0.290 0.231 rg 62.00 779.00 Td (Quien puede cerrar) Tj ET
+BT /F1 10.50 Tf 0.169 0.129 0.106 rg 62.00 765.00 Td (El boton solo queda disponible para la responsable que abrio el turno. Para las demas personas) Tj ET
+BT /F1 10.50 Tf 0.169 0.129 0.106 rg 62.00 751.00 Td (aparece bloqueado como Solo responsable.) Tj ET
+BT /F2 21.00 Tf 0.431 0.290 0.184 rg 46.00 708.00 Td (6. Que se guarda al cerrar) Tj ET
+q 0.937 0.898 0.855 RG 1.00 w 46.00 700.00 m 549.00 700.00 l S Q
+q 0.431 0.290 0.184 rg 0.431 0.290 0.184 RG 0.60 w 46.00 667.00 175.00 25.00 re B Q
+BT /F2 9.50 Tf 1.000 1.000 1.000 rg 52.00 677.00 Td (Dato guardado) Tj ET
+q 0.431 0.290 0.184 rg 0.431 0.290 0.184 RG 0.60 w 221.00 667.00 328.00 25.00 re B Q
+BT /F2 9.50 Tf 1.000 1.000 1.000 rg 227.00 677.00 Td (Para que sirve) Tj ET
+q 0.937 0.898 0.855 rg 0.847 0.761 0.682 RG 0.60 w 46.00 642.00 175.00 25.00 re B Q
+BT /F2 9.20 Tf 0.169 0.129 0.106 rg 52.00 653.00 Td (Fecha y hora de apertura) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 221.00 642.00 328.00 25.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 227.00 653.00 Td (Saber cuando comenzo el turno.) Tj ET
+q 0.937 0.898 0.855 rg 0.847 0.761 0.682 RG 0.60 w 46.00 617.00 175.00 25.00 re B Q
+BT /F2 9.20 Tf 0.169 0.129 0.106 rg 52.00 628.00 Td (Responsable de apertura) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 221.00 617.00 328.00 25.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 227.00 628.00 Td (Saber quien dejo iniciado el control.) Tj ET
+q 0.937 0.898 0.855 rg 0.847 0.761 0.682 RG 0.60 w 46.00 592.00 175.00 25.00 re B Q
+BT /F2 9.20 Tf 0.169 0.129 0.106 rg 52.00 603.00 Td (Stock inicial) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 221.00 592.00 328.00 25.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 227.00 603.00 Td (Comparar con el stock esperado y el conteo fisico.) Tj ET
+q 0.937 0.898 0.855 rg 0.847 0.761 0.682 RG 0.60 w 46.00 567.00 175.00 25.00 re B Q
+BT /F2 9.20 Tf 0.169 0.129 0.106 rg 52.00 578.00 Td (Conteo fisico) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 221.00 567.00 328.00 25.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 227.00 578.00 Td (Registrar lo que realmente existe.) Tj ET
+q 0.937 0.898 0.855 rg 0.847 0.761 0.682 RG 0.60 w 46.00 542.00 175.00 25.00 re B Q
+BT /F2 9.20 Tf 0.169 0.129 0.106 rg 52.00 553.00 Td (Diferencia) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 221.00 542.00 328.00 25.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 227.00 553.00 Td (Identificar sobrantes o faltantes.) Tj ET
+q 0.937 0.898 0.855 rg 0.847 0.761 0.682 RG 0.60 w 46.00 517.00 175.00 25.00 re B Q
+BT /F2 9.20 Tf 0.169 0.129 0.106 rg 52.00 528.00 Td (Fecha y hora de cierre) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 221.00 517.00 328.00 25.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 227.00 528.00 Td (Auditoria del cierre.) Tj ET
+q 0.937 0.898 0.855 rg 0.847 0.761 0.682 RG 0.60 w 46.00 492.00 175.00 25.00 re B Q
+BT /F2 9.20 Tf 0.169 0.129 0.106 rg 52.00 503.00 Td (Responsable de cierre) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 221.00 492.00 328.00 25.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 227.00 503.00 Td (Confirmar quien cerro el turno.) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 46.00 462.38 Td (Si hay diferencias, se generan registros de ajuste y movimientos de inventario. Esto permite) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 46.00 446.76 Td (revisar despues por que cambio el stock, sin borrar ni sobrescribir la historia.) Tj ET
+BT /F2 21.00 Tf 0.431 0.290 0.184 rg 46.00 424.76 Td (7. Que NO hace este cambio) Tj ET
+q 0.937 0.898 0.855 RG 1.00 w 46.00 416.76 m 549.00 416.76 l S Q
+BT /F2 11.00 Tf 0.431 0.290 0.184 rg 49.00 393.76 Td (?) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 64.00 393.76 Td (No borra turnos abiertos existentes.) Tj ET
+BT /F2 11.00 Tf 0.431 0.290 0.184 rg 49.00 374.76 Td (?) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 64.00 374.76 Td (No elimina conteos anteriores.) Tj ET
+BT /F2 11.00 Tf 0.431 0.290 0.184 rg 49.00 355.76 Td (?) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 64.00 355.76 Td (No elimina items, lotes, movimientos ni proveedores.) Tj ET
+BT /F2 11.00 Tf 0.431 0.290 0.184 rg 49.00 336.76 Td (?) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 64.00 336.76 Td (No cambia automaticamente un turno abierto a cerrado.) Tj ET
+BT /F2 11.00 Tf 0.431 0.290 0.184 rg 49.00 317.76 Td (?) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 64.00 317.76 Td (No permite que otra persona cierre un turno ajeno.) Tj ET
+BT /F2 11.00 Tf 0.431 0.290 0.184 rg 49.00 298.76 Td (?) Tj ET
+BT /F1 11.00 Tf 0.169 0.129 0.106 rg 64.00 298.76 Td (No modifica la responsable original de apertura.) Tj ET
+q 1.000 0.976 0.957 rg 0.847 0.761 0.682 RG 0.80 w 46.00 218.76 503.00 76.00 re B Q
+q 0.435 0.478 0.376 rg 46.00 218.76 6.00 76.00 re f Q
+BT /F2 11.00 Tf 0.435 0.478 0.376 rg 62.00 277.76 Td (Si hay turnos antiguos) Tj ET
+BT /F1 10.50 Tf 0.169 0.129 0.106 rg 62.00 263.76 Td (Un turno antiguo que ya esta abierto permanecera abierto. Para cerrarlo debe entrar la misma) Tj ET
+BT /F1 10.50 Tf 0.169 0.129 0.106 rg 62.00 249.76 Td (cuenta responsable de apertura. Si el turno antiguo no tiene responsable, debe revisarse con) Tj ET
+BT /F1 10.50 Tf 0.169 0.129 0.106 rg 62.00 235.76 Td (administracion antes de intervenirlo.) Tj ET
+BT /F2 21.00 Tf 0.431 0.290 0.184 rg 46.00 192.76 Td (8. Errores comunes y solucion) Tj ET
+q 0.937 0.898 0.855 RG 1.00 w 46.00 184.76 m 549.00 184.76 l S Q
+q 0.431 0.290 0.184 rg 0.431 0.290 0.184 RG 0.60 w 46.00 151.76 125.00 25.00 re B Q
+BT /F2 9.50 Tf 1.000 1.000 1.000 rg 52.00 161.76 Td (Situacion) Tj ET
+q 0.431 0.290 0.184 rg 0.431 0.290 0.184 RG 0.60 w 171.00 151.76 180.00 25.00 re B Q
+BT /F2 9.50 Tf 1.000 1.000 1.000 rg 177.00 161.76 Td (Causa probable) Tj ET
+q 0.431 0.290 0.184 rg 0.431 0.290 0.184 RG 0.60 w 351.00 151.76 198.00 25.00 re B Q
+BT /F2 9.50 Tf 1.000 1.000 1.000 rg 357.00 161.76 Td (Que hacer) Tj ET
+q 0.937 0.898 0.855 rg 0.847 0.761 0.682 RG 0.60 w 46.00 126.76 125.00 25.00 re B Q
+BT /F2 9.20 Tf 0.169 0.129 0.106 rg 52.00 137.76 Td (Boton bloqueado) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 171.00 126.76 180.00 25.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 177.00 137.76 Td (No eres quien abrio el turno.) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 351.00 126.76 198.00 25.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 357.00 137.76 Td (Pedir a la responsable que lo cierre.) Tj ET
+q 0.937 0.898 0.855 rg 0.847 0.761 0.682 RG 0.60 w 46.00 90.76 125.00 36.00 re B Q
+BT /F2 9.20 Tf 0.169 0.129 0.106 rg 52.00 112.76 Td (No aparece un item) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 171.00 90.76 180.00 36.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 177.00 112.76 Td (Item inactivo, archivado o de otra) Tj ET
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 177.00 101.76 Td (ubicacion.) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 351.00 90.76 198.00 36.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 357.00 112.76 Td (Revisar catalogo y ubicacion.) Tj ET
+q 0.847 0.761 0.682 RG 0.60 w 46.00 32.00 m 549.00 32.00 l S Q
+BT /F1 8.00 Tf 0.435 0.353 0.298 rg 188.14 20.00 Td (Manual de Turnos de Inventario - Dra. Estefany Ballesteros) Tj ET
+endstream
+endobj
+11 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 12 0 R >>
+endobj
+12 0 obj
+<< /Length 4421 >>
+stream
+q 0.937 0.898 0.855 rg 0.847 0.761 0.682 RG 0.60 w 46.00 760.00 125.00 36.00 re B Q
+BT /F2 9.20 Tf 0.169 0.129 0.106 rg 52.00 782.00 Td (Diferencia negativa) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 171.00 760.00 180.00 36.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 177.00 782.00 Td (Falta stock fisico.) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 351.00 760.00 198.00 36.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 357.00 782.00 Td (Anotar motivo y cerrar solo si esta) Tj ET
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 357.00 771.00 Td (verificado.) Tj ET
+q 0.937 0.898 0.855 rg 0.847 0.761 0.682 RG 0.60 w 46.00 724.00 125.00 36.00 re B Q
+BT /F2 9.20 Tf 0.169 0.129 0.106 rg 52.00 746.00 Td (Diferencia positiva) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 171.00 724.00 180.00 36.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 177.00 746.00 Td (Hay mas stock que el esperado.) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 351.00 724.00 198.00 36.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 357.00 746.00 Td (Confirmar conteo y revisar movimientos no) Tj ET
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 357.00 735.00 Td (registrados.) Tj ET
+q 0.937 0.898 0.855 rg 0.847 0.761 0.682 RG 0.60 w 46.00 699.00 125.00 25.00 re B Q
+BT /F2 9.20 Tf 0.169 0.129 0.106 rg 52.00 710.00 Td (No deja abrir turno) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 171.00 699.00 180.00 25.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 177.00 710.00 Td (Ya existe uno abierto en la ubicacion.) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 351.00 699.00 198.00 25.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 357.00 710.00 Td (Cerrar el turno anterior primero.) Tj ET
+q 0.937 0.898 0.855 rg 0.847 0.761 0.682 RG 0.60 w 46.00 674.00 125.00 25.00 re B Q
+BT /F2 9.20 Tf 0.169 0.129 0.106 rg 52.00 685.00 Td (Error de migracion) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 171.00 674.00 180.00 25.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 177.00 685.00 Td (Base remota sin SQL actualizado.) Tj ET
+q 1.000 1.000 1.000 rg 0.847 0.761 0.682 RG 0.60 w 351.00 674.00 198.00 25.00 re B Q
+BT /F1 9.20 Tf 0.169 0.129 0.106 rg 357.00 685.00 Td (Aplicar migraciones de Supabase y recargar.) Tj ET
+BT /F2 21.00 Tf 0.431 0.290 0.184 rg 46.00 648.00 Td (9. Checklist rapido para responsable) Tj ET
+q 0.937 0.898 0.855 RG 1.00 w 46.00 640.00 m 549.00 640.00 l S Q
+q 1.000 0.976 0.957 rg 0.847 0.761 0.682 RG 0.60 w 46.00 588.00 246.50 44.00 re B Q
+BT /F2 10.00 Tf 0.435 0.478 0.376 rg 54.00 615.00 Td (?) Tj ET
+BT /F1 9.50 Tf 0.169 0.129 0.106 rg 68.00 615.00 Td (Abrir turno al iniciar el control del dia o de la) Tj ET
+BT /F1 9.50 Tf 0.169 0.129 0.106 rg 68.00 603.00 Td (ubicacion.) Tj ET
+q 1.000 0.976 0.957 rg 0.847 0.761 0.682 RG 0.60 w 302.50 588.00 246.50 44.00 re B Q
+BT /F2 10.00 Tf 0.435 0.478 0.376 rg 310.50 615.00 Td (?) Tj ET
+BT /F1 9.50 Tf 0.169 0.129 0.106 rg 324.50 615.00 Td (No compartir usuario para abrir o cerrar turnos.) Tj ET
+q 1.000 0.976 0.957 rg 0.847 0.761 0.682 RG 0.60 w 46.00 534.00 246.50 44.00 re B Q
+BT /F2 10.00 Tf 0.435 0.478 0.376 rg 54.00 561.00 Td (?) Tj ET
+BT /F1 9.50 Tf 0.169 0.129 0.106 rg 68.00 561.00 Td (Revisar lineas con diferencia antes de cerrar.) Tj ET
+q 1.000 0.976 0.957 rg 0.847 0.761 0.682 RG 0.60 w 302.50 534.00 246.50 44.00 re B Q
+BT /F2 10.00 Tf 0.435 0.478 0.376 rg 310.50 561.00 Td (?) Tj ET
+BT /F1 9.50 Tf 0.169 0.129 0.106 rg 324.50 561.00 Td (Escribir nota cuando haya faltante, sobrante,) Tj ET
+BT /F1 9.50 Tf 0.169 0.129 0.106 rg 324.50 549.00 Td (merma o vencimiento.) Tj ET
+q 1.000 0.976 0.957 rg 0.847 0.761 0.682 RG 0.60 w 46.00 480.00 246.50 44.00 re B Q
+BT /F2 10.00 Tf 0.435 0.478 0.376 rg 54.00 507.00 Td (?) Tj ET
+BT /F1 9.50 Tf 0.169 0.129 0.106 rg 68.00 507.00 Td (Cerrar el turno el mismo dia siempre que sea) Tj ET
+BT /F1 9.50 Tf 0.169 0.129 0.106 rg 68.00 495.00 Td (posible.) Tj ET
+q 1.000 0.976 0.957 rg 0.847 0.761 0.682 RG 0.60 w 302.50 480.00 246.50 44.00 re B Q
+BT /F2 10.00 Tf 0.435 0.478 0.376 rg 310.50 507.00 Td (?) Tj ET
+BT /F1 9.50 Tf 0.169 0.129 0.106 rg 324.50 507.00 Td (Exportar reporte si se necesita respaldo) Tj ET
+BT /F1 9.50 Tf 0.169 0.129 0.106 rg 324.50 495.00 Td (administrativo.) Tj ET
+q 0.847 0.761 0.682 RG 0.60 w 46.00 32.00 m 549.00 32.00 l S Q
+BT /F1 8.00 Tf 0.435 0.353 0.298 rg 188.14 20.00 Td (Manual de Turnos de Inventario - Dra. Estefany Ballesteros) Tj ET
+endstream
+endobj
+xref
+0 13
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000140 00000 n 
+0000000210 00000 n 
+0000000285 00000 n 
+0000000421 00000 n 
+0000006161 00000 n 
+0000006297 00000 n 
+0000013095 00000 n 
+0000013232 00000 n 
+0000020654 00000 n 
+0000020792 00000 n 
+trailer
+<< /Size 13 /Root 1 0 R >>
+startxref
+25266
+%%EOF

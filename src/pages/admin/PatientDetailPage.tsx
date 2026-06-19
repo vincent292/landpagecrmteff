@@ -73,8 +73,8 @@ export function PatientDetailPage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <PatientAction href={`/panel/pacientes/${id}/historia-clinica`} label="Ficha clinica" />
-            <PatientAction href={`/panel/pacientes/${id}/fotos`} label="Galeria clinica" />
+            <PatientAction href={`/panel/pacientes/${id}/historia-clinica`} label="Ficha clínica" />
+            <PatientAction href={`/panel/pacientes/${id}/fotos`} label="Galería clínica" />
             <PatientAction href={`/panel/pacientes/${id}/citas`} label="Crear cita" />
             <PatientAction href={`/panel/pacientes/${id}/recetas`} label="Crear receta" />
             <PatientAction href={`/panel/pacientes/${id}/cuidados`} label="Crear cuidado" />
@@ -85,44 +85,44 @@ export function PatientDetailPage() {
       <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         <SummaryCard title="Datos personales" value={data.patient.city ?? "Sin ciudad"} detail={data.patient.emergency_contact ?? "Sin contacto de emergencia"} />
         <SummaryCard
-          title="Proxima cita"
+          title="Próxima cita"
           value={nextAppointment ? nextAppointment.title : "Sin cita"}
           detail={nextAppointment ? `${formatDate(nextAppointment.appointment_date)} · ${nextAppointment.start_time}` : "No hay actividad programada."}
         />
         <SummaryCard
-          title="Ultima evolucion"
-          value={lastEvolution?.title ?? "Sin evolucion"}
-          detail={lastEvolution?.treatment_performed ?? "Aun no hay seguimiento clinico cargado."}
+          title="Última evolución"
+          value={lastEvolution?.title ?? "Sin evolución"}
+          detail={lastEvolution?.treatment_performed ?? "Aún no hay seguimiento clínico cargado."}
         />
         <SummaryCard
-          title="Ultima receta"
+          title="Última receta"
           value={latestPrescription?.title ?? "Sin receta"}
           detail={latestPrescription?.indications ?? "No hay receta visible en la ficha."}
         />
         <SummaryCard
-          title="Ultimos cuidados"
+          title="Últimos cuidados"
           value={latestCare?.title ?? "Sin cuidados"}
           detail={latestCare?.treatment_name ?? "No hay cuidados postratamiento enviados."}
         />
         <SummaryCard
           title="Fotos recientes"
           value={String(data.photos.length)}
-          detail={data.photos.length ? "La galeria clinica tiene material reciente." : "Todavia no hay fotos registradas."}
+          detail={data.photos.length ? "La galería clínica tiene material reciente." : "Todavía no hay fotos registradas."}
         />
       </section>
 
       <section className="rounded-[28px] border border-[var(--color-border)] bg-white/75 p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <h2 className="text-xl font-semibold">Resumen de ficha clinica</h2>
+            <h2 className="text-xl font-semibold">Resumen de ficha clínica</h2>
             <p className="mt-2 text-sm text-[var(--color-copy)]">
-              Desde aqui el equipo puede entrar a registrar nuevas notas medicas, seguimientos y fotos clinicas.
+              Desde aquí el equipo puede entrar a registrar nuevas notas médicas, seguimientos y fotos clínicas.
             </p>
           </div>
-          <PatientAction href={`/panel/pacientes/${id}/historia-clinica`} label="Abrir ficha clinica" />
+          <PatientAction href={`/panel/pacientes/${id}/historia-clinica`} label="Abrir ficha clínica" />
         </div>
         <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
-          {data.history?.diagnosis ?? data.history?.reason_for_consultation ?? "Todavia no hay notas clinicas cargadas."}
+          {data.history?.diagnosis ?? data.history?.reason_for_consultation ?? "Todavía no hay notas clínicas cargadas."}
         </p>
         {data.histories.length > 0 ? (
           <div className="mt-5 grid gap-3">
@@ -132,9 +132,9 @@ export function PatientDetailPage() {
                   {formatDate(item.session_date ?? item.created_at)}
                   {item.session_time ? ` · ${formatPublicTime(item.session_time)}` : ""}
                 </p>
-                <h3 className="mt-2 text-base font-semibold">{item.session_title ?? item.reason_for_consultation ?? "Nota clinica"}</h3>
+                <h3 className="mt-2 text-base font-semibold">{item.session_title ?? item.reason_for_consultation ?? "Nota clínica"}</h3>
                 <p className="mt-1 text-xs font-semibold text-[var(--color-copy)]">
-                  Doctora responsable {item.doctor_profiles?.full_name ?? item.profiles?.full_name ?? item.profiles?.email ?? "equipo medico"}
+                  Doctora responsable {item.doctor_profiles?.full_name ?? item.profiles?.full_name ?? item.profiles?.email ?? "equipo médico"}
                 </p>
                 <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">
                   {item.diagnosis ?? item.reason_for_consultation ?? "Sin resumen disponible."}
@@ -148,7 +148,7 @@ export function PatientDetailPage() {
       <section className="rounded-[28px] border border-[var(--color-border)] bg-white/75 p-6">
         <h2 className="text-xl font-semibold">Fotos recientes</h2>
         {data.photos.length === 0 ? (
-          <EmptyState label="No hay fotos clinicas registradas." />
+          <EmptyState label="No hay fotos clínicas registradas." />
         ) : (
           <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {data.photos.slice(0, 4).map((photo) => (

@@ -145,9 +145,9 @@ export function AdminLayout() {
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">
               Acceso restringido
             </p>
-            <h1 className="font-display mt-3 text-4xl font-semibold">Tu rol no tiene modulos administrativos asignados.</h1>
+            <h1 className="font-display mt-3 text-4xl font-semibold">Tu rol no tiene módulos administrativos asignados.</h1>
             <button onClick={() => void signOut()} className="mt-6 rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white">
-              Cerrar sesion
+              Cerrar sesión
             </button>
           </section>
         </main>
@@ -164,7 +164,7 @@ export function AdminLayout() {
           type="button"
           onClick={() => setOpen(true)}
           className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--color-border)] bg-white/75"
-          aria-label="Abrir menu"
+          aria-label="Abrir menú"
         >
           <Menu className="h-5 w-5" />
         </button>
@@ -188,7 +188,7 @@ export function AdminLayout() {
           type="button"
           onClick={() => void signOut()}
           className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--color-border)] bg-white/75"
-          aria-label="Cerrar sesion"
+          aria-label="Cerrar sesión"
         >
           <LogOut className="h-4 w-4" />
         </button>
@@ -301,7 +301,7 @@ export function AdminLayout() {
           className="mt-4 hidden w-full items-center justify-center gap-2 rounded-full border border-[var(--color-border)] bg-white/62 px-4 py-3 text-sm font-semibold lg:inline-flex"
         >
           <LogOut className="h-4 w-4" />
-          Cerrar sesion
+          Cerrar sesión
         </button>
       </aside>
 
@@ -337,7 +337,7 @@ export function AdminLayout() {
               className="hidden items-center gap-2 rounded-full border border-[var(--color-border)] bg-white/60 px-4 py-2 text-sm font-semibold sm:inline-flex"
             >
               <LogOut className="h-4 w-4" />
-              Cerrar sesion
+              Cerrar sesión
             </button>
           </div>
         </header>
@@ -396,7 +396,7 @@ function NotificationBell({
           </div>
           <div className="mt-3 grid max-h-[60vh] gap-2 overflow-y-auto">
             {items.length === 0 ? (
-              <p className="rounded-[18px] bg-white/70 px-4 py-5 text-sm text-[var(--color-copy)]">Todavia no hay novedades en tiempo real.</p>
+              <p className="rounded-[18px] bg-white/70 px-4 py-5 text-sm text-[var(--color-copy)]">Todavía no hay novedades en tiempo real.</p>
             ) : (
               items.map((item) => (
                 <Link

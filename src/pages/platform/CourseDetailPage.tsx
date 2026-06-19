@@ -271,7 +271,7 @@ export function CourseDetailPage() {
           ) : null}
           {!user ? (
             <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
-              Para inscribirte en Academy te pediremos iniciar sesion o crear tu cuenta.
+              Para inscribirte en Academy te pediremos iniciar sesión o crear tu cuenta.
             </p>
           ) : null}
           {enrollment ? (
@@ -313,7 +313,7 @@ export function CourseDetailPage() {
               state={{ from: detailPath }}
               className="inline-flex items-center justify-center rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white"
             >
-              Iniciar sesion
+              Iniciar sesión
             </Link>
             <Link
               to="/register"
@@ -396,7 +396,7 @@ export function CourseDetailPage() {
                 </p>
               )}
               <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
-                El comprobante se conserva temporalmente y por ahora se limpia despues de 7 dias.
+                El comprobante se conserva temporalmente y por ahora se limpia después de 7 días.
               </p>
               <div className="mt-5 flex flex-wrap gap-3">
                 {requiresNewReceipt && !alreadySubmittedEnrollment ? (
@@ -473,7 +473,7 @@ function Block({ title, items }: { title: string; items: string[] }) {
           {items.map((item) => <li key={item}>- {item}</li>)}
         </ul>
       ) : (
-        <p className="mt-4 text-sm text-[var(--color-copy)]">Informacion en preparacion.</p>
+        <p className="mt-4 text-sm text-[var(--color-copy)]">Información en preparación.</p>
       )}
     </div>
   );

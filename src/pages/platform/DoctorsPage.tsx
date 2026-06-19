@@ -21,21 +21,21 @@ export function DoctorsPage() {
   return (
     <section className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24">
       <Seo
-        title="Doctoras de medicina estetica en Bolivia | Dra. Estefany Ballesteros"
-        description="Conoce al equipo medico y las doctoras vinculadas al proyecto de Dra. Estefany Ballesteros para atencion y seguimiento en Bolivia."
+        title="Doctoras de medicina estética en Bolivia | Dra. Estefany Ballesteros"
+        description="Conoce al equipo médico y las doctoras vinculadas al proyecto de Dra. Estefany Ballesteros para atención y seguimiento en Bolivia."
         path="/doctoras"
         image="/doctora/dra1.jpg"
-        keywords={["doctoras medicina estetica Bolivia", "equipo medico estetica Bolivia", "Dra. Estefany Ballesteros doctoras"]}
+        keywords={["doctoras medicina estética Bolivia", "equipo médico estética Bolivia", "Dra. Estefany Ballesteros doctoras"]}
       />
       <PageIntro
         eyebrow="Doctoras"
-        title="Un equipo medico preparado para acompañar tu proceso con criterio y cercania."
-        text="Cada doctora puede tener su agenda, pacientes asignados y canales de contacto sin mezclar informacion clinica."
+        title="Un equipo médico preparado para acompañar tu proceso con criterio y cercanía."
+        text="Cada doctora puede tener su agenda, pacientes asignados y canales de contacto sin mezclar información clínica."
       />
 
       <div className="mt-12">
         {loading && <LoadingState label="Cargando doctoras..." />}
-        {!loading && doctors.length === 0 && <EmptyState label="Todavia no hay doctoras publicadas." />}
+        {!loading && doctors.length === 0 && <EmptyState label="Todavía no hay doctoras publicadas." />}
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
           {doctors.map((doctor) => (
             <article key={doctor.id} className="overflow-hidden rounded-[30px] border border-[var(--color-border)] bg-white/65 shadow-[0_18px_48px_rgba(110,74,47,0.08)]">
@@ -47,7 +47,7 @@ export function DoctorsPage() {
               />
               <div className="p-6">
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-accent-strong)]">
-                  {doctor.specialty ?? "Medicina estetica"} · {doctor.city ?? "Bolivia"}
+                  {doctor.specialty ?? "Medicina estética"} · {doctor.city ?? "Bolivia"}
                 </p>
                 <h2 className="mt-3 text-2xl font-semibold">{doctor.full_name}</h2>
                 <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">{doctor.bio}</p>

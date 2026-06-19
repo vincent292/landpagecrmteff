@@ -30,11 +30,11 @@ const forgotPasswordSchema = z.object({
 
 const resetPasswordSchema = z
   .object({
-    password: z.string().min(8, "La nueva contrasena debe tener al menos 8 caracteres"),
-    confirmPassword: z.string().min(8, "Confirma tu nueva contrasena"),
+    password: z.string().min(8, "La nueva contraseña debe tener al menos 8 caracteres"),
+    confirmPassword: z.string().min(8, "Confirma tu nueva contraseña"),
   })
   .refine((values) => values.password === values.confirmPassword, {
-    message: "Las contrasenas no coinciden",
+    message: "Las contraseñas no coinciden",
     path: ["confirmPassword"],
   });
 
@@ -75,7 +75,7 @@ export function ForgotPasswordPage() {
       if (resetError) throw resetError;
 
       setMessage(
-        "Si el correo esta registrado, te enviaremos un enlace temporal para restablecer tu contrasena. Revisa tu bandeja y tambien spam."
+        "Si el correo está registrado, te enviaremos un enlace temporal para restablecer tu contraseña. Revisa tu bandeja y también spam."
       );
     } catch (submitError) {
       const errorMessage = submitError instanceof Error ? submitError.message : "";
@@ -85,22 +85,22 @@ export function ForgotPasswordPage() {
 
   return (
     <AuthShell
-      eyebrow="Recuperacion de acceso"
-      title="Recupera tu contrasena"
-      description="Ingresa tu correo y te enviaremos un enlace temporal para que vuelvas a entrar a tu portal de la clinica."
+      eyebrow="Recuperación de acceso"
+      title="Recupera tu contraseña"
+      description="Ingresa tu correo y te enviaremos un enlace temporal para que vuelvas a entrar a tu portal de la clínica."
       icon={<Mail className="h-4 w-4" />}
       sideTitle="Tu acceso sigue protegido"
-      sideCopy="El enlace de recuperacion te lleva a una pagina privada para definir una nueva contrasena y retomar tu seguimiento clinico."
+      sideCopy="El enlace de recuperación te lleva a una página privada para definir una nueva contraseña y retomar tu seguimiento clínico."
       footer={
         <p className="mt-5 text-center text-sm text-[var(--color-copy)]">
           <Link to="/login" className="font-semibold text-[var(--color-mocha)]">
-            Volver al inicio de sesion
+            Volver al inicio de sesión
           </Link>
         </p>
       }
     >
       <form onSubmit={handleSubmit(onSubmit)} className="w-full rounded-[36px] border border-[var(--color-border)] bg-[rgba(255,249,244,0.88)] p-6 shadow-[0_28px_90px_rgba(62,42,31,0.12)] backdrop-blur-2xl md:p-8">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">Recuperar contrasena</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">Recuperar contraseña</p>
         <h2 className="font-display mt-3 text-4xl font-semibold text-[var(--color-ink)] md:text-5xl">
           Te enviaremos un enlace temporal
         </h2>
@@ -127,7 +127,7 @@ export function ForgotPasswordPage() {
           disabled={isSubmitting}
           className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[var(--color-mocha)] px-6 py-3.5 text-sm font-semibold text-white shadow-[0_18px_42px_rgba(62,42,31,0.18)] disabled:opacity-60"
         >
-          {isSubmitting ? "Enviando enlace..." : "Enviar enlace de recuperacion"}
+          {isSubmitting ? "Enviando enlace..." : "Enviar enlace de recuperación"}
           <ArrowRight className="h-4 w-4" />
         </button>
       </form>
@@ -195,7 +195,7 @@ export function ResetPasswordPage() {
       const role = normalizeRole(profile?.role);
       const nextPath = isStaffRole(role) ? "/panel" : "/mi-panel";
 
-      setMessage("Tu contrasena fue actualizada correctamente. Te llevaremos a tu portal.");
+      setMessage("Tu contraseña fue actualizada correctamente. Te llevaremos a tu portal.");
       window.setTimeout(() => navigate(nextPath, { replace: true }), 1000);
     } catch (submitError) {
       const errorMessage = submitError instanceof Error ? submitError.message : "";
@@ -208,7 +208,7 @@ export function ResetPasswordPage() {
       <section className="relative overflow-hidden px-6 py-14 md:px-8 md:py-20">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_18%,rgba(198,162,123,0.16),transparent_28%),radial-gradient(circle_at_82%_18%,rgba(111,122,96,0.10),transparent_26%),linear-gradient(180deg,#fbf7f2_0%,#f4ebe1_100%)]" />
         <div className="relative mx-auto flex min-h-[70vh] max-w-4xl items-center justify-center rounded-[36px] border border-[var(--color-border)] bg-[rgba(255,249,244,0.88)] p-8 text-center shadow-[0_28px_90px_rgba(62,42,31,0.12)] backdrop-blur-2xl">
-          <p className="text-sm leading-7 text-[var(--color-copy)]">Validando tu enlace de recuperacion...</p>
+          <p className="text-sm leading-7 text-[var(--color-copy)]">Validando tu enlace de recuperación...</p>
         </div>
       </section>
     );
@@ -219,10 +219,10 @@ export function ResetPasswordPage() {
       <AuthShell
         eyebrow="Enlace no disponible"
         title="Este acceso ya no esta activo"
-        description="El enlace pudo expirar o ya no es valido. Solicita uno nuevo para volver a recuperar tu contrasena."
+        description="El enlace pudo expirar o ya no es válido. Solicita uno nuevo para volver a recuperar tu contraseña."
         icon={<KeyRound className="h-4 w-4" />}
         sideTitle="Seguridad del portal"
-        sideCopy="Por seguridad, los enlaces de recuperacion son temporales y solo deben usarse desde tu correo."
+        sideCopy="Por seguridad, los enlaces de recuperación son temporales y solo deben usarse desde tu correo."
         footer={
           <p className="mt-5 text-center text-sm text-[var(--color-copy)]">
             <Link to="/recuperar-contrasena" className="font-semibold text-[var(--color-mocha)]">
@@ -232,12 +232,12 @@ export function ResetPasswordPage() {
         }
       >
         <div className="w-full rounded-[36px] border border-[var(--color-border)] bg-[rgba(255,249,244,0.88)] p-6 shadow-[0_28px_90px_rgba(62,42,31,0.12)] backdrop-blur-2xl md:p-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">Recuperacion caducada</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">Recuperación caducada</p>
           <h2 className="font-display mt-3 text-4xl font-semibold text-[var(--color-ink)] md:text-5xl">
             Vuelve a solicitar el acceso
           </h2>
           <p className="mt-5 text-sm leading-7 text-[var(--color-copy)]">
-            Te enviaremos un nuevo enlace temporal para que restablezcas tu contrasena sin perder la seguridad de tu cuenta.
+            Te enviaremos un nuevo enlace temporal para que restablezcas tu contraseña sin perder la seguridad de tu cuenta.
           </p>
           <div className="mt-8">
             <Link to="/recuperar-contrasena" className="inline-flex items-center gap-2 rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white">
@@ -253,27 +253,27 @@ export function ResetPasswordPage() {
   return (
     <AuthShell
       eyebrow="Restablecer acceso"
-      title="Define tu nueva contrasena"
-      description="Estas dentro del proceso seguro de recuperacion. Crea una nueva contrasena para volver a entrar a tu portal clinico."
+      title="Define tu nueva contraseña"
+      description="Estás dentro del proceso seguro de recuperación. Crea una nueva contraseña para volver a entrar a tu portal clínico."
       icon={<KeyRound className="h-4 w-4" />}
       sideTitle="Clinica Dra. Estefany"
-      sideCopy="Una vez guardada tu nueva contrasena, entraras de nuevo a tu dashboard para seguir con tus citas, cuidados, recetas, cursos y libros."
+      sideCopy="Una vez guardada tu nueva contraseña, entrarás de nuevo a tu dashboard para seguir con tus citas, cuidados, recetas, cursos y libros."
       footer={
         <p className="mt-5 text-center text-sm text-[var(--color-copy)]">
           <Link to="/login" className="font-semibold text-[var(--color-mocha)]">
-            Volver al inicio de sesion
+            Volver al inicio de sesión
           </Link>
         </p>
       }
     >
       <form onSubmit={handleSubmit(onSubmit)} className="w-full rounded-[36px] border border-[var(--color-border)] bg-[rgba(255,249,244,0.88)] p-6 shadow-[0_28px_90px_rgba(62,42,31,0.12)] backdrop-blur-2xl md:p-8">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">Nueva contrasena</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">Nueva contraseña</p>
         <h2 className="font-display mt-3 text-4xl font-semibold text-[var(--color-ink)] md:text-5xl">
           Tu portal esta casi listo
         </h2>
 
         <label className="mt-8 block">
-          <span className="text-sm font-semibold text-[var(--color-ink)]">Nueva contrasena</span>
+          <span className="text-sm font-semibold text-[var(--color-ink)]">Nueva contraseña</span>
           <input
             type="password"
             autoComplete="new-password"
@@ -284,7 +284,7 @@ export function ResetPasswordPage() {
         </label>
 
         <label className="mt-5 block">
-          <span className="text-sm font-semibold text-[var(--color-ink)]">Confirmar contrasena</span>
+          <span className="text-sm font-semibold text-[var(--color-ink)]">Confirmar contraseña</span>
           <input
             type="password"
             autoComplete="new-password"
@@ -301,7 +301,7 @@ export function ResetPasswordPage() {
           disabled={isSubmitting}
           className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[var(--color-mocha)] px-6 py-3.5 text-sm font-semibold text-white shadow-[0_18px_42px_rgba(62,42,31,0.18)] disabled:opacity-60"
         >
-          {isSubmitting ? "Guardando..." : "Guardar nueva contrasena"}
+          {isSubmitting ? "Guardando..." : "Guardar nueva contraseña"}
           <ArrowRight className="h-4 w-4" />
         </button>
       </form>
@@ -362,12 +362,12 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
         });
 
         if (result.alreadyRegistered) {
-          setError("Ese correo ya esta registrado. Inicia sesion o usa la recuperacion de acceso.");
+          setError("Ese correo ya está registrado. Inicia sesión o usa la recuperación de acceso.");
           return;
         }
 
         if (result.needsEmailConfirmation) {
-          setMessage("Cuenta creada. Revisa tu correo y confirma tu email antes de iniciar sesion.");
+          setMessage("Cuenta creada. Revisa tu correo y confirma tu email antes de iniciar sesión.");
           return;
         }
 
@@ -403,13 +403,13 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
           <p className="mt-5 text-center text-sm text-[var(--color-copy)]">
             {isLogin ? "Aun no tienes cuenta?" : "Ya tienes cuenta?"}{" "}
             <Link to={isLogin ? "/register" : "/login"} className="font-semibold text-[var(--color-mocha)]">
-              {isLogin ? "Crea tu cuenta" : "Inicia sesion"}
+              {isLogin ? "Crea tu cuenta" : "Inicia sesión"}
             </Link>
           </p>
           {isLogin ? (
             <p className="mt-3 text-center text-sm text-[var(--color-copy)]">
               <Link to="/recuperar-contrasena" className="font-medium text-[var(--color-mocha)] transition hover:text-[var(--color-ink)]">
-                Olvide mi contrasena
+                Olvidé mi contraseña
               </Link>
             </p>
           ) : null}
@@ -426,7 +426,7 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
         className="w-full rounded-[36px] border border-[var(--color-border)] bg-[rgba(255,249,244,0.88)] p-6 shadow-[0_28px_90px_rgba(62,42,31,0.12)] backdrop-blur-2xl md:p-8"
       >
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">
-          {isLogin ? "Iniciar sesion" : "Crear cuenta"}
+          {isLogin ? "Iniciar sesión" : "Crear cuenta"}
         </p>
         <h2 className="font-display mt-3 text-4xl font-semibold text-[var(--color-ink)] md:text-5xl">
           {isLogin ? "Ingresa a tu portal" : "Completa tus datos"}
@@ -586,15 +586,15 @@ function getAuthErrorMessage(message: string) {
   const normalized = message.toLowerCase();
 
   if (normalized.includes("email not confirmed")) {
-    return "Tu correo todavia no esta confirmado. Revisa tu email o solicita apoyo al equipo.";
+    return "Tu correo todavía no está confirmado. Revisa tu email o solicita apoyo al equipo.";
   }
 
   if (normalized.includes("invalid login credentials")) {
-    return "Correo o contrasena incorrectos.";
+    return "Correo o contraseña incorrectos.";
   }
 
   if (normalized.includes("user already registered") || normalized.includes("already registered")) {
-    return "Ese correo ya esta registrado. Inicia sesion o recupera tu acceso.";
+    return "Ese correo ya está registrado. Inicia sesión o recupera tu acceso.";
   }
 
   if (
@@ -603,7 +603,7 @@ function getAuthErrorMessage(message: string) {
     normalized.includes("carnet ya esta vinculado") ||
     normalized.includes("carnet ya fue reclamado")
   ) {
-    return "Ese carnet ya esta vinculado a otra cuenta. Verifica el dato o solicita apoyo a administracion.";
+    return "Ese carnet ya está vinculado a otra cuenta. Verifica el dato o solicita apoyo a administración.";
   }
 
   if (normalized.includes("signup is disabled")) {
@@ -615,7 +615,7 @@ function getAuthErrorMessage(message: string) {
   }
 
   if (normalized.includes("same password")) {
-    return "Elige una contrasena distinta a la anterior.";
+    return "Elige una contraseña distinta a la anterior.";
   }
 
   return message || "No pudimos completar el acceso. Revisa tus datos e intenta otra vez.";

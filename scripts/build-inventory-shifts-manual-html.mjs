@@ -1,0 +1,337 @@
+import fs from "node:fs";
+import path from "node:path";
+
+const outputDir = path.resolve("manuales");
+fs.mkdirSync(outputDir, { recursive: true });
+
+const today = new Date().toLocaleDateString("es-BO", {
+  day: "2-digit",
+  month: "long",
+  year: "numeric",
+});
+
+const html = String.raw`<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Manual de Turnos de Inventario</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 18mm 16mm 18mm 16mm;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: #2b211b;
+      background: #fff9f4;
+      font-family: "Aptos", "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+
+    .page {
+      background: white;
+      padding: 34px;
+    }
+
+    .cover {
+      border-radius: 28px;
+      background: linear-gradient(135deg, #6e4a2f, #2b211b);
+      color: white;
+      padding: 44px;
+      margin-bottom: 26px;
+    }
+
+    .eyebrow {
+      color: #d8c2ae;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 10px 0 12px;
+      font-size: 36px;
+      line-height: 1.08;
+    }
+
+    .subtitle {
+      max-width: 700px;
+      color: #f7f2ec;
+      font-size: 16px;
+    }
+
+    .meta {
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      border: 1px solid #d8c2ae;
+      border-radius: 18px;
+      overflow: hidden;
+      margin: 20px 0 24px;
+    }
+
+    .meta div {
+      padding: 10px 14px;
+      border-bottom: 1px solid #d8c2ae;
+    }
+
+    .meta div:nth-child(odd) {
+      background: #efe5da;
+      font-weight: 800;
+      color: #6e4a2f;
+    }
+
+    .meta div:nth-last-child(-n + 2) {
+      border-bottom: 0;
+    }
+
+    h2 {
+      color: #6e4a2f;
+      font-size: 24px;
+      margin: 30px 0 10px;
+      page-break-after: avoid;
+    }
+
+    h3 {
+      color: #6e4a2f;
+      font-size: 17px;
+      margin: 20px 0 8px;
+      page-break-after: avoid;
+    }
+
+    p {
+      margin: 0 0 12px;
+      font-size: 12.5px;
+    }
+
+    ul {
+      margin: 8px 0 16px 20px;
+      padding: 0;
+      font-size: 12.5px;
+    }
+
+    li {
+      margin: 5px 0;
+    }
+
+    .note {
+      border: 1px solid #d8c2ae;
+      border-left: 7px solid #6f7a60;
+      border-radius: 16px;
+      background: #fff9f4;
+      padding: 14px 16px;
+      margin: 18px 0;
+      page-break-inside: avoid;
+    }
+
+    .note.warn {
+      border-left-color: #8a4a3b;
+    }
+
+    .note strong {
+      display: block;
+      color: #6e4a2f;
+      margin-bottom: 5px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0 22px;
+      page-break-inside: avoid;
+      font-size: 11.5px;
+    }
+
+    th {
+      background: #6e4a2f;
+      color: white;
+      text-align: left;
+      padding: 9px 10px;
+      border: 1px solid #6e4a2f;
+    }
+
+    td {
+      vertical-align: top;
+      padding: 9px 10px;
+      border: 1px solid #d8c2ae;
+      background: white;
+    }
+
+    td:first-child {
+      background: #efe5da;
+      color: #2b211b;
+      font-weight: 800;
+      width: 26%;
+    }
+
+    .checklist {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .check {
+      border: 1px solid #d8c2ae;
+      border-radius: 14px;
+      padding: 10px 12px;
+      background: #fff9f4;
+      font-size: 12px;
+    }
+
+    .footer {
+      margin-top: 28px;
+      padding-top: 12px;
+      border-top: 1px solid #d8c2ae;
+      color: #6f5a4c;
+      font-size: 10px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="cover">
+      <div class="eyebrow">Manual operativo</div>
+      <h1>Turnos de Inventario</h1>
+      <p class="subtitle">Apertura, conteo fisico, cierre responsable y trazabilidad del modulo de inventario.</p>
+    </section>
+
+    <section class="meta">
+      <div>Modulo</div><div>Panel / Inventario / Conteos</div>
+      <div>Dirigido a</div><div>Doctoras, asistentes y administracion</div>
+      <div>Objetivo</div><div>Evitar cierres duplicados, dejar auditoria y proteger el historial existente</div>
+      <div>Fecha</div><div>${today}</div>
+    </section>
+
+    <div class="note">
+      <strong>Punto importante</strong>
+      Este flujo no borra inventarios anteriores. Los turnos abiertos existentes siguen registrados y solo cambian cuando la responsable que los abrio realiza el cierre.
+    </div>
+
+    <h2>1. Que es un turno de inventario</h2>
+    <p>Un turno de inventario es una fotografia operativa del stock en una ubicacion. Al abrirlo, el sistema guarda cuanto habia en ese momento. Al cerrarlo, la responsable registra el conteo fisico y el sistema calcula diferencias.</p>
+    <ul>
+      <li>El turno abierto queda visible en Inventario &gt; Conteos.</li>
+      <li>Cada turno guarda fecha y hora de apertura.</li>
+      <li>Cada turno guarda quien lo abrio y quien lo cerro.</li>
+      <li>El cierre actualiza el stock solo al finalizar el turno.</li>
+    </ul>
+    <div class="note warn">
+      <strong>Regla de seguridad</strong>
+      Solo la responsable que abrio el turno puede cerrarlo. Si otra persona entra, vera el turno pero no podra completar el cierre.
+    </div>
+
+    <h2>2. Flujo diario recomendado</h2>
+    <table>
+      <thead><tr><th>Momento</th><th>Accion</th><th>Resultado</th></tr></thead>
+      <tbody>
+        <tr><td>Inicio</td><td>Abrir turno en Inventario &gt; Conteos.</td><td>Se guarda stock inicial, hora y responsable.</td></tr>
+        <tr><td>Durante el dia</td><td>Registrar entradas, salidas, mermas o uso clinico.</td><td>El sistema mantiene el stock actualizado.</td></tr>
+        <tr><td>Antes del cierre</td><td>Revisar lineas del turno abierto.</td><td>Se compara stock esperado contra conteo fisico.</td></tr>
+        <tr><td>Cierre</td><td>Registrar conteo fisico y cerrar turno.</td><td>Se calculan diferencias y se actualiza stock final.</td></tr>
+        <tr><td>Revision</td><td>Consultar historial de turnos cerrados.</td><td>Queda evidencia de fecha, hora y responsable.</td></tr>
+      </tbody>
+    </table>
+
+    <h2>3. Como abrir un turno</h2>
+    <ul>
+      <li>Entrar al panel administrativo.</li>
+      <li>Abrir Inventario.</li>
+      <li>Entrar a la pestana Conteos.</li>
+      <li>Presionar Abrir turno.</li>
+      <li>Elegir ubicacion si corresponde, escribir nombre del turno y notas de apertura.</li>
+      <li>Guardar.</li>
+    </ul>
+    <p>Al guardar, el sistema crea las lineas del turno con el stock actual de los items activos. Eso permite comparar luego cuanto se dejo al inicio y cuanto se conto al cierre.</p>
+
+    <h2>4. Como registrar el conteo de cierre</h2>
+    <ul>
+      <li>Entrar a Inventario &gt; Conteos.</li>
+      <li>Buscar el turno abierto.</li>
+      <li>En cada item, revisar el campo Esperado.</li>
+      <li>Escribir el stock fisico real en Contado.</li>
+      <li>Agregar nota si hay diferencia o explicacion.</li>
+      <li>Presionar Guardar en la linea si se desea guardar parcialmente.</li>
+    </ul>
+    <p>La diferencia se calcula automaticamente como Contado menos Esperado. Si el resultado es 0, el stock fisico coincide con el sistema. Si es positivo o negativo, esa diferencia se aplicara al cerrar el turno.</p>
+
+    <h2>5. Como cerrar el turno</h2>
+    <ul>
+      <li>Verificar que todos los items tengan el conteo correcto.</li>
+      <li>Escribir notas de cierre si corresponde.</li>
+      <li>Presionar Cerrar turno.</li>
+      <li>El sistema guarda los conteos pendientes antes de cerrar.</li>
+      <li>El sistema actualiza el stock final y registra movimientos de tipo conteo cuando hay diferencia.</li>
+      <li>El turno cambia de abierto a cerrado y ya no puede reabrirse desde la pantalla.</li>
+    </ul>
+    <div class="note warn">
+      <strong>Quien puede cerrar</strong>
+      El boton solo queda disponible para la responsable que abrio el turno. Para las demas personas aparece bloqueado como Solo responsable.
+    </div>
+
+    <h2>6. Que se guarda al cerrar</h2>
+    <table>
+      <thead><tr><th>Dato guardado</th><th>Para que sirve</th></tr></thead>
+      <tbody>
+        <tr><td>Fecha y hora de apertura</td><td>Saber cuando comenzo el turno.</td></tr>
+        <tr><td>Responsable de apertura</td><td>Saber quien dejo iniciado el control.</td></tr>
+        <tr><td>Stock inicial</td><td>Comparar con el stock esperado y el conteo fisico.</td></tr>
+        <tr><td>Conteo fisico</td><td>Registrar lo que realmente existe.</td></tr>
+        <tr><td>Diferencia</td><td>Identificar sobrantes o faltantes.</td></tr>
+        <tr><td>Fecha y hora de cierre</td><td>Auditoria del cierre.</td></tr>
+        <tr><td>Responsable de cierre</td><td>Confirmar quien cerro el turno.</td></tr>
+      </tbody>
+    </table>
+    <p>Si hay diferencias, se generan registros de ajuste y movimientos de inventario. Esto permite revisar despues por que cambio el stock, sin borrar ni sobrescribir la historia.</p>
+
+    <h2>7. Que NO hace este cambio</h2>
+    <ul>
+      <li>No borra turnos abiertos existentes.</li>
+      <li>No elimina conteos anteriores.</li>
+      <li>No elimina items, lotes, movimientos ni proveedores.</li>
+      <li>No cambia automaticamente un turno abierto a cerrado.</li>
+      <li>No permite que otra persona cierre un turno ajeno.</li>
+      <li>No modifica la responsable original de apertura.</li>
+    </ul>
+    <div class="note">
+      <strong>Si hay turnos antiguos</strong>
+      Un turno antiguo que ya esta abierto permanecera abierto. Para cerrarlo debe entrar la misma cuenta responsable de apertura. Si el turno antiguo no tiene responsable, debe revisarse con administracion antes de intervenirlo.
+    </div>
+
+    <h2>8. Errores comunes y solucion</h2>
+    <table>
+      <thead><tr><th>Situacion</th><th>Causa probable</th><th>Que hacer</th></tr></thead>
+      <tbody>
+        <tr><td>Boton bloqueado</td><td>No eres quien abrio el turno.</td><td>Pedir a la responsable que lo cierre.</td></tr>
+        <tr><td>No aparece un item</td><td>Item inactivo, archivado o de otra ubicacion.</td><td>Revisar catalogo y ubicacion.</td></tr>
+        <tr><td>Diferencia negativa</td><td>Falta stock fisico.</td><td>Anotar motivo y cerrar solo si esta verificado.</td></tr>
+        <tr><td>Diferencia positiva</td><td>Hay mas stock que el esperado.</td><td>Confirmar conteo y revisar movimientos no registrados.</td></tr>
+        <tr><td>No deja abrir turno</td><td>Ya existe uno abierto en la ubicacion.</td><td>Cerrar el turno anterior primero.</td></tr>
+        <tr><td>Error de migracion</td><td>Base remota sin SQL actualizado.</td><td>Aplicar migraciones de Supabase y recargar.</td></tr>
+      </tbody>
+    </table>
+
+    <h2>9. Checklist rapido para responsable</h2>
+    <section class="checklist">
+      <div class="check">Abrir turno al iniciar el control del dia o de la ubicacion.</div>
+      <div class="check">No compartir usuario para abrir o cerrar turnos.</div>
+      <div class="check">Revisar lineas con diferencia antes de cerrar.</div>
+      <div class="check">Escribir nota cuando haya faltante, sobrante, merma o vencimiento.</div>
+      <div class="check">Cerrar el turno el mismo dia siempre que sea posible.</div>
+      <div class="check">Exportar reporte si se necesita respaldo administrativo.</div>
+    </section>
+
+    <p class="footer">Manual de Turnos de Inventario - Dra. Estefany Ballesteros</p>
+  </main>
+</body>
+</html>`;
+
+const outputPath = path.join(outputDir, "Manual_Turnos_Inventario.html");
+fs.writeFileSync(outputPath, html, "utf8");
+console.log(outputPath);

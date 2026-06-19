@@ -69,7 +69,7 @@ type ShiftLineDraft = { counted_stock: number; notes: string };
 const tabs: { key: TabKey; label: string; icon: ReactNode }[] = [
   { key: "resumen", label: "Resumen", icon: <Boxes className="h-4 w-4" /> },
   { key: "items", label: "Items / Insumos", icon: <Package className="h-4 w-4" /> },
-  { key: "categorias", label: "Categorias", icon: <Layers className="h-4 w-4" /> },
+  { key: "categorias", label: "Categorías", icon: <Layers className="h-4 w-4" /> },
   { key: "lotes", label: "Lotes", icon: <Tags className="h-4 w-4" /> },
   { key: "movimientos", label: "Movimientos", icon: <Warehouse className="h-4 w-4" /> },
   { key: "conteos", label: "Turnos", icon: <ClipboardCheck className="h-4 w-4" /> },
@@ -607,7 +607,7 @@ export function InventoryAdminPage() {
               <div className="grid gap-3">
                 <button onClick={() => openModal("movement")} className="rounded-full bg-[rgba(198,162,123,0.28)] px-5 py-3 text-sm font-bold text-[var(--color-ink)]">Registrar compra / entrada</button>
                 <button onClick={() => { openModal("movement"); setMovementForm((current) => ({ ...current, movement_type: "merma" })); }} className="rounded-full bg-[rgba(154,107,67,0.14)] px-5 py-3 text-sm font-bold text-[var(--color-ink)]">Registrar merma</button>
-                <button onClick={() => { openModal("movement"); setMovementForm((current) => ({ ...current, movement_type: "transferencia" })); }} className="rounded-full bg-[var(--color-mocha)] px-5 py-3 text-sm font-bold text-white">Transferir ubicacion</button>
+                <button onClick={() => { openModal("movement"); setMovementForm((current) => ({ ...current, movement_type: "transferencia" })); }} className="rounded-full bg-[var(--color-mocha)] px-5 py-3 text-sm font-bold text-white">Transferir ubicación</button>
                 <button onClick={() => openModal("shift")} className="rounded-full bg-[var(--color-mocha)] px-5 py-3 text-sm font-bold text-white">Abrir turno de inventario</button>
                 <button onClick={() => setActiveTab("pedidos")} className="rounded-full bg-[rgba(110,74,47,0.92)] px-5 py-3 text-sm font-bold text-white">Pedidos a proveedor</button>
               </div>
@@ -651,7 +651,7 @@ export function InventoryAdminPage() {
         <div className="grid gap-5 xl:grid-cols-2">
           <Panel eyebrow="Categorias" title="Familias de inventario" action={<CommandButton icon={<Plus className="h-4 w-4" />} label="Categoria" onClick={() => openModal("category")} primary />}>
             <RowsEmpty rows={categories} empty="Sin categorias." render={(category) => (
-              <RowCard key={category.id} title={category.name} detail={category.description ?? "Sin descripcion"} deletedRow={category} actions={<CrudActions role={role} row={category} table="inventory_categories" onEdit={() => openModal("category", category)} onArchive={() => void archive("inventory_categories", category.id)} onRestore={() => void restoreRecord("inventory_categories", category.id).then(load)} onHardDelete={() => void hardDeleteRecord("inventory_categories", category.id).then(load)} />} />
+              <RowCard key={category.id} title={category.name} detail={category.description ?? "Sin descripción"} deletedRow={category} actions={<CrudActions role={role} row={category} table="inventory_categories" onEdit={() => openModal("category", category)} onArchive={() => void archive("inventory_categories", category.id)} onRestore={() => void restoreRecord("inventory_categories", category.id).then(load)} onHardDelete={() => void hardDeleteRecord("inventory_categories", category.id).then(load)} />} />
             )} />
           </Panel>
           <Panel eyebrow="Unidades" title="Medidas y empaques" action={<CommandButton icon={<Plus className="h-4 w-4" />} label="Unidad" onClick={() => openModal("unit")} primary />}>
@@ -694,7 +694,7 @@ export function InventoryAdminPage() {
       {activeTab === "conteos" ? (
         <Panel eyebrow="Turnos" title="Apertura, conteo de cierre y diferencias" action={<CommandButton icon={<Plus className="h-4 w-4" />} label="Abrir turno" onClick={() => openModal("shift")} primary />}>
           <div className="mb-5 rounded-[22px] border border-[rgba(198,162,123,0.18)] bg-[rgba(247,242,236,0.72)] px-4 py-3 text-sm leading-7 text-[var(--color-copy)]">
-            Al abrir un turno se guarda lo que el equipo deja en inventario. Al cerrar, registra el conteo fisico; el sistema calcula diferencias y actualiza stock solo cuando cierras el turno.
+            Al abrir un turno se guarda lo que el equipo deja en inventario. Al cerrar, registra el conteo físico; el sistema calcula diferencias y actualiza stock solo cuando cierras el turno.
           </div>
           {shiftStatus ? (
             <div className={`mb-4 rounded-[20px] border px-4 py-3 text-sm font-semibold ${shiftStatus.type === "error" ? "border-red-200 bg-red-50 text-red-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>
@@ -708,7 +708,7 @@ export function InventoryAdminPage() {
               lines={countLinesByCount.get(count.id) ?? []}
               itemMap={itemMap}
               unitMap={unitMap}
-              locationName={locationMap.get(count.location_id ?? "")?.name ?? "Sin ubicacion"}
+              locationName={locationMap.get(count.location_id ?? "")?.name ?? "Sin ubicación"}
               role={role}
               actorId={actorId}
               saving={saving}
@@ -748,12 +748,12 @@ export function InventoryAdminPage() {
         <div className="grid gap-5 xl:grid-cols-3">
           <Panel eyebrow="Proveedores" title="Contactos de compra" action={<CommandButton icon={<Plus className="h-4 w-4" />} label="Proveedor" onClick={() => openModal("supplier")} primary />}>
             <RowsEmpty rows={suppliers} empty="Sin proveedores." render={(supplier) => (
-              <RowCard key={supplier.id} title={supplier.name} tags={[supplier.contact_name ?? "Sin contacto", supplier.phone ?? "Sin telefono", supplier.whatsapp_phone ?? "Sin WhatsApp"]} detail={`${supplier.email ?? "Sin email"} · plazo ${supplier.payment_terms_days ?? 0} dias · ${supplier.allows_consignment ? "Con consignacion" : "Compra directa"} · ${supplier.notes ?? "Sin notas"}`} deletedRow={supplier} actions={<CrudActions role={role} row={supplier} table="inventory_suppliers" onEdit={() => openModal("supplier", supplier)} onArchive={() => void archive("inventory_suppliers", supplier.id)} onRestore={() => void restoreRecord("inventory_suppliers", supplier.id).then(load)} onHardDelete={() => void hardDeleteRecord("inventory_suppliers", supplier.id).then(load)} />} />
+              <RowCard key={supplier.id} title={supplier.name} tags={[supplier.contact_name ?? "Sin contacto", supplier.phone ?? "Sin teléfono", supplier.whatsapp_phone ?? "Sin WhatsApp"]} detail={`${supplier.email ?? "Sin email"} · plazo ${supplier.payment_terms_days ?? 0} días · ${supplier.allows_consignment ? "Con consignación" : "Compra directa"} · ${supplier.notes ?? "Sin notas"}`} deletedRow={supplier} actions={<CrudActions role={role} row={supplier} table="inventory_suppliers" onEdit={() => openModal("supplier", supplier)} onArchive={() => void archive("inventory_suppliers", supplier.id)} onRestore={() => void restoreRecord("inventory_suppliers", supplier.id).then(load)} onHardDelete={() => void hardDeleteRecord("inventory_suppliers", supplier.id).then(load)} />} />
             )} />
           </Panel>
           <Panel eyebrow="Ubicaciones" title="Almacenes y zonas" action={<CommandButton icon={<Plus className="h-4 w-4" />} label="Ubicacion" onClick={() => openModal("location")} primary />}>
             <RowsEmpty rows={locations} empty="Sin ubicaciones." render={(location) => (
-              <RowCard key={location.id} title={location.name} tags={[location.city ?? "Sin ciudad"]} detail={location.description ?? "Sin descripcion"} deletedRow={location} actions={<CrudActions role={role} row={location} table="inventory_locations" onEdit={() => openModal("location", location)} onArchive={() => void archive("inventory_locations", location.id)} onRestore={() => void restoreRecord("inventory_locations", location.id).then(load)} onHardDelete={() => void hardDeleteRecord("inventory_locations", location.id).then(load)} />} />
+              <RowCard key={location.id} title={location.name} tags={[location.city ?? "Sin ciudad"]} detail={location.description ?? "Sin descripción"} deletedRow={location} actions={<CrudActions role={role} row={location} table="inventory_locations" onEdit={() => openModal("location", location)} onArchive={() => void archive("inventory_locations", location.id)} onRestore={() => void restoreRecord("inventory_locations", location.id).then(load)} onHardDelete={() => void hardDeleteRecord("inventory_locations", location.id).then(load)} />} />
             )} />
           </Panel>
           <Panel eyebrow="Unidades" title="Medidas y empaques" action={<CommandButton icon={<Plus className="h-4 w-4" />} label="Unidad" onClick={() => openModal("unit")} primary />}>
@@ -1201,7 +1201,7 @@ function renderModalFields(props: {
         <InlineHint
           text={
             usesPresentation
-              ? `Configuracion activa: 1 ${presentationUnit} = ${formatInventoryNumber(Number(f.units_per_presentation))} ${consumptionUnit}. Escribe abajo el stock en ${presentationUnit} y el sistema lo convertira solo.`
+              ? `Configuración activa: 1 ${presentationUnit} = ${formatInventoryNumber(Number(f.units_per_presentation))} ${consumptionUnit}. Escribe abajo el stock en ${presentationUnit} y el sistema lo convertirá solo.`
               : "Usa estos campos solo si el insumo se compra por caja, frasco o ampolla, pero en consulta se descuenta por unidades internas."
           }
         />
@@ -1313,8 +1313,8 @@ function renderModalFields(props: {
         <NumberField label="Costo unitario" value={f.unit_cost} onChange={(unit_cost) => set({ ...f, unit_cost })} />
         <SelectField label="Lote" value={f.lot_id} onChange={(lot_id) => set({ ...f, lot_id })} options={itemLots.map((l) => ({ value: l.id, label: l.lot_number }))} />
         <SelectField label="Proveedor" value={f.supplier_id} onChange={(supplier_id) => set({ ...f, supplier_id })} options={props.suppliers.map((s) => ({ value: s.id, label: s.name }))} />
-        <SelectField label="Desde ubicacion" value={f.from_location_id} onChange={(from_location_id) => set({ ...f, from_location_id })} options={props.locations.map((l) => ({ value: l.id, label: l.name }))} />
-        <SelectField label="Hacia ubicacion" value={f.to_location_id} onChange={(to_location_id) => set({ ...f, to_location_id })} options={props.locations.map((l) => ({ value: l.id, label: l.name }))} />
+        <SelectField label="Desde ubicación" value={f.from_location_id} onChange={(from_location_id) => set({ ...f, from_location_id })} options={props.locations.map((l) => ({ value: l.id, label: l.name }))} />
+        <SelectField label="Hacia ubicación" value={f.to_location_id} onChange={(to_location_id) => set({ ...f, to_location_id })} options={props.locations.map((l) => ({ value: l.id, label: l.name }))} />
         <TextField label="Referencia" value={f.reference} onChange={(reference) => set({ ...f, reference })} />
         <Field label="Fecha"><input type="datetime-local" value={f.movement_date} onChange={(event) => set({ ...f, movement_date: event.target.value })} className="premium-input" /></Field>
         <TextareaField label="Motivo" value={f.reason} onChange={(reason) => set({ ...f, reason })} />
@@ -1330,7 +1330,7 @@ function renderModalFields(props: {
         <TextField label="Nombre del turno" value={f.shift_name} onChange={(shift_name) => set({ ...f, shift_name })} />
         <SelectField label="Ubicacion" value={f.location_id} onChange={(location_id) => set({ ...f, location_id })} options={props.locations.map((location) => ({ value: location.id, label: location.name }))} />
         <Field label="Fecha"><input type="date" value={f.count_date} onChange={(event) => set({ ...f, count_date: event.target.value })} className="premium-input" /></Field>
-        <InlineHint text="Al abrir el turno se crea una linea por cada item activo de esa ubicacion con el stock actual como lo dejado por el turno anterior." />
+        <InlineHint text="Al abrir el turno se crea una línea por cada ítem activo de esa ubicación con el stock actual como lo dejado por el turno anterior." />
         <TextareaField label="Notas de apertura" value={f.notes} onChange={(notes) => set({ ...f, notes })} />
       </div>
     );
@@ -1431,7 +1431,7 @@ function SupplierFields({ form, setForm }: { form: typeof emptySupplierForm; set
       <TextField label="Email" value={form.email} onChange={(email) => setForm({ ...form, email })} />
       <TextField label="Direccion" value={form.address} onChange={(address) => setForm({ ...form, address })} />
       <TextField label="NIT o referencia fiscal" value={form.tax_id} onChange={(tax_id) => setForm({ ...form, tax_id })} />
-      <NumberField label="Plazo de pago en dias" value={form.payment_terms_days} onChange={(payment_terms_days) => setForm({ ...form, payment_terms_days })} />
+      <NumberField label="Plazo de pago en días" value={form.payment_terms_days} onChange={(payment_terms_days) => setForm({ ...form, payment_terms_days })} />
       <label className="flex items-center gap-3 rounded-2xl border border-[var(--color-border)] bg-white/60 px-4 py-3 text-sm font-semibold">
         <input type="checkbox" checked={form.allows_consignment} onChange={(event) => setForm({ ...form, allows_consignment: event.target.checked })} />
         Maneja consignacion
@@ -1718,14 +1718,14 @@ function getInventorySubmitErrorMessage(error: unknown) {
     detail.includes("units_per_presentation")
   ) {
     if (detail.includes("close_inventory_count")) {
-      return "La base remota todavia no tiene aplicada la migracion 20260619120000_inventory_count_closing.sql. Ejecutala en Supabase, recarga la pagina y vuelve a intentar.";
+      return "La base remota todavía no tiene aplicada la migración 20260619120000_inventory_count_closing.sql. Ejecútala en Supabase, recarga la página y vuelve a intentar.";
     }
 
     if (detail.includes("presentation_unit_id") || detail.includes("units_per_presentation")) {
-      return "La base remota todavia no tiene aplicada la migracion 20260529113000_inventory_presentations.sql. Ejecutala en Supabase, recarga la pagina y vuelve a intentar.";
+      return "La base remota todavía no tiene aplicada la migración 20260529113000_inventory_presentations.sql. Ejecútala en Supabase, recarga la página y vuelve a intentar.";
     }
 
-    return "La base remota todavia no tiene aplicada una migracion de inventario pendiente. Ejecuta las migraciones nuevas en Supabase, recarga la pagina y vuelve a intentar.";
+    return "La base remota todavía no tiene aplicada una migración de inventario pendiente. Ejecuta las migraciones nuevas en Supabase, recarga la página y vuelve a intentar.";
   }
 
   if (detail.includes("solo la responsable")) {
