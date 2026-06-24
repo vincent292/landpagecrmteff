@@ -59,7 +59,12 @@ export async function getPatientByProfileId(profileId: string) {
 
 export async function createPatient(data: Record<string, unknown>) {
   const payload = { ...data };
-  if ("document_number" in payload) payload.document_number = normalizeDocumentNumber(payload.document_number as string | null | undefined);
+  const normalizedDocument = normalizeDocumentNumber(payload.document_number as string | null | undefined);
+  if (!normalizedDocument) throw new Error("El numero de carnet es obligatorio.");
+  payload.document_number = normalizedDocument;
+  if (typeof payload.email === "string") payload.email = payload.email.trim() || null;
+  if (typeof payload.phone === "string") payload.phone = payload.phone.trim() || null;
+  if (typeof payload.city === "string") payload.city = payload.city.trim() || null;
   const { data: row, error } = await supabase.from("patients").insert(payload).select("*").single();
   if (error) throw error;
   return row as PatientRow;

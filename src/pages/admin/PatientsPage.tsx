@@ -19,11 +19,13 @@ import { createPatient, getPatients, type PatientRow } from "../../services/pati
 import { normalizeDocumentNumber } from "../../utils/documentNumber";
 import { formatDate } from "../../utils/text";
 
+const optionalEmailSchema = z.string().trim().pipe(z.string().email("Correo invalido").or(z.literal("")));
+
 const patientSchema = z.object({
-  full_name: z.string().min(3, "Escribe el nombre completo"),
-  document_number: z.string().min(5, "Escribe el numero de carnet"),
+  full_name: z.string().trim().min(3, "Escribe el nombre completo"),
+  document_number: z.string().trim().min(5, "Escribe el numero de carnet"),
   phone: z.string().optional(),
-  email: z.string().email("Correo invalido").or(z.literal("")),
+  email: optionalEmailSchema,
   city: z.string().optional(),
 });
 
@@ -88,8 +90,8 @@ export function PatientsPage() {
       ...values,
       document_number: normalizeDocumentNumber(values.document_number),
       email: values.email || null,
-      phone: values.phone || null,
-      city: values.city || null,
+      phone: values.phone?.trim() || null,
+      city: values.city?.trim() || null,
     });
     setSaving(false);
     setShowNew(false);
@@ -285,7 +287,7 @@ export function PatientsPage() {
                   <input {...register("phone")} className="premium-input mt-2" />
                 </Field>
               ) : null}
-              <Field label="Correo" error={errors.email?.message}>
+              <Field label="Correo (opcional)" error={errors.email?.message}>
                 <input {...register("email")} className="premium-input mt-2" />
               </Field>
               <Field label="Ciudad" error={errors.city?.message}>

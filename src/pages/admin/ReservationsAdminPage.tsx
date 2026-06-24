@@ -41,6 +41,7 @@ import { buildWhatsAppHref } from "../../utils/whatsapp";
 const reservationStatuses: ReservationStatus[] = ["Pendiente", "Confirmada", "Realizada", "Cancelada", "Rechazada"];
 const appointmentStatuses = ["Todos", "Pendiente", "Programada", "Confirmada", "Realizada", "Cancelada", "Rechazada"];
 const appointmentTypes = ["Valoracion estetica", "Control", "Procedimiento", "Promocion directa", "Revision postratamiento", "Consulta general"];
+const optionalEmailSchema = z.string().trim().pipe(z.string().email("Correo invalido").or(z.literal("")));
 
 const manualSchema = z.object({
   patient_id: z.string().min(1, "Selecciona paciente."),
@@ -56,10 +57,10 @@ const manualSchema = z.object({
 });
 
 const quickPatientSchema = z.object({
-  full_name: z.string().min(3, "Escribe el nombre completo."),
-  document_number: z.string().min(5, "Escribe el numero de carnet."),
+  full_name: z.string().trim().min(3, "Escribe el nombre completo."),
+  document_number: z.string().trim().min(5, "Escribe el numero de carnet."),
   phone: z.string().optional(),
-  email: z.string().email("Correo invalido").or(z.literal("")),
+  email: optionalEmailSchema,
   city: z.string().min(2, "Selecciona ciudad."),
 });
 
@@ -464,11 +465,11 @@ export function ReservationsAdminPage() {
 
     try {
       const created = await createPatient({
-        full_name: values.full_name,
+        full_name: values.full_name.trim(),
         document_number: normalizedDocument,
-        phone: values.phone,
+        phone: values.phone?.trim() || null,
         email: values.email || null,
-        city: values.city,
+        city: values.city.trim(),
       });
       setPatients((current) => [created, ...current]);
       handleSelectPatient(created);
@@ -1168,7 +1169,7 @@ export function ReservationsAdminPage() {
                   <input {...quickPatientForm.register("phone")} className="premium-input" />
                 </Field>
               ) : null}
-              <Field label="Correo" error={quickPatientForm.formState.errors.email?.message}>
+              <Field label="Correo (opcional)" error={quickPatientForm.formState.errors.email?.message}>
                 <input {...quickPatientForm.register("email")} className="premium-input" />
               </Field>
               <Field label="Ciudad" error={quickPatientForm.formState.errors.city?.message}>
