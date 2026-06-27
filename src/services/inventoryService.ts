@@ -144,6 +144,7 @@ export type InventoryMovementRow = DeletionMetadata & {
   to_location_snapshot: string | null;
   supplier_name_snapshot: string | null;
   created_by: string | null;
+  created_by_profile?: InventoryCountActor | null;
   created_at: string;
 };
 
@@ -175,6 +176,7 @@ export type InventoryCountLineRow = {
   difference_stock: number;
   notes: string | null;
   counted_by: string | null;
+  counted_by_profile?: InventoryCountActor | null;
   created_at: string;
   updated_at: string;
 };
@@ -184,6 +186,25 @@ export type InventoryCountActor = {
   full_name: string | null;
   email: string | null;
   role: string | null;
+};
+
+export type InventoryClinicalUsageRow = DeletionMetadata & {
+  id: string;
+  patient_id: string;
+  clinical_history_id: string | null;
+  item_id: string;
+  lot_id: string | null;
+  inventory_movement_id: string | null;
+  quantity: number;
+  unit_label: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_by_profile?: InventoryCountActor | null;
+  created_at: string;
+  patients?: { full_name: string | null; document_number?: string | null } | null;
+  clinical_histories?: { session_title: string | null; session_date: string | null } | null;
+  inventory_items?: { name: string | null; unit: string | null; sku: string | null } | null;
+  inventory_lots?: { lot_number: string | null; expiration_date: string | null } | null;
 };
 
 export async function getInventoryItems(includeDeleted = false) {
@@ -217,6 +238,34 @@ async function createRow<T>(table: string, data: Record<string, unknown>) {
   const { data: row, error } = await supabase.from(table).insert(data).select("*").single();
   if (error) throw error;
   return row as T;
+}
+
+async function withActorProfiles<T extends Record<string, unknown>, TProfileKey extends string>(
+  rows: T[],
+  actorKey: keyof T,
+  profileKey: TProfileKey
+) {
+  const actorIds = Array.from(
+    new Set(
+      rows
+        .map((row) => row[actorKey])
+        .filter((id) => typeof id === "string" && id.length > 0)
+        .map((id) => String(id))
+    )
+  );
+  if (actorIds.length === 0) return rows.map((row) => ({ ...row, [profileKey]: null })) as Array<T & Record<TProfileKey, InventoryCountActor | null>>;
+
+  const { data: profiles, error } = await supabase
+    .from("profiles")
+    .select("id, full_name, email, role")
+    .in("id", actorIds);
+  if (error) throw error;
+
+  const profileMap = new Map((profiles ?? []).map((profile) => [profile.id, profile as InventoryCountActor]));
+  return rows.map((row) => ({
+    ...row,
+    [profileKey]: profileMap.get(String(row[actorKey] ?? "")) ?? null,
+  })) as Array<T & Record<TProfileKey, InventoryCountActor | null>>;
 }
 
 async function updateRow<T>(table: string, id: string, data: Record<string, unknown>) {
@@ -273,8 +322,9 @@ export function updateInventoryLot(id: string, data: Record<string, unknown>) {
   return updateRow<InventoryLotRow>("inventory_lots", id, data);
 }
 
-export function getInventoryMovements(includeDeleted = false) {
-  return listTable<InventoryMovementRow>("inventory_movements", includeDeleted, "movement_date", false);
+export async function getInventoryMovements(includeDeleted = false) {
+  const rows = await listTable<InventoryMovementRow>("inventory_movements", includeDeleted, "movement_date", false);
+  return withActorProfiles(rows, "created_by", "created_by_profile");
 }
 
 export async function getInventoryCounts(includeDeleted = false) {
@@ -310,15 +360,28 @@ export async function getInventoryCounts(includeDeleted = false) {
   }));
 }
 
-export function getInventoryCountLines() {
-  return supabase
+export async function getInventoryCountLines() {
+  const { data, error } = await supabase
     .from("inventory_count_lines")
     .select("*")
-    .order("created_at", { ascending: true })
-    .then(({ data, error }) => {
-      if (error) throw error;
-      return (data ?? []) as InventoryCountLineRow[];
-    });
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  const rows = (data ?? []) as InventoryCountLineRow[];
+  return withActorProfiles(rows, "counted_by", "counted_by_profile");
+}
+
+export async function getInventoryClinicalUsages(includeDeleted = false) {
+  let query = supabase
+    .from("clinical_inventory_usages")
+    .select("*, patients(full_name, document_number), clinical_histories(session_title, session_date), inventory_items(name, unit, sku), inventory_lots(lot_number, expiration_date)")
+    .order("created_at", { ascending: false });
+  const filter = getVisibleDeletionFilter("clinical_inventory_usages" as DeletableTable, includeDeleted);
+  if (filter.column) query = query.eq(filter.column, filter.value);
+
+  const { data, error } = await query;
+  if (error) throw error;
+  const rows = (data ?? []) as InventoryClinicalUsageRow[];
+  return withActorProfiles(rows, "created_by", "created_by_profile");
 }
 
 export async function createInventoryLocation(data: Record<string, unknown>) {

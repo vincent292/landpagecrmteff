@@ -24,6 +24,7 @@ export type DeletableTable =
   | "gallery_albums"
   | "clinical_histories"
   | "clinical_evolutions"
+  | "clinical_inventory_usages"
   | "patient_photos"
   | "photo_comparisons"
   | "appointments"
@@ -69,6 +70,7 @@ const tableModes: Record<DeletableTable, DeleteMode> = {
   gallery_albums: "active",
   clinical_histories: "deleted",
   clinical_evolutions: "deleted",
+  clinical_inventory_usages: "deleted",
   patient_photos: "deleted",
   photo_comparisons: "deleted",
   appointments: "deleted",

@@ -10,6 +10,7 @@ import {
   Package,
   Pencil,
   Plus,
+  Search,
   ShoppingCart,
   Tags,
   Truck,
@@ -31,6 +32,7 @@ import {
   createInventoryUnit,
   closeInventoryShift,
   getInventoryCategories,
+  getInventoryClinicalUsages,
   getInventoryCountLines,
   getInventoryCounts,
   getInventoryItems,
@@ -50,6 +52,7 @@ import {
   updateInventorySupplier,
   updateInventoryUnit,
   type InventoryCategoryRow,
+  type InventoryClinicalUsageRow,
   type InventoryCountLineRow,
   type InventoryCountRow,
   type InventoryItemRow,
@@ -182,9 +185,11 @@ export function InventoryAdminPage() {
   const [locations, setLocations] = useState<InventoryLocationRow[]>([]);
   const [lots, setLots] = useState<InventoryLotRow[]>([]);
   const [movements, setMovements] = useState<InventoryMovementRow[]>([]);
+  const [clinicalUsages, setClinicalUsages] = useState<InventoryClinicalUsageRow[]>([]);
   const [counts, setCounts] = useState<InventoryCountRow[]>([]);
   const [countLines, setCountLines] = useState<InventoryCountLineRow[]>([]);
   const [query, setQuery] = useState("");
+  const [movementQuery, setMovementQuery] = useState("");
   const [modal, setModal] = useState<ModalKey>(null);
   const [editing, setEditing] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
@@ -223,6 +228,18 @@ export function InventoryAdminPage() {
     });
     return map;
   }, [countLines]);
+  const countMap = useMemo(() => new Map(counts.map((count) => [count.id, count])), [counts]);
+  const usageByMovement = useMemo(() => {
+    const map = new Map<string, InventoryClinicalUsageRow>();
+    clinicalUsages.forEach((usage) => {
+      if (usage.inventory_movement_id) map.set(usage.inventory_movement_id, usage);
+    });
+    return map;
+  }, [clinicalUsages]);
+  const usageMovementIds = useMemo(
+    () => new Set(clinicalUsages.map((usage) => usage.inventory_movement_id).filter((id): id is string => Boolean(id))),
+    [clinicalUsages]
+  );
 
   const load = () => {
     setLoading(true);
@@ -235,10 +252,11 @@ export function InventoryAdminPage() {
       getInventoryLocations(includeDeleted),
       getInventoryLots(includeDeleted),
       getInventoryMovements(includeDeleted),
+      getInventoryClinicalUsages(includeDeleted),
       getInventoryCounts(includeDeleted),
       getInventoryCountLines(),
     ])
-      .then(([itemRows, categoryRows, unitRows, supplierRows, locationRows, lotRows, movementRows, countRows, countLineRows]) => {
+      .then(([itemRows, categoryRows, unitRows, supplierRows, locationRows, lotRows, movementRows, usageRows, countRows, countLineRows]) => {
         setItems(itemRows);
         setCategories(categoryRows);
         setUnits(unitRows);
@@ -246,6 +264,7 @@ export function InventoryAdminPage() {
         setLocations(locationRows);
         setLots(lotRows);
         setMovements(movementRows);
+        setClinicalUsages(usageRows);
         setCounts(countRows);
         setCountLines(countLineRows);
       })
@@ -291,6 +310,59 @@ export function InventoryAdminPage() {
         .includes(search)
     );
   }, [categoryMap, items, locationMap, query, supplierMap, unitMap]);
+
+  const selectedHistoryItem = useMemo(() => {
+    const search = normalizeSearchText(movementQuery);
+    if (!search) return null;
+    return activeItems.find((item) =>
+      normalizeSearchText([
+        item.name,
+        item.sku,
+        item.barcode,
+        item.category,
+        categoryMap.get(item.category_id ?? "")?.name,
+        supplierMap.get(item.supplier_id ?? "")?.name,
+        locationMap.get(item.location_id ?? "")?.name,
+      ].join(" ")).includes(search)
+    ) ?? null;
+  }, [activeItems, categoryMap, locationMap, movementQuery, supplierMap]);
+
+  const filteredMovements = useMemo(() => {
+    const search = normalizeSearchText(movementQuery);
+    if (!search) return movements;
+    return movements.filter((movement) => {
+      const usage = usageByMovement.get(movement.id);
+      return normalizeSearchText([
+        movement.item_name_snapshot,
+        movement.movement_type,
+        movement.quantity,
+        movement.lot_number_snapshot,
+        movement.supplier_name_snapshot,
+        movement.from_location_snapshot,
+        movement.to_location_snapshot,
+        movement.reference,
+        movement.reason,
+        movement.created_by_profile?.full_name,
+        movement.created_by_profile?.email,
+        usage?.patients?.full_name,
+        usage?.patients?.document_number,
+        usage?.notes,
+      ].join(" ")).includes(search);
+    });
+  }, [movementQuery, movements, usageByMovement]);
+
+  const selectedItemMovements = useMemo(
+    () => (selectedHistoryItem ? movements.filter((movement) => movement.item_id === selectedHistoryItem.id) : []),
+    [movements, selectedHistoryItem]
+  );
+  const selectedItemUsages = useMemo(
+    () => (selectedHistoryItem ? clinicalUsages.filter((usage) => usage.item_id === selectedHistoryItem.id) : []),
+    [clinicalUsages, selectedHistoryItem]
+  );
+  const selectedItemCountLines = useMemo(
+    () => (selectedHistoryItem ? countLines.filter((line) => line.item_id === selectedHistoryItem.id).slice().reverse() : []),
+    [countLines, selectedHistoryItem]
+  );
 
   const openModal = (nextModal: Exclude<ModalKey, null>, row?: unknown) => {
     setEditing(row ?? null);
@@ -685,7 +757,31 @@ export function InventoryAdminPage() {
 
       {activeTab === "movimientos" ? (
         <Panel eyebrow="Kardex" title="Entradas, salidas, mermas y transferencias" action={<CommandButton icon={<Plus className="h-4 w-4" />} label="Movimiento" onClick={() => openModal("movement")} primary />}>
-          <RowsEmpty rows={movements} empty="Sin movimientos." render={(movement) => (
+          <label className="mb-4 flex items-center gap-3 rounded-[18px] border border-[var(--color-border)] bg-white/80 px-4 py-3">
+            <Search className="h-4 w-4 text-[var(--color-copy)]" />
+            <input
+              value={movementQuery}
+              onChange={(event) => setMovementQuery(event.target.value)}
+              placeholder="Buscar insumo, paciente, usuario, lote o motivo"
+              className="w-full bg-transparent text-sm outline-none"
+            />
+          </label>
+          {selectedHistoryItem ? (
+            <InventoryItemTracePanel
+              item={selectedHistoryItem}
+              unitLabel={getUnitLabel(selectedHistoryItem.unit_id, selectedHistoryItem.unit, unitMap)}
+              locationName={locationMap.get(selectedHistoryItem.location_id ?? "")?.name ?? "Sin ubicacion"}
+              lots={lots.filter((lot) => lot.item_id === selectedHistoryItem.id && !lot.is_deleted)}
+              movements={selectedItemMovements}
+              usages={selectedItemUsages}
+              countLines={selectedItemCountLines}
+              countMap={countMap}
+              usageByMovement={usageByMovement}
+              usageMovementIds={usageMovementIds}
+              unitMap={unitMap}
+            />
+          ) : null}
+          <RowsEmpty rows={filteredMovements} empty="Sin movimientos con esa busqueda." render={(movement) => (
             <RowCard key={movement.id} title={`${movement.item_name_snapshot} · ${movement.movement_type}`} tags={[movement.lot_number_snapshot ?? "Sin lote", movement.supplier_name_snapshot ?? "Sin proveedor"]} detail={`${movement.quantity} · ${movement.reason ?? "Sin motivo"} · ${new Date(movement.movement_date).toLocaleString("es-BO")}`} deletedRow={movement} actions={<CrudActions role={role} row={movement} table="inventory_movements" onEdit={undefined} onArchive={() => void archive("inventory_movements", movement.id)} onRestore={() => void restoreRecord("inventory_movements", movement.id).then(load)} onHardDelete={() => void hardDeleteRecord("inventory_movements", movement.id).then(load)} />} />
           )} />
         </Panel>
@@ -1099,6 +1195,152 @@ function AlertRow({ title, detail }: { title: string; detail: string }) {
 function RowsEmpty<T>({ rows, empty, render }: { rows: T[]; empty: string; render: (row: T) => ReactNode }) {
   if (rows.length === 0) return <EmptyState label={empty} />;
   return <div className="grid gap-3">{rows.map(render)}</div>;
+}
+
+function InventoryItemTracePanel({
+  item,
+  unitLabel,
+  locationName,
+  lots,
+  movements,
+  usages,
+  countLines,
+  countMap,
+  usageByMovement,
+  usageMovementIds,
+  unitMap,
+}: {
+  item: InventoryItemRow;
+  unitLabel: string;
+  locationName: string;
+  lots: InventoryLotRow[];
+  movements: InventoryMovementRow[];
+  usages: InventoryClinicalUsageRow[];
+  countLines: InventoryCountLineRow[];
+  countMap: Map<string, InventoryCountRow>;
+  usageByMovement: Map<string, InventoryClinicalUsageRow>;
+  usageMovementIds: Set<string>;
+  unitMap: Map<string, InventoryUnitRow>;
+}) {
+  const lotStock = lots.reduce((sum, lot) => sum + Number(lot.current_quantity ?? 0), 0);
+  const patientUsageTotal = usages.reduce((sum, usage) => sum + Number(usage.quantity ?? 0), 0);
+  const manualDiscountTotal = movements
+    .filter((movement) => ["salida", "merma"].includes(movement.movement_type) && !usageMovementIds.has(movement.id))
+    .reduce((sum, movement) => sum + Number(movement.quantity ?? 0), 0);
+  const entryTotal = movements
+    .filter((movement) => movement.movement_type === "entrada")
+    .reduce((sum, movement) => sum + Number(movement.quantity ?? 0), 0);
+  const countDifferenceTotal = countLines.reduce((sum, line) => sum + Number(line.difference_stock ?? 0), 0);
+
+  return (
+    <section className="mb-5 rounded-[24px] border border-[rgba(198,162,123,0.2)] bg-[rgba(247,242,236,0.74)] p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--color-accent-strong)]">Historial del insumo</p>
+          <h3 className="mt-2 text-2xl font-semibold text-[var(--color-ink)]">{item.name}</h3>
+          <p className="mt-1 text-sm leading-6 text-[var(--color-copy)]">
+            {locationName} - {item.sku ? `SKU ${item.sku}` : "Sin SKU"} - {item.lot_number ? `Lote actual ${item.lot_number}` : "Sin lote principal"}
+          </p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[420px]">
+          <MetricBox label="Stock actual" value={formatStockSummary(Number(item.current_stock ?? 0), unitLabel, item.presentation_unit_id, Number(item.units_per_presentation ?? 1), unitMap)} />
+          <MetricBox label="Stock minimo" value={formatStockSummary(Number(item.minimum_stock ?? 0), unitLabel, item.presentation_unit_id, Number(item.units_per_presentation ?? 1), unitMap)} />
+          <MetricBox label="Lotes disponibles" value={`${formatInventoryNumber(lotStock)} ${unitLabel}`} />
+          <MetricBox label="Diferencia en turnos" value={`${formatInventoryNumber(countDifferenceTotal)} ${unitLabel}`} />
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <MetricBox label="Ingresos registrados" value={`${formatInventoryNumber(entryTotal)} ${unitLabel}`} />
+        <MetricBox label="Uso en pacientes" value={`${formatInventoryNumber(patientUsageTotal)} ${unitLabel}`} />
+        <MetricBox label="Salidas y mermas manuales" value={`${formatInventoryNumber(manualDiscountTotal)} ${unitLabel}`} />
+      </div>
+
+      <div className="mt-5 grid gap-4 xl:grid-cols-3">
+        <TraceColumn title="Movimientos recientes" empty="Sin movimientos para este insumo.">
+          {movements.slice(0, 6).map((movement) => {
+            const usage = usageByMovement.get(movement.id);
+            return (
+              <TraceRow
+                key={movement.id}
+                title={`${movementTypeLabel(movement.movement_type)} - ${formatInventoryNumber(movement.quantity)} ${unitLabel}`}
+                detail={[
+                  formatDateTime(movement.movement_date),
+                  formatActorLabel(movement.created_by_profile, movement.created_by),
+                  usage?.patients?.full_name ? `Paciente: ${usage.patients.full_name}` : movement.reason,
+                ].filter(Boolean).join(" - ")}
+              />
+            );
+          })}
+        </TraceColumn>
+
+        <TraceColumn title="Uso en pacientes" empty="Sin usos clinicos para este insumo.">
+          {usages.slice(0, 6).map((usage) => (
+            <TraceRow
+              key={usage.id}
+              title={`${usage.patients?.full_name ?? "Paciente"} - ${formatInventoryNumber(usage.quantity)} ${usage.unit_label ?? unitLabel}`}
+              detail={[
+                formatDateTime(usage.created_at),
+                formatActorLabel(usage.created_by_profile, usage.created_by),
+                usage.inventory_lots?.lot_number ? `Lote ${usage.inventory_lots.lot_number}` : null,
+                usage.notes,
+              ].filter(Boolean).join(" - ")}
+              href={`/panel/pacientes/${usage.patient_id}/historia-clinica`}
+            />
+          ))}
+        </TraceColumn>
+
+        <TraceColumn title="Conteos y turnos" empty="Sin conteos para este insumo.">
+          {countLines.slice(0, 6).map((line) => {
+            const count = countMap.get(line.count_id);
+            return (
+              <TraceRow
+                key={line.id}
+                title={`${count?.shift_name || "Turno"} - dif. ${formatInventoryNumber(line.difference_stock)} ${unitLabel}`}
+                detail={[
+                  count ? formatDate(count.count_date) : null,
+                  `Dejado ${formatInventoryNumber(line.opening_stock)} / contado ${formatInventoryNumber(line.counted_stock)}`,
+                  `Contado por ${formatActorLabel(line.counted_by_profile, line.counted_by)}`,
+                  count ? formatInventoryShiftAudit(count) : null,
+                ].filter(Boolean).join(" - ")}
+              />
+            );
+          })}
+        </TraceColumn>
+      </div>
+    </section>
+  );
+}
+
+function TraceColumn({ title, empty, children }: { title: string; empty: string; children: ReactNode }) {
+  const hasRows = Array.isArray(children) ? children.length > 0 : Boolean(children);
+  return (
+    <div>
+      <h4 className="text-sm font-bold uppercase tracking-[0.16em] text-[var(--color-copy)]">{title}</h4>
+      <div className="mt-3 grid gap-2">
+        {hasRows ? children : <p className="rounded-[18px] bg-white/72 px-4 py-3 text-sm text-[var(--color-copy)]">{empty}</p>}
+      </div>
+    </div>
+  );
+}
+
+function TraceRow({ title, detail, href }: { title: string; detail: string; href?: string }) {
+  const content = (
+    <>
+      <p className="font-semibold text-[var(--color-ink)]">{title}</p>
+      <p className="mt-1 text-xs leading-5 text-[var(--color-copy)]">{detail}</p>
+    </>
+  );
+
+  if (href) {
+    return (
+      <a href={href} className="block rounded-[18px] bg-white/72 px-4 py-3 transition hover:bg-white">
+        {content}
+      </a>
+    );
+  }
+
+  return <div className="rounded-[18px] bg-white/72 px-4 py-3">{content}</div>;
 }
 
 function ReportButton({ label, onClick }: { label: string; onClick: () => void }) {
@@ -1574,6 +1816,34 @@ function formatInventoryShiftActor(
   fallback = "equipo medico"
 ) {
   return actor?.full_name ?? actor?.email ?? actorId ?? fallback;
+}
+
+function formatActorLabel(
+  actor: InventoryCountRow["opened_by_profile"] | InventoryCountRow["closed_by_profile"] | null | undefined,
+  actorId?: string | null,
+  fallback = "Sin responsable"
+) {
+  return actor?.full_name ?? actor?.email ?? actorId ?? fallback;
+}
+
+function movementTypeLabel(type: InventoryMovementRow["movement_type"]) {
+  const labels: Record<InventoryMovementRow["movement_type"], string> = {
+    entrada: "Entrada",
+    salida: "Salida",
+    merma: "Merma",
+    transferencia: "Transferencia",
+    ajuste: "Ajuste",
+    conteo: "Conteo",
+  };
+  return labels[type] ?? type;
+}
+
+function normalizeSearchText(value: unknown) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 }
 
 function formatDateTime(value?: string | null) {
