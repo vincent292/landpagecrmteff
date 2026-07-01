@@ -22,6 +22,11 @@ export type TreatmentRow = DeletionMetadata & {
   allows_direct_booking?: boolean | null;
   direct_booking_price?: number | null;
   direct_booking_label?: string | null;
+  treatment_price?: number | null;
+  available_slots?: number | null;
+  approved_slots?: number | null;
+  allows_partial_payment?: boolean | null;
+  partial_payment_percent?: number | null;
   assessment_mode?: "presencial" | "virtual" | "ambas" | null;
   assessment_price?: number | null;
   assessment_price_presencial?: number | null;
@@ -43,6 +48,19 @@ export type TreatmentRow = DeletionMetadata & {
 
 function resolveTreatment(row: TreatmentRow) {
   return resolvePublicMediaFields(row, ["cover_image"]);
+}
+
+export function getTreatmentRemainingSlots(treatment?: Pick<TreatmentRow, "available_slots" | "approved_slots"> | null) {
+  if (!treatment) return 0;
+  return Math.max(Number(treatment.available_slots ?? 0) - Number(treatment.approved_slots ?? 0), 0);
+}
+
+export function hasTreatmentSlotLimit(treatment?: Pick<TreatmentRow, "available_slots"> | null) {
+  return Number(treatment?.available_slots ?? 0) > 0;
+}
+
+export function getTreatmentOrderPrice(treatment?: Pick<TreatmentRow, "treatment_price" | "direct_booking_price"> | null) {
+  return Number(treatment?.treatment_price ?? treatment?.direct_booking_price ?? 0);
 }
 
 export async function getTreatments() {

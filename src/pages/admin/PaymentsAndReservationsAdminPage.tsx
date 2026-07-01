@@ -37,6 +37,12 @@ import {
   updatePromotionOrderStatus,
 } from "../../services/promotionOrderService";
 import {
+  approveTreatmentOrder,
+  getTreatmentOrderReceiptUrl,
+  updateTreatmentOrderNotes,
+  updateTreatmentOrderStatus,
+} from "../../services/treatmentOrderService";
+import {
   getPaymentsAndReservationsFeed,
   type PaymentsAndReservationsItem,
 } from "../../services/paymentsAndReservationsService";
@@ -117,6 +123,7 @@ export function PaymentsAndReservationsAdminPage() {
     const channel = supabase
       .channel("payments-and-reservations-live")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "promotion_orders" }, () => void load())
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "treatment_orders" }, () => void load())
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "course_enrollments" }, () => void load())
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "book_orders" }, () => void load())
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "appointment_reservations" }, () => void load())
@@ -131,6 +138,7 @@ export function PaymentsAndReservationsAdminPage() {
     if (isDoctorRole(role)) {
       return [
         { value: "promotion", label: "Promociones" },
+        { value: "treatment", label: "Tratamientos" },
         { value: "reservation", label: "Valoraciones y reservas" },
         { value: "manual_reservation", label: "Citas manuales" },
       ] as const;
@@ -138,6 +146,7 @@ export function PaymentsAndReservationsAdminPage() {
 
     return [
       { value: "promotion", label: "Promociones" },
+      { value: "treatment", label: "Tratamientos" },
       { value: "reservation", label: "Valoraciones y reservas" },
       { value: "manual_reservation", label: "Citas manuales" },
       { value: "course", label: "Academy" },
@@ -193,6 +202,7 @@ export function PaymentsAndReservationsAdminPage() {
     return {
       all: statusScopedItems.length,
       promotion: statusScopedItems.filter((item) => item.kind === "promotion").length,
+      treatment: statusScopedItems.filter((item) => item.kind === "treatment").length,
       reservation: statusScopedItems.filter((item) => item.kind === "reservation" && item.reservationCategory !== "manual").length,
       manual_reservation: statusScopedItems.filter((item) => item.kind === "reservation" && item.reservationCategory === "manual").length,
       course: statusScopedItems.filter((item) => item.kind === "course").length,
@@ -208,6 +218,8 @@ export function PaymentsAndReservationsAdminPage() {
     try {
       if (item.kind === "promotion") {
         await updatePromotionOrderNotes(item.id, notes);
+      } else if (item.kind === "treatment") {
+        await updateTreatmentOrderNotes(item.id, notes);
       } else if (item.kind === "course") {
         await updateEnrollmentNotes(item.id, notes);
       } else if (item.kind === "book") {
@@ -257,6 +269,13 @@ export function PaymentsAndReservationsAdminPage() {
 
       if (approvalDraft.item.kind === "promotion") {
         await approvePromotionOrder(approvalDraft.item.id, {
+          adminNotes: approvalDraft.notes,
+          paymentAmount: approvalDraft.amount,
+          paymentMethod: approvalDraft.paymentMethod,
+        });
+        whatsappMessage = buildApprovedWhatsappMessage(approvalDraft.item, approvalDraft.amount, approvalDraft.paymentMethod);
+      } else if (approvalDraft.item.kind === "treatment") {
+        await approveTreatmentOrder(approvalDraft.item.id, {
           adminNotes: approvalDraft.notes,
           paymentAmount: approvalDraft.amount,
           paymentMethod: approvalDraft.paymentMethod,
@@ -313,6 +332,8 @@ export function PaymentsAndReservationsAdminPage() {
       const notes = getDraftNotes(item);
       if (item.kind === "promotion") {
         await updatePromotionOrderStatus(item.id, "En revision", notes);
+      } else if (item.kind === "treatment") {
+        await updateTreatmentOrderStatus(item.id, "En revision", notes);
       } else if (item.kind === "course") {
         await updateEnrollmentNotes(item.id, notes);
         await updateEnrollmentStatus(item.id, "En revision");
@@ -344,6 +365,8 @@ export function PaymentsAndReservationsAdminPage() {
     try {
       if (item.kind === "promotion") {
         await updatePromotionOrderStatus(item.id, "Rechazado", notes);
+      } else if (item.kind === "treatment") {
+        await updateTreatmentOrderStatus(item.id, "Rechazado", notes);
       } else if (item.kind === "course") {
         await updateEnrollmentNotes(item.id, notes);
         await updateEnrollmentStatus(item.id, "Rechazado");
@@ -366,6 +389,7 @@ export function PaymentsAndReservationsAdminPage() {
   const getReceiptUrl = async (item: PaymentsAndReservationsItem) => {
     if (!item.receiptPath) return null;
     if (item.kind === "promotion") return getPromotionOrderReceiptUrl(item.receiptPath);
+    if (item.kind === "treatment") return getTreatmentOrderReceiptUrl(item.receiptPath);
     if (item.kind === "course") return getCourseEnrollmentReceiptUrl(item.receiptPath);
     if (item.kind === "reservation") return getReservationReceiptUrl(item.receiptPath);
     return getSignedUrl("payment-receipts-private", item.receiptPath);
@@ -390,6 +414,7 @@ export function PaymentsAndReservationsAdminPage() {
 
   const getDeletionTable = (item: PaymentsAndReservationsItem): DeletableTable => {
     if (item.kind === "promotion") return "promotion_orders";
+    if (item.kind === "treatment") return "treatment_orders";
     if (item.kind === "course") return "course_enrollments";
     if (item.kind === "book") return "book_orders";
     return "appointment_reservations";

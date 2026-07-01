@@ -11,12 +11,17 @@ import {
   type PromotionOrderRow,
 } from "./promotionOrderService";
 import {
+  getTreatmentOrdersAdmin,
+  type TreatmentOrderRow,
+} from "./treatmentOrderService";
+import {
   getReservationsAdmin,
   type AppointmentReservationRow,
 } from "./reservationService";
 
 export type PaymentsAndReservationsKind =
   | "promotion"
+  | "treatment"
   | "course"
   | "book"
   | "reservation";
@@ -42,6 +47,27 @@ export type PaymentsAndReservationsItem =
       fixedAmount: true;
       sourceLabel: string;
       row: PromotionOrderRow;
+    }
+  | {
+      id: string;
+      kind: "treatment";
+      createdAt: string;
+      title: string;
+      customerName: string;
+      phone: string | null;
+      email: string | null;
+      city: string | null;
+      statusLabel: TreatmentOrderRow["status"];
+      statusGroup: "pending" | "approved" | "rejected" | "cancelled";
+      amountExpected: number;
+      amountPaid: number;
+      paymentMethod: string | null;
+      receiptPath: string | null;
+      notes: string | null;
+      doctorId: string | null;
+      fixedAmount: true;
+      sourceLabel: string;
+      row: TreatmentOrderRow;
     }
   | {
       id: string;
@@ -152,8 +178,9 @@ export async function getPaymentsAndReservationsFeed(options?: {
   doctorProfileId?: string | null;
 }) {
   const includeDeleted = options?.role === "superadmin";
-  const [promotionRows, courseRows, bookRows, reservationRows] = await Promise.all([
+  const [promotionRows, treatmentRows, courseRows, bookRows, reservationRows] = await Promise.all([
     getPromotionOrdersAdmin(includeDeleted),
+    getTreatmentOrdersAdmin(includeDeleted),
     getCourseEnrollments(includeDeleted),
     getBookOrdersAdmin(includeDeleted),
     getReservationsAdmin({}, includeDeleted, options?.role),
@@ -178,6 +205,28 @@ export async function getPaymentsAndReservationsFeed(options?: {
     doctorId: row.promotions?.doctor_id ?? null,
     fixedAmount: true,
     sourceLabel: row.wants_appointment ? "Promocion con horario" : "Promocion pagada",
+    row,
+  }));
+
+  const treatmentItems: PaymentsAndReservationsItem[] = treatmentRows.map((row) => ({
+    id: row.id,
+    kind: "treatment",
+    createdAt: row.created_at,
+    title: row.treatments?.title ?? "Tratamiento",
+    customerName: row.full_name,
+    phone: row.phone ?? null,
+    email: row.email ?? null,
+    city: row.city ?? row.treatments?.city ?? null,
+    statusLabel: row.status,
+    statusGroup: toStatusGroup("treatment", row.status),
+    amountExpected: Number(row.total_amount ?? 0),
+    amountPaid: Number(row.amount_paid ?? row.total_amount ?? 0),
+    paymentMethod: row.payment_method ?? null,
+    receiptPath: row.payment_receipt_path ?? null,
+    notes: row.admin_notes ?? null,
+    doctorId: row.treatments?.doctor_id ?? null,
+    fixedAmount: true,
+    sourceLabel: row.wants_appointment ? "Tratamiento con horario" : "Tratamiento pagado",
     row,
   }));
 
@@ -267,6 +316,7 @@ export async function getPaymentsAndReservationsFeed(options?: {
 
   let items = [
     ...promotionItems,
+    ...treatmentItems,
     ...courseItems,
     ...bookItems,
     ...reservationItems,
@@ -275,7 +325,7 @@ export async function getPaymentsAndReservationsFeed(options?: {
   if (options?.role && isDoctorRole(options.role)) {
     const doctorId = options.doctorProfileId ?? null;
     items = items.filter((item) => {
-      if (item.kind === "promotion" || item.kind === "reservation") {
+      if (item.kind === "promotion" || item.kind === "treatment" || item.kind === "reservation") {
         return doctorId ? item.doctorId === doctorId : false;
       }
       return false;

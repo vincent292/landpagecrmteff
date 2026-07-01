@@ -53,6 +53,7 @@ export type DeletableTable =
   | "inventory_counts"
   | "inventory_supplier_orders"
   | "promotion_orders"
+  | "treatment_orders"
   | "savings_cards"
   | "payment_plans";
 
@@ -99,6 +100,7 @@ const tableModes: Record<DeletableTable, DeleteMode> = {
   inventory_counts: "deleted",
   inventory_supplier_orders: "deleted",
   promotion_orders: "deleted",
+  treatment_orders: "deleted",
   savings_cards: "deleted",
   payment_plans: "deleted",
 };
@@ -249,6 +251,23 @@ async function cleanupBeforeHardDelete(table: DeletableTable, id: string) {
 
       for (const reservationId of new Set(reservationIds)) {
         await hardDeleteRecord("appointment_reservations", reservationId);
+      }
+      return;
+    }
+    case "treatment_orders": {
+      const { data, error } = await supabase
+        .from("treatment_orders")
+        .select("payment_receipt_path, cash_movement_id, appointment_reservation_id")
+        .eq("id", id)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return;
+
+      await deleteStorageFileIfPresent("payment-receipts-private", data.payment_receipt_path);
+      await deleteLinkedCashMovement(data.cash_movement_id);
+
+      if (data.appointment_reservation_id) {
+        await hardDeleteRecord("appointment_reservations", data.appointment_reservation_id);
       }
       return;
     }

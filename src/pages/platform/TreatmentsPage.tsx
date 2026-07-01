@@ -10,7 +10,14 @@ import { AnimatedCard } from "../../components/ui/AnimatedCard";
 import { CardSkeleton } from "../../components/ui/CardSkeleton";
 import { ContentCover } from "../../components/ui/ContentCover";
 import { boliviaCities } from "../../data/cities";
-import { getTreatments, type TreatmentRow } from "../../services/treatmentService";
+import {
+  getTreatmentOrderPrice,
+  getTreatmentRemainingSlots,
+  getTreatments,
+  hasTreatmentSlotLimit,
+  type TreatmentRow,
+} from "../../services/treatmentService";
+import { formatMoney } from "../../utils/text";
 
 export function TreatmentsPage() {
   const [interest, setInterest] = useState<TreatmentRow | null>(null);
@@ -59,7 +66,13 @@ export function TreatmentsPage() {
         {!loading && !error && filteredTreatments.length === 0 && <EmptyState />}
         {!loading && !error && filteredTreatments.length > 0 && (
           <div className="grid min-w-0 gap-5 sm:gap-6 md:grid-cols-2 xl:grid-cols-3">
-            {filteredTreatments.map((treatment, index) => (
+            {filteredTreatments.map((treatment, index) => {
+              const remainingSlots = getTreatmentRemainingSlots(treatment);
+              const orderPrice = getTreatmentOrderPrice(treatment);
+              const hasSlotLimit = hasTreatmentSlotLimit(treatment);
+              const showDirectSummary = !treatment.requires_assessment && (orderPrice > 0 || remainingSlots > 0);
+
+              return (
               <AnimatedCard key={treatment.id} index={index}>
                 <article className="min-w-0 max-w-full overflow-hidden rounded-[24px] border border-[var(--color-border)] bg-white/60 shadow-[0_18px_48px_rgba(110,74,47,0.08)] transition-shadow duration-300 hover:shadow-[0_24px_62px_rgba(110,74,47,0.13)] sm:rounded-[28px]">
                   <ContentCover src={treatment.cover_image} alt={treatment.title} label="Tratamiento" wrapperClassName="h-56 w-full sm:h-64" />
@@ -67,20 +80,30 @@ export function TreatmentsPage() {
                     <h2 className="break-words text-[1.55rem] font-semibold leading-tight sm:text-2xl">{treatment.title}</h2>
                     <DoctorByline doctor={treatment.doctor_profiles} />
                     <p className="mt-3 max-w-full break-words text-sm leading-7 text-[var(--color-copy)]">{treatment.short_description}</p>
+                    {showDirectSummary ? (
+                      <p className="mt-4 break-words text-sm leading-6 text-[var(--color-copy)]">
+                        {orderPrice > 0 ? (
+                          <>
+                            <span className="text-2xl font-semibold text-[var(--color-mocha)]">{formatMoney(orderPrice)}</span>
+                            <br />
+                          </>
+                        ) : null}
+                        {hasSlotLimit ? `${remainingSlots} cupos disponibles` : "Cupos segun agenda"}
+                      </p>
+                    ) : null}
                     <div className="mt-6 flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap">
                       <Link to={`/tratamientos/${treatment.slug}`} className="rounded-full bg-[var(--color-mocha)] px-5 py-3 text-center text-sm font-semibold text-white transition hover:bg-[var(--color-chocolate)]">
                         Ver detalles
                       </Link>
-                      {canBookTreatmentDirectly(treatment) ? (
-                        <Link to={`/tratamientos/${treatment.slug}?accion=comprar`} className="rounded-full bg-[var(--color-caramel)] px-5 py-3 text-center text-sm font-semibold text-white transition hover:bg-[var(--color-chocolate)]">
-                          Comprar / reservar
-                        </Link>
-                      ) : null}
                       {treatment.requires_assessment ? (
                         <Link to={`/tratamientos/${treatment.slug}?accion=valoracion`} className="rounded-full border border-[var(--color-border)] px-5 py-3 text-center text-sm font-semibold transition hover:bg-white/80">
                           Reservar valoración
                         </Link>
-                      ) : null}
+                      ) : (
+                        <Link to={`/tratamientos/${treatment.slug}?accion=reservar`} className="rounded-full bg-[var(--color-caramel)] px-5 py-3 text-center text-sm font-semibold text-white transition hover:bg-[var(--color-mocha)]">
+                          Optar por tratamiento
+                        </Link>
+                      )}
                       <button
                         type="button"
                         onClick={() => setInterest(treatment)}
@@ -92,7 +115,8 @@ export function TreatmentsPage() {
                   </div>
                 </article>
               </AnimatedCard>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -107,10 +131,6 @@ export function TreatmentsPage() {
       />
     </section>
   );
-}
-
-function canBookTreatmentDirectly(treatment: TreatmentRow) {
-  return Boolean(treatment.allows_direct_booking && Number(treatment.direct_booking_price ?? 0) > 0);
 }
 
 export function PageIntro({ eyebrow, title, text }: { eyebrow: string; title: string; text?: string }) {

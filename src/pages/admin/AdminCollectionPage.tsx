@@ -1161,6 +1161,20 @@ function AdminEntityForm({
         return;
       }
 
+      if (module === "tratamientos" && Boolean(values.allows_direct_booking)) {
+        if (Number(values.treatment_price ?? 0) <= 0) {
+          setError("Define un precio del tratamiento para permitir pago directo.");
+          return;
+        }
+        if (Boolean(values.allows_partial_payment)) {
+          const percent = Number(values.partial_payment_percent ?? 0);
+          if (percent <= 0 || percent > 100) {
+            setError("El porcentaje de anticipo debe estar entre 1 y 100.");
+            return;
+          }
+        }
+      }
+
       const payload = normalizePayload(module, values, selectedDoctorId);
       if (module === "galeria") {
         const publicGalleryItems = galleryItems.filter((item) => item.image_url?.trim());
@@ -1231,6 +1245,12 @@ function AdminEntityForm({
               }
               if (field.name === "assessment_price_virtual") {
                 return Boolean(values.requires_assessment) && values.assessment_mode !== "presencial";
+              }
+              if (module === "tratamientos" && ["treatment_price", "available_slots", "allows_partial_payment"].includes(field.name)) {
+                return Boolean(values.allows_direct_booking);
+              }
+              if (module === "tratamientos" && field.name === "partial_payment_percent") {
+                return Boolean(values.allows_direct_booking) && Boolean(values.allows_partial_payment);
               }
               return true;
             })
@@ -1619,10 +1639,12 @@ function getFields(module: Exclude<Module, "inscripciones" | "solicitudes" | "us
     { name: "expected_results", label: "Resultados esperados", type: "textarea" },
     { name: "cover_image", label: "Imagen principal", type: "image" },
     { name: "city", label: "Ciudad", type: "text" },
-    { name: "allows_direct_booking", label: "Permite comprar y reservar directo", type: "checkbox" },
-    { name: "direct_booking_price", label: "Precio compra directa", type: "number" },
-    { name: "direct_booking_label", label: "Texto para compra directa", type: "text" },
     ...assessmentFields,
+    { name: "allows_direct_booking", label: "Permite optar y pagar directo", type: "checkbox" },
+    { name: "treatment_price", label: "Precio del tratamiento", type: "number" },
+    { name: "available_slots", label: "Cupos para pago directo", type: "number" },
+    { name: "allows_partial_payment", label: "Permite anticipo", type: "checkbox" },
+    { name: "partial_payment_percent", label: "Porcentaje de anticipo", type: "number" },
     { name: "agenda_mode", label: "Agenda", type: "select-agenda-mode" },
     { name: "appointment_type", label: "Tipo de cita agenda", type: "select-appointment-type" },
     { name: "agenda_tag", label: "Tag de agenda opcional", type: "text" },
@@ -1760,6 +1782,11 @@ function getInitialValues(module: Exclude<Module, "inscripciones" | "solicitudes
     }
   });
 
+  if (module === "tratamientos" && Number(next.treatment_price ?? 0) <= 0) {
+    const legacyPrice = Number((row as { direct_booking_price?: number | null }).direct_booking_price ?? 0);
+    if (legacyPrice > 0) next.treatment_price = legacyPrice;
+  }
+
   return next;
 }
 
@@ -1832,6 +1859,24 @@ function normalizePayload(
         presencialPrice,
         virtualPrice
       );
+    }
+  }
+
+  if (module === "tratamientos") {
+    if (!values.allows_direct_booking) {
+      payload.treatment_price = null;
+      payload.direct_booking_price = null;
+      payload.direct_booking_label = null;
+      payload.available_slots = 0;
+      payload.allows_partial_payment = false;
+      payload.partial_payment_percent = 50;
+    } else {
+      const treatmentPrice = Number(values.treatment_price ?? 0);
+      payload.treatment_price = treatmentPrice;
+      payload.direct_booking_price = treatmentPrice;
+      payload.available_slots = Number(values.available_slots ?? 0);
+      payload.allows_partial_payment = Boolean(values.allows_partial_payment);
+      payload.partial_payment_percent = Number(values.partial_payment_percent ?? 50);
     }
   }
 

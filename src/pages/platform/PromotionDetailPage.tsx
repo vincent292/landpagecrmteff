@@ -18,6 +18,8 @@ import {
   type PromotionOrderRow,
 } from "../../services/promotionOrderService";
 import {
+  ensureDefaultPromotionVariant,
+  formatPromotionVariantSlots,
   getPromotionBySlug,
   getPromotionVariantRemainingSlots,
   type PromotionRow,
@@ -37,6 +39,10 @@ type PaymentChoice = "total" | "anticipo";
 type OrderStep = "datos" | "horario" | "pago";
 const defaultPromotionAppointmentType = "Promocion directa";
 
+function usesAppointmentSlots(agendaMode?: string | null) {
+  return agendaMode !== "none";
+}
+
 export function PromotionDetailPage() {
   const { slug } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -51,6 +57,7 @@ export function PromotionDetailPage() {
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [showAssessmentModal, setShowAssessmentModal] = useState(false);
+  const [openingOrder, setOpeningOrder] = useState(false);
   const [savingOrder, setSavingOrder] = useState(false);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [appointmentSlots, setAppointmentSlots] = useState<AvailableSlot[]>([]);
@@ -110,11 +117,7 @@ export function PromotionDetailPage() {
     }
 
     if (action === "reservar") {
-      if (promotion.allows_direct_booking) {
-        handleOpenOrder();
-      } else {
-        setShowInfoModal(true);
-      }
+      void handleOpenOrder();
     }
   }, [promotion, searchParams]);
 
@@ -129,7 +132,7 @@ export function PromotionDetailPage() {
 
   useEffect(() => {
     const slotCity = form.city.trim() || promotion?.city?.trim() || "";
-    if (!showOrderModal || !form.wants_appointment || !slotCity || !promotion || promotion.agenda_mode !== "choose_slot") {
+    if (!showOrderModal || !form.wants_appointment || !slotCity || !promotion || !usesAppointmentSlots(promotion.agenda_mode)) {
       setAppointmentSlots([]);
       return;
     }
@@ -204,6 +207,7 @@ export function PromotionDetailPage() {
 
   const paymentQrImage = settings?.payment_qr_image ?? null;
   const variants = promotion?.promotion_variants ?? [];
+  const canReserveDirectPromotion = variants.length > 0 || Number(promotion?.promo_price ?? 0) > 0;
   const selectedVariants = useMemo(
     () => variants.filter((variant) => selectedVariantIds.includes(variant.id)),
     [selectedVariantIds, variants]
@@ -227,7 +231,7 @@ export function PromotionDetailPage() {
   }, [canUsePartialPayment, cartTotal, partialPercent, paymentChoice]);
 
   const detailPath = `/promociones/${promotion?.slug ?? slug}`;
-  const shouldChooseSlot = Boolean(form.wants_appointment && promotion?.agenda_mode === "choose_slot");
+  const shouldChooseSlot = Boolean(form.wants_appointment && usesAppointmentSlots(promotion?.agenda_mode));
   const dataStepComplete =
     form.full_name.trim().length > 0 &&
     form.email.trim().length > 0 &&
@@ -304,22 +308,50 @@ export function PromotionDetailPage() {
     setPaymentChoice("total");
   }
 
-  function handleOpenOrder() {
+  async function handleOpenOrder() {
     clearReserveIntent();
-    if (!promotion?.allows_direct_booking) {
-      setShowInfoModal(true);
-      return;
-    }
+    if (!promotion) return;
     if (!user) {
       setShowAuthPrompt(true);
       return;
     }
-    if (selectedVariants.length === 0 && variants[0]) {
-      setSelectedVariantIds([variants[0].id]);
+
+    setOpeningOrder(true);
+    try {
+      let orderVariants = variants;
+      if (orderVariants.length === 0 && canReserveDirectPromotion) {
+        const defaultVariant = await ensureDefaultPromotionVariant(promotion.id);
+        orderVariants = [defaultVariant];
+        setPromotion((current) =>
+          current
+            ? {
+                ...current,
+                allows_direct_booking: true,
+                promotion_variants: [defaultVariant],
+              }
+            : current
+        );
+      }
+
+      if (selectedVariants.length === 0 && orderVariants[0]) {
+        setSelectedVariantIds([orderVariants[0].id]);
+      }
+      setMessage(
+        canReserveDirectPromotion
+          ? null
+          : {
+              tone: "error",
+              text: "Esta promocion aun no tiene precio configurado para reservar y pagar.",
+            }
+      );
+      setOrderStep("datos");
+      setShowOrderModal(true);
+    } catch (openError) {
+      const detail = openError instanceof Error ? openError.message : "";
+      setFlashMessage("error", detail || "No pudimos preparar esta promocion para reservar y pagar.");
+    } finally {
+      setOpeningOrder(false);
     }
-    setMessage(null);
-    setOrderStep("datos");
-    setShowOrderModal(true);
   }
 
   async function refreshOrders() {
@@ -461,9 +493,15 @@ export function PromotionDetailPage() {
           <p>Inicio: {formatPublicDate(promotion.start_date)}</p>
           <p>Vigencia: {formatPublicDate(promotion.end_date)}</p>
           <p>Ciudad: {getDisplayCity(promotion.city)}</p>
-          <p>Opciones activas: {variants.length}</p>
+          <p>Opciones activas: {variants.length || (canReserveDirectPromotion ? 1 : 0)}</p>
         </div>
       </div>
+
+      {message && !showOrderModal ? (
+        <div className={`mt-6 rounded-[20px] px-4 py-3 text-sm font-semibold ${message.tone === "success" ? "border border-emerald-200 bg-emerald-50 text-emerald-800" : "border border-red-200 bg-red-50 text-red-800"}`}>
+          {message.text}
+        </div>
+      ) : null}
 
       <div className="mt-10 grid gap-8 lg:grid-cols-[1fr_380px]">
         <div className="space-y-6">
@@ -474,7 +512,6 @@ export function PromotionDetailPage() {
               <div className="mt-5 divide-y divide-white/34">
                 {variants.map((variant) => {
                   const selected = selectedVariantIds.includes(variant.id);
-                  const remaining = getPromotionVariantRemainingSlots(variant);
                   const allowsPartial = variant.allows_partial_payment || promotion.allows_partial_payment;
                   const percent = Number(variant.partial_payment_percent ?? promotion.partial_payment_percent ?? 50);
 
@@ -491,13 +528,21 @@ export function PromotionDetailPage() {
                       <div className="min-w-0">
                         <p className="text-lg font-semibold leading-snug sm:text-xl">{variant.title}</p>
                         <p className="mt-1 text-xs leading-5 text-white/68">
-                          {allowsPartial ? `Anticipo ${percent}% disponible` : "Pago completo"} · {remaining} cupos
+                          {allowsPartial ? `Anticipo ${percent}% disponible` : "Pago completo"} · {formatPromotionVariantSlots(variant)}
                         </p>
                       </div>
                       <p className="text-xl font-bold text-white sm:text-3xl">{formatMoney(variant.price_total).replace("Bs. ", "")}Bs.</p>
                     </button>
                   );
                 })}
+              </div>
+            ) : canReserveDirectPromotion ? (
+              <div className="mt-5 rounded-[22px] border border-white/25 bg-white/12 p-4">
+                <p className="text-lg font-semibold leading-snug sm:text-xl">{promotion.title}</p>
+                <p className="mt-2 text-xs leading-5 text-white/70">
+                  Pago completo - {promotion.available_slots && promotion.available_slots > 0 ? `${promotion.available_slots} cupos` : "cupos segun agenda"}
+                </p>
+                <p className="mt-4 text-3xl font-bold text-white">{formatMoney(promotion.promo_price ?? 0)}</p>
               </div>
             ) : (
               <EmptyState label="Esta promocion todavia no tiene opciones configuradas." />
@@ -540,7 +585,7 @@ export function PromotionDetailPage() {
               {selectedVariants.map((variant) => (
                 <div key={variant.id} className="rounded-[16px] bg-[rgba(247,242,236,0.78)] px-4 py-3">
                   <p className="font-semibold text-[var(--color-ink)]">{variant.title}</p>
-                  <p>{formatMoney(variant.price_total)} · {getPromotionVariantRemainingSlots(variant)} cupos</p>
+                  <p>{formatMoney(variant.price_total)} · {formatPromotionVariantSlots(variant)}</p>
                 </div>
               ))}
             </div>
@@ -565,17 +610,13 @@ export function PromotionDetailPage() {
               >
                 Reservar valoracion
               </button>
-            ) : promotion.allows_direct_booking ? (
+            ) : (
               <button
-                onClick={handleOpenOrder}
-                disabled={selectedVariants.length === 0}
+                onClick={() => void handleOpenOrder()}
+                disabled={openingOrder}
                 className="w-full rounded-full bg-[var(--color-caramel)] px-6 py-3.5 text-sm font-semibold text-white disabled:opacity-60"
               >
-                Reservar y pagar
-              </button>
-            ) : (
-              <button onClick={() => setShowInfoModal(true)} className="w-full rounded-full bg-[var(--color-caramel)] px-6 py-3.5 text-sm font-semibold text-white">
-                Solicitar promocion
+                {openingOrder ? "Preparando..." : "Reservar y pagar"}
               </button>
             )}
             <button
@@ -592,7 +633,7 @@ export function PromotionDetailPage() {
         </aside>
       </div>
 
-      {!showOrderModal && !showAuthPrompt && !showAssessmentModal && (promotion.allows_direct_booking || promotion.requires_assessment) ? (
+      {!showOrderModal && !showAuthPrompt && !showAssessmentModal ? (
         <div className="fixed inset-x-0 bottom-0 z-[90] border-t border-[rgba(184,138,90,0.18)] bg-[rgba(255,249,244,0.94)] px-4 py-3 shadow-[0_-18px_48px_rgba(62,42,31,0.10)] backdrop-blur md:hidden">
           <div className="mx-auto flex max-w-7xl items-center gap-3">
             <div className="min-w-0 flex-1">
@@ -610,12 +651,12 @@ export function PromotionDetailPage() {
                   setShowAssessmentModal(true);
                   return;
                 }
-                handleOpenOrder();
+                void handleOpenOrder();
               }}
-              disabled={!promotion.requires_assessment && selectedVariants.length === 0}
+              disabled={!promotion.requires_assessment && openingOrder}
               className="shrink-0 rounded-full bg-[var(--color-caramel)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
             >
-              {promotion.requires_assessment ? "Valorar" : "Reservar"}
+              {promotion.requires_assessment ? "Valorar" : openingOrder ? "Preparando..." : "Reservar"}
             </button>
           </div>
         </div>
@@ -725,11 +766,11 @@ export function PromotionDetailPage() {
                   </div>
                   <p className="mt-4 text-sm font-semibold text-[var(--color-ink)]">Paso 2: elige fecha y hora para cada opcion</p>
                   <p className="mt-2 text-xs leading-5 text-[var(--color-copy)]">
-                    {promotion.agenda_mode === "choose_slot"
+                    {shouldChooseSlot
                       ? `Mostramos horarios disponibles de tipo ${promotion.appointment_type || defaultPromotionAppointmentType}. Cada opcion debe quedar con su propio horario; recien se bloquea cuando administracion aprueba el pago.`
                       : "Esta promocion esta configurada para coordinar horario por WhatsApp despues de validar el pago."}
                   </p>
-                  {promotion.agenda_mode === "choose_slot" ? (
+                  {shouldChooseSlot ? (
                     <>
                       <div className="mt-4 grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-2">
                         {selectedVariants.map((variant) => {
@@ -895,6 +936,12 @@ export function PromotionDetailPage() {
                   Total del pedido: {formatMoney(cartTotal)} · Saldo pendiente estimado: {formatMoney(Math.max(cartTotal - payableAmount, 0))}
                 </p>
               </div>
+
+              {selectedVariants.length === 0 || cartTotal <= 0 ? (
+                <div className="mt-4 rounded-[18px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
+                  Falta configurar el precio promocional o una opcion activa para que esta promocion pueda enviarse a pago.
+                </div>
+              ) : null}
 
               {paymentQrImage ? (
                 <div className="mt-5 flex flex-col items-start gap-4 rounded-[20px] bg-white/65 p-4 sm:flex-row sm:items-center">

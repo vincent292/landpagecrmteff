@@ -10,6 +10,7 @@ import { CardSkeleton } from "../../components/ui/CardSkeleton";
 import { ContentCover } from "../../components/ui/ContentCover";
 import { boliviaCities } from "../../data/cities";
 import {
+  formatPromotionVariantSlots,
   getActivePromotions,
   getPromotionVariantRemainingSlots,
   type PromotionRow,
@@ -109,21 +110,17 @@ export function PromotionsPage() {
                         {lowestVariant ? <span className="break-words text-2xl font-semibold text-[var(--color-mocha)] sm:text-3xl">Opciones desde {formatMoney(lowestVariant.price_total)}</span> : null}
                       </div>
                       <p className="mt-4 break-words text-sm leading-6 text-[var(--color-copy)]">
-                        Vigente hasta {formatPublicDate(promo.end_date)} · {remaining} cupos
+                        Vigente hasta {formatPublicDate(promo.end_date)} · {lowestVariant ? formatPromotionVariantSlots(lowestVariant) : `${remaining} cupos`}
                       </p>
                       <div className="mt-6 flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap">
                         {promo.requires_assessment ? (
                           <Link to={`/promociones/${promo.slug}?accion=valoracion`} className="rounded-full bg-[var(--color-caramel)] px-5 py-3 text-center text-sm font-semibold text-white">
                             Reservar valoración
                           </Link>
-                        ) : promo.allows_direct_booking ? (
+                        ) : (
                           <Link to={`/promociones/${promo.slug}?accion=reservar`} className="rounded-full bg-[var(--color-caramel)] px-5 py-3 text-center text-sm font-semibold text-white">
                             Reservar y pagar
                           </Link>
-                        ) : (
-                          <button onClick={() => setInterest(promo)} className="rounded-full bg-[var(--color-caramel)] px-5 py-3 text-sm font-semibold text-white">
-                            Solicitar promoción
-                          </button>
                         )}
                         <button
                           type="button"

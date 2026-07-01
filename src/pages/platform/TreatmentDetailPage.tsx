@@ -8,9 +8,16 @@ import { EmptyState, ErrorState, LoadingState } from "../../components/common/As
 import { DoctorByline } from "../../components/platform/DoctorByline";
 import { InfoRequestModal } from "../../components/platform/InfoRequestModal";
 import { PublicAssessmentBookingFlow } from "../../components/platform/PublicAssessmentBookingFlow";
+import { TreatmentDirectBookingFlow } from "../../components/platform/TreatmentDirectBookingFlow";
 import { ContentCover } from "../../components/ui/ContentCover";
-import { getTreatmentBySlug, type TreatmentRow } from "../../services/treatmentService";
-import { listFromText } from "../../utils/text";
+import {
+  getTreatmentBySlug,
+  getTreatmentOrderPrice,
+  getTreatmentRemainingSlots,
+  hasTreatmentSlotLimit,
+  type TreatmentRow,
+} from "../../services/treatmentService";
+import { formatMoney, listFromText } from "../../utils/text";
 
 type TreatmentDetail = TreatmentRow & { treatment_images?: { image_url: string; alt_text?: string | null }[] };
 
@@ -22,7 +29,7 @@ export function TreatmentDetailPage() {
   const [error, setError] = useState(false);
   const [open, setOpen] = useState(false);
   const [showAssessmentModal, setShowAssessmentModal] = useState(false);
-  const [showDirectBookingModal, setShowDirectBookingModal] = useState(false);
+  const [showTreatmentOrderModal, setShowTreatmentOrderModal] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -31,6 +38,20 @@ export function TreatmentDetailPage() {
       .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, [slug]);
+
+  useEffect(() => {
+    const action = searchParams.get("accion");
+    if (!action || !treatment) return;
+
+    if (action === "valoracion" && treatment.requires_assessment) {
+      setShowAssessmentModal(true);
+      return;
+    }
+
+    if (action === "reservar" || action === "comprar") {
+      setShowTreatmentOrderModal(true);
+    }
+  }, [searchParams, treatment]);
 
   if (!slug) return <Navigate to="/tratamientos" replace />;
 
@@ -46,9 +67,10 @@ export function TreatmentDetailPage() {
   };
 
   const gallery = [treatment.cover_image, ...(treatment.treatment_images?.map((image) => image.image_url) ?? [])].filter(Boolean) as string[];
-  const actionIntent = searchParams.get("accion");
-  const assessmentIntentOpen = actionIntent === "valoracion" && Boolean(treatment.requires_assessment);
-  const directBookingIntentOpen = (actionIntent === "comprar" || actionIntent === "reservar") && canBookTreatmentDirectly(treatment);
+  const remainingSlots = getTreatmentRemainingSlots(treatment);
+  const orderPrice = getTreatmentOrderPrice(treatment);
+  const hasSlotLimit = hasTreatmentSlotLimit(treatment);
+  const showDirectSummary = !treatment.requires_assessment && (orderPrice > 0 || remainingSlots > 0);
 
   return (
     <section className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24">
@@ -75,29 +97,39 @@ export function TreatmentDetailPage() {
           <p className="mt-5 rounded-2xl bg-white/60 p-4 text-sm text-[var(--color-copy)]">
             Duracion aproximada: <strong className="text-[var(--color-ink)]">{treatment.duration}</strong>
           </p>
+          {showDirectSummary ? (
+            <p className="mt-5 rounded-2xl bg-white/60 p-4 text-sm leading-7 text-[var(--color-copy)]">
+              {orderPrice > 0 ? (
+                <>
+                  Precio del tratamiento: <strong className="text-[var(--color-ink)]">{formatMoney(orderPrice)}</strong>
+                  <br />
+                </>
+              ) : null}
+              Cupos disponibles: <strong className="text-[var(--color-ink)]">{hasSlotLimit ? remainingSlots : "segun agenda"}</strong>
+            </p>
+          ) : null}
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            {canBookTreatmentDirectly(treatment) ? (
-              <button onClick={() => setShowDirectBookingModal(true)} className="rounded-full bg-[var(--color-mocha)] px-6 py-3.5 text-sm font-semibold text-white">
-                Comprar / reservar
-              </button>
-            ) : null}
             {treatment.requires_assessment ? (
               <button onClick={() => setShowAssessmentModal(true)} className="rounded-full bg-[var(--color-caramel)] px-6 py-3.5 text-sm font-semibold text-white">
-                Reservar valoración
+                Reservar valoracion
               </button>
-            ) : null}
+            ) : (
+              <button onClick={() => setShowTreatmentOrderModal(true)} className="rounded-full bg-[var(--color-caramel)] px-6 py-3.5 text-sm font-semibold text-white">
+                Optar por tratamiento
+              </button>
+            )}
             <button onClick={() => setOpen(true)} className="rounded-full border border-[var(--color-border)] px-6 py-3.5 text-sm font-semibold">
-              Pedir información
+              Pedir informacion
             </button>
             <Link to="/tratamientos" className="rounded-full border border-[var(--color-border)] px-6 py-3.5 text-center text-sm font-semibold">
-              Ver más tratamientos
+              Ver mas tratamientos
             </Link>
           </div>
         </div>
       </div>
       {treatment.public_info ? (
         <div className="mt-10 rounded-[28px] border border-[var(--color-border)] bg-white/72 p-6">
-          <h2 className="text-2xl font-semibold">Información para tu solicitud</h2>
+          <h2 className="text-2xl font-semibold">Informacion para tu solicitud</h2>
           <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
             {treatment.public_info}
           </p>
@@ -105,7 +137,7 @@ export function TreatmentDetailPage() {
       ) : null}
       <div className="mt-14 grid gap-6 lg:grid-cols-3">
         <DetailBlock title="Beneficios" items={listFromText(treatment.benefits)} />
-        <DetailBlock title="Cuidados antes y después" items={listFromText(treatment.care_instructions)} />
+        <DetailBlock title="Cuidados antes y despues" items={listFromText(treatment.care_instructions)} />
         <DetailBlock title="Resultados esperados" items={listFromText(treatment.expected_results)} />
       </div>
       <InfoRequestModal
@@ -119,7 +151,7 @@ export function TreatmentDetailPage() {
       />
       <PublicAssessmentBookingFlow
         mode="modal"
-        open={showAssessmentModal || assessmentIntentOpen}
+        open={showAssessmentModal}
         onClose={() => {
           clearActionIntent();
           setShowAssessmentModal(false);
@@ -127,7 +159,7 @@ export function TreatmentDetailPage() {
         context={{
           type: "treatment",
           id: treatment.id,
-          title: `Valoración previa para ${treatment.title}`,
+          title: `Valoracion previa para ${treatment.title}`,
           city: treatment.city,
           doctor_id: treatment.doctor_id ?? null,
           agenda_tag: treatment.agenda_tag ?? null,
@@ -138,42 +170,17 @@ export function TreatmentDetailPage() {
           assessment_price_virtual: treatment.assessment_price_virtual ?? null,
         }}
       />
-      <PublicAssessmentBookingFlow
-        mode="modal"
-        open={showDirectBookingModal || directBookingIntentOpen}
+      <TreatmentDirectBookingFlow
+        detailPath={`/tratamientos/${treatment.slug}`}
+        open={showTreatmentOrderModal}
+        treatment={treatment}
         onClose={() => {
           clearActionIntent();
-          setShowDirectBookingModal(false);
-        }}
-        context={{
-          type: "treatment",
-          id: treatment.id,
-          title: treatment.title,
-          flow_label: treatment.direct_booking_label || "Compra / reserva de tratamiento",
-          heading_title: "Compra y reserva tu tratamiento",
-          payment_detail: `paga ${formatTreatmentPrice(treatment)} para reservar ${treatment.title}`,
-          success_message: "Gracias por enviar tu reserva y comprobante. Administracion revisara el pago y confirmara tu horario por WhatsApp.",
-          source: "direct_treatment",
-          city: treatment.city,
-          doctor_id: treatment.doctor_id ?? null,
-          agenda_tag: treatment.agenda_tag ?? null,
-          appointment_type: treatment.appointment_type ?? treatment.title,
-          assessment_mode: treatment.assessment_mode ?? "presencial",
-          assessment_price: Number(treatment.direct_booking_price ?? 0),
-          assessment_price_presencial: Number(treatment.direct_booking_price ?? 0),
-          assessment_price_virtual: Number(treatment.direct_booking_price ?? 0),
+          setShowTreatmentOrderModal(false);
         }}
       />
     </section>
   );
-}
-
-function canBookTreatmentDirectly(treatment: TreatmentRow) {
-  return Boolean(treatment.allows_direct_booking && Number(treatment.direct_booking_price ?? 0) > 0);
-}
-
-function formatTreatmentPrice(treatment: TreatmentRow) {
-  return `Bs. ${Number(treatment.direct_booking_price ?? 0).toLocaleString("es-BO")}`;
 }
 
 function DetailBlock({ title, items }: { title: string; items: string[] }) {
@@ -185,7 +192,7 @@ function DetailBlock({ title, items }: { title: string; items: string[] }) {
           {items.map((item) => <li key={item}>- {item}</li>)}
         </ul>
       ) : (
-        <p className="mt-4 text-sm text-[var(--color-copy)]">Información en preparación.</p>
+        <p className="mt-4 text-sm text-[var(--color-copy)]">Informacion en preparacion.</p>
       )}
     </div>
   );

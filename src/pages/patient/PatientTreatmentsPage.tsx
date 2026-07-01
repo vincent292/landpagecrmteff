@@ -1,12 +1,21 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { useAuth } from "../../hooks/useAuth";
 import { getPatientByProfileId } from "../../services/patientService";
 import { getPatientPhotos, getPhotoComparisons } from "../../services/patientPhotoService";
+import {
+  getMyTreatmentOrders,
+  getTreatmentOrderPreferredSlot,
+  getTreatmentOrderReceiptUrl,
+  type TreatmentOrderRow,
+} from "../../services/treatmentOrderService";
+import { formatDate, formatMoney } from "../../utils/text";
 
 export function PatientTreatmentsPage() {
   const { user } = useAuth();
+  const [orders, setOrders] = useState<TreatmentOrderRow[]>([]);
   const [comparisons, setComparisons] = useState<Awaited<ReturnType<typeof getPhotoComparisons>>>([]);
   const [photos, setPhotos] = useState<Awaited<ReturnType<typeof getPatientPhotos>>>([]);
   const [loading, setLoading] = useState(true);
@@ -14,7 +23,14 @@ export function PatientTreatmentsPage() {
 
   useEffect(() => {
     if (!user) return;
-    getPatientByProfileId(user.id)
+    Promise.all([
+      getMyTreatmentOrders(user.id),
+      getPatientByProfileId(user.id),
+    ])
+      .then(async ([nextOrders, patient]) => {
+        setOrders(nextOrders);
+        return patient;
+      })
       .then(async (patient) => {
         if (!patient) {
           setComparisons([]);
@@ -32,6 +48,12 @@ export function PatientTreatmentsPage() {
       .finally(() => setLoading(false));
   }, [user]);
 
+  const openReceipt = async (path?: string | null) => {
+    const url = await getTreatmentOrderReceiptUrl(path);
+    if (!url) return;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
   if (loading) return <LoadingState label="Cargando tu seguimiento..." />;
   if (error) return <ErrorState label="No pudimos cargar esta seccion." />;
 
@@ -44,8 +66,67 @@ export function PatientTreatmentsPage() {
         </p>
       </section>
 
-      {comparisons.length === 0 && photos.length === 0 ? (
+      {orders.length === 0 && comparisons.length === 0 && photos.length === 0 ? (
         <EmptyState label="Aún no hay seguimiento visual visible para tu cuenta." />
+      ) : null}
+
+      {orders.length > 0 ? (
+        <section className="grid gap-4">
+          {orders.map((order) => {
+            const preferredSlot = getTreatmentOrderPreferredSlot(order);
+
+            return (
+              <div key={order.id} className="rounded-[24px] border border-[var(--color-border)] bg-white/75 p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-accent-strong)]">
+                      Tratamiento solicitado
+                    </p>
+                    <h2 className="mt-2 text-lg font-semibold">{order.treatments?.title ?? "Tratamiento"}</h2>
+                  </div>
+                  <span className="rounded-full bg-[rgba(216,194,174,0.26)] px-3 py-1 text-xs font-semibold text-[var(--color-mocha)]">
+                    {order.status}
+                  </span>
+                </div>
+
+                <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">
+                  Total {formatMoney(order.total_amount)} - Pagaste {formatMoney(order.amount_paid ?? 0)} - Pendiente {formatMoney(order.amount_pending ?? order.total_amount)}
+                  <br />
+                  Modalidad: {order.payment_mode === "anticipo" ? `Anticipo ${order.payment_percent}%` : "Pago completo"}
+                  <br />
+                  Creado {formatDate(order.created_at)} {order.treatments?.city ? `- ${order.treatments.city}` : ""}
+                </p>
+
+                {preferredSlot ? (
+                  <p className="mt-3 rounded-[18px] bg-[rgba(247,242,236,0.78)] px-4 py-3 text-sm leading-7 text-[var(--color-copy)]">
+                    {formatDate(preferredSlot.date)} - {preferredSlot.start_time?.slice(0, 5)} - {preferredSlot.end_time?.slice(0, 5)}
+                    <br />
+                    {preferredSlot.city ?? order.city ?? "Sin ciudad"} - {preferredSlot.appointment_reservation_id ? "Horario confirmado" : "Pendiente de confirmacion"}
+                  </p>
+                ) : null}
+
+                <div className="mt-4 flex flex-wrap gap-3">
+                  {order.payment_receipt_path ? (
+                    <button onClick={() => void openReceipt(order.payment_receipt_path)} className="rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-semibold">
+                      Ver comprobante
+                    </button>
+                  ) : null}
+                  {order.treatments?.slug ? (
+                    <Link to={`/tratamientos/${order.treatments.slug}`} className="rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-semibold">
+                      Ver tratamiento
+                    </Link>
+                  ) : null}
+                </div>
+
+                {order.admin_notes ? (
+                  <p className="mt-3 text-sm leading-7 text-[var(--color-copy)]">
+                    Administracion: {order.admin_notes}
+                  </p>
+                ) : null}
+              </div>
+            );
+          })}
+        </section>
       ) : null}
 
       {comparisons.length > 0 ? (

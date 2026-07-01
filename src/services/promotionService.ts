@@ -92,6 +92,24 @@ export function getPromotionVariantRemainingSlots(variant?: Pick<PromotionVarian
   return Math.max(Number(variant.available_slots ?? 0) - Number(variant.approved_slots ?? 0), 0);
 }
 
+export function isGeneratedPromotionSlotLimit(variant?: Pick<PromotionVariantRow, "available_slots"> | null) {
+  return Number(variant?.available_slots ?? 0) >= 999_999;
+}
+
+export function formatPromotionVariantSlots(variant?: Pick<PromotionVariantRow, "available_slots" | "approved_slots"> | null) {
+  if (!variant) return "0 cupos";
+  if (isGeneratedPromotionSlotLimit(variant)) return "Cupos segun agenda";
+  return `${getPromotionVariantRemainingSlots(variant)} cupos`;
+}
+
+export async function ensureDefaultPromotionVariant(promotionId: string) {
+  const { data, error } = await supabase.rpc("ensure_default_promotion_variant", {
+    p_promotion_id: promotionId,
+  });
+  if (error) throw error;
+  return data as PromotionVariantRow;
+}
+
 export function variantsToTextarea(variants?: PromotionVariantRow[] | null) {
   return (variants ?? [])
     .map((variant) =>
