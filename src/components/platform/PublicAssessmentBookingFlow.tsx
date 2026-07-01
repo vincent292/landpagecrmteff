@@ -27,6 +27,11 @@ type AssessmentContext = {
   type: "general" | "promotion" | "treatment";
   id?: string | null;
   title: string;
+  flow_label?: string | null;
+  heading_title?: string | null;
+  payment_detail?: string | null;
+  success_message?: string | null;
+  source?: string | null;
   city?: string | null;
   doctor_id?: string | null;
   agenda_tag?: string | null;
@@ -131,8 +136,10 @@ export function PublicAssessmentBookingFlow({
     ? selectedAppointmentType || normalizedAppointmentTypeOptions[0] || defaultAppointmentType
     : defaultAppointmentType;
   const resolvedDoctorId = allowDoctorSelection ? selectedDoctorId || null : context.doctor_id ?? null;
-  const resolvedAssessmentLabel = allowAppointmentTypeSelection ? resolvedAppointmentType : assessmentTitle;
-  const headingTitle = allowAppointmentTypeSelection ? "Reserva tu cita" : assessmentTitle;
+  const flowLabel = context.flow_label?.trim() || (allowAppointmentTypeSelection ? "Reserva" : "Valoracion");
+  const resolvedAssessmentLabel = allowAppointmentTypeSelection ? resolvedAppointmentType : context.flow_label?.trim() || assessmentTitle;
+  const headingTitle = context.heading_title?.trim() || (allowAppointmentTypeSelection ? "Reserva tu cita" : assessmentTitle);
+  const paymentDetail = context.payment_detail?.trim() || `paga ${formatMoney(assessmentPrice)} para tu valoracion ${getCareModeLabel(resolvedCareMode).toLowerCase()}`;
   const doctorNameMap = useMemo(
     () => new Map(doctors.map((doctor) => [doctor.id, doctor.full_name])),
     [doctors]
@@ -318,11 +325,12 @@ export function PublicAssessmentBookingFlow({
           city: selectedSlot.city,
         },
         source:
-          context.type === "promotion"
+          context.source ??
+          (context.type === "promotion"
             ? "assessment_promotion"
             : context.type === "treatment"
               ? "assessment_treatment"
-              : "assessment_public",
+              : "assessment_public"),
         notes: form.notes.trim() || null,
         context_type: context.type,
         context_title: context.title,
@@ -335,7 +343,8 @@ export function PublicAssessmentBookingFlow({
 
       setReservationReference(formatReservationReference(reservation.id));
       setSuccessMessage(
-        "Gracias por reservar tu horario. Te mandaremos un mensaje a tu WhatsApp cuando quede confirmado todo."
+        context.success_message?.trim() ||
+          "Gracias por reservar tu horario. Te mandaremos un mensaje a tu WhatsApp cuando quede confirmado todo."
       );
       setReceiptFile(null);
       onSuccess?.();
@@ -398,13 +407,13 @@ export function PublicAssessmentBookingFlow({
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">
-            {allowAppointmentTypeSelection ? "Reserva privada" : "Valoracion"}
+            {flowLabel}
           </p>
           <h2 className="font-display mt-3 text-4xl font-semibold leading-[0.95] sm:text-5xl">
             {headingTitle}
           </h2>
           <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--color-copy)]">
-            {context.title}. Elige tus datos, define para que cita quieres agendarte, revisa la disponibilidad real y sube tu comprobante con CI obligatorio.
+            {context.title}. Elige tus datos, revisa la disponibilidad real y sube tu comprobante con CI obligatorio.
           </p>
         </div>
         <div className="rounded-[24px] border border-[var(--color-border)] bg-[rgba(247,242,236,0.78)] px-5 py-4">
@@ -642,7 +651,7 @@ export function PublicAssessmentBookingFlow({
 
         {step === "pago" ? (
           <div className="rounded-[28px] border border-[var(--color-mocha)] bg-[rgba(255,249,244,0.92)] p-5">
-          <StepHeader icon={<CreditCard className="h-4 w-4" />} title="Paso 3: paga y sube comprobante" />
+            <StepHeader icon={<CreditCard className="h-4 w-4" />} title="Paso 3: paga y sube comprobante" />
           <div className="mt-4 rounded-[22px] bg-[rgba(247,242,236,0.76)] p-4 text-sm leading-7 text-[var(--color-copy)]">
             <p className="font-semibold text-[var(--color-ink)]">{form.full_name || "Paciente pendiente"}</p>
             <p className="mt-2">
@@ -676,7 +685,7 @@ export function PublicAssessmentBookingFlow({
                 className="mx-auto h-48 w-48 rounded-[22px] object-contain sm:h-56 sm:w-56"
               />
               <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
-                Escanea el QR preconfigurado, paga {formatMoney(assessmentPrice)} para tu valoracion {getCareModeLabel(resolvedCareMode).toLowerCase()} y luego sube tu comprobante para cerrar la solicitud.
+                Escanea el QR preconfigurado, {paymentDetail} y luego sube tu comprobante para cerrar la solicitud.
               </p>
             </div>
           ) : (

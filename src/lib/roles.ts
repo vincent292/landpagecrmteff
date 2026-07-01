@@ -59,6 +59,8 @@ export function canAccessAdminModule(role: UserRole, module: string) {
       "disponibilidad",
       "citas",
       "pagos-reservas",
+      "reportes-operativos",
+      "calificaciones",
       "planes-pago",
       "tarjetas-ahorro",
       "tokens-libros",

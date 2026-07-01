@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 
 import {
   Archive,
@@ -8,6 +8,7 @@ import {
   Download,
   Layers,
   Package,
+  PackageMinus,
   Pencil,
   Plus,
   Search,
@@ -68,6 +69,55 @@ import { formatDate, formatMoney } from "../../utils/text";
 type TabKey = "resumen" | "items" | "categorias" | "lotes" | "movimientos" | "conteos" | "alertas" | "reportes" | "proveedores" | "pedidos";
 type ModalKey = "item" | "category" | "unit" | "supplier" | "location" | "lot" | "movement" | "count" | "shift" | null;
 type ShiftLineDraft = { counted_stock: number; notes: string };
+type InternalUsageDraft = { id: string; item_id: string; lot_id: string; quantity: number; reason: string };
+type ReportPeriod = "day" | "week" | "month" | "custom";
+type ReportRange = { startDate: string; endDate: string };
+type InventoryUsageReportRow = {
+  id: string;
+  date: string;
+  itemId: string;
+  itemName: string;
+  category: string;
+  reportType: "Entrada" | "Uso paciente" | "Uso interno" | "Merma" | "Transferencia" | "Ajuste" | "Diferencia de cierre";
+  quantity: number;
+  unitLabel: string;
+  lotLabel: string;
+  responsible: string;
+  patient: string;
+  notes: string;
+  estimatedCost: number | null;
+};
+type InventoryUsageSummaryRow = {
+  key: string;
+  itemName: string;
+  unitLabel: string;
+  patientQuantity: number;
+  internalQuantity: number;
+  wasteQuantity: number;
+  totalQuantity: number;
+  estimatedCost: number;
+};
+type InventoryCountReportRow = {
+  id: string;
+  date: string;
+  shiftName: string;
+  itemName: string;
+  openingStock: number;
+  expectedStock: number;
+  countedStock: number;
+  differenceStock: number;
+  unitLabel: string;
+  countedBy: string;
+  openedBy: string;
+  closedBy: string;
+  notes: string;
+};
+type InventoryResponsibleReportRow = {
+  responsable: string;
+  movimientos: number;
+  conteos: number;
+  valor_consumido: number;
+};
 
 const tabs: { key: TabKey; label: string; icon: ReactNode }[] = [
   { key: "resumen", label: "Resumen", icon: <Boxes className="h-4 w-4" /> },
@@ -199,6 +249,11 @@ export function InventoryAdminPage() {
   const [shiftStatus, setShiftStatus] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [shiftLineDrafts, setShiftLineDrafts] = useState<Record<string, ShiftLineDraft>>({});
   const [closingNotesByShift, setClosingNotesByShift] = useState<Record<string, string>>({});
+  const [reportPeriod, setReportPeriod] = useState<ReportPeriod>("week");
+  const [reportStartDate, setReportStartDate] = useState(() => getDefaultReportRange("week").startDate);
+  const [reportEndDate, setReportEndDate] = useState(() => getDefaultReportRange("week").endDate);
+  const [movementSearch, setMovementSearch] = useState("");
+  const [internalUsageDrafts, setInternalUsageDrafts] = useState<InternalUsageDraft[]>([]);
   const [itemForm, setItemForm] = useState(emptyItemForm);
   const [categoryForm, setCategoryForm] = useState(emptyCategoryForm);
   const [unitForm, setUnitForm] = useState(emptyUnitForm);
@@ -241,7 +296,7 @@ export function InventoryAdminPage() {
     [clinicalUsages]
   );
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true);
     setError(false);
     Promise.all([
@@ -273,11 +328,13 @@ export function InventoryAdminPage() {
         setError(true);
       })
       .finally(() => setLoading(false));
-  };
+  }, [includeDeleted]);
 
-  useEffect(load, [includeDeleted]);
+  useEffect(() => {
+    queueMicrotask(load);
+  }, [load]);
 
-  const activeItems = items.filter((item) => !item.is_deleted);
+  const activeItems = useMemo(() => items.filter((item) => !item.is_deleted), [items]);
   const openShifts = counts.filter((count) => !count.is_deleted && count.status === "abierto");
   const lowStock = activeItems.filter((item) => Number(item.current_stock) <= Number(item.minimum_stock));
   const outOfStock = activeItems.filter((item) => Number(item.current_stock) <= 0);
@@ -363,6 +420,44 @@ export function InventoryAdminPage() {
     () => (selectedHistoryItem ? countLines.filter((line) => line.item_id === selectedHistoryItem.id).slice().reverse() : []),
     [countLines, selectedHistoryItem]
   );
+  const reportRange = useMemo(
+    () => normalizeReportRange({ startDate: reportStartDate, endDate: reportEndDate }),
+    [reportEndDate, reportStartDate]
+  );
+  const reportUsageRows = useMemo(
+    () =>
+      buildInventoryUsageReportRows({
+        clinicalUsages,
+        movements,
+        itemMap,
+        categoryMap,
+        unitMap,
+        usageMovementIds,
+        range: reportRange,
+      }),
+    [categoryMap, clinicalUsages, itemMap, movements, reportRange, unitMap, usageMovementIds]
+  );
+  const reportUsageSummaryRows = useMemo(() => buildInventoryUsageSummaryRows(reportUsageRows), [reportUsageRows]);
+  const reportCountRows = useMemo(
+    () =>
+      buildInventoryCountReportRows({
+        counts,
+        countLines,
+        countMap,
+        itemMap,
+        unitMap,
+        range: reportRange,
+      }),
+    [countLines, countMap, counts, itemMap, reportRange, unitMap]
+  );
+  const reportResponsibleRows = useMemo(
+    () => buildInventoryResponsibleReportRows(reportUsageRows, reportCountRows),
+    [reportCountRows, reportUsageRows]
+  );
+  const reportConsumptionRows = reportUsageRows.filter((row) => ["Uso paciente", "Uso interno", "Merma"].includes(row.reportType));
+  const reportEntryRows = reportUsageRows.filter((row) => row.reportType === "Entrada");
+  const reportCountDifferenceRows = reportCountRows.filter((row) => Number(row.differenceStock) !== 0);
+  const reportEstimatedConsumptionCost = reportUsageSummaryRows.reduce((sum, row) => sum + row.estimatedCost, 0);
 
   const openModal = (nextModal: Exclude<ModalKey, null>, row?: unknown) => {
     setEditing(row ?? null);
@@ -373,7 +468,11 @@ export function InventoryAdminPage() {
     if (nextModal === "supplier") setSupplierForm(row ? pickSupplier(row as InventorySupplierRow) : emptySupplierForm);
     if (nextModal === "location") setLocationForm(row ? pickLocation(row as InventoryLocationRow) : emptyLocationForm);
     if (nextModal === "lot") setLotForm(row ? lotToForm(row as InventoryLotRow) : emptyLotForm);
-    if (nextModal === "movement") setMovementForm({ ...emptyMovementForm, item_id: activeItems[0]?.id ?? "" });
+    if (nextModal === "movement") {
+      setMovementForm({ ...emptyMovementForm, item_id: activeItems[0]?.id ?? "" });
+      setMovementSearch("");
+      setInternalUsageDrafts([]);
+    }
     if (nextModal === "count") setCountForm({ ...emptyCountForm, item_id: activeItems[0]?.id ?? "", location_id: locations[0]?.id ?? "" });
     if (nextModal === "shift") setShiftForm({ ...emptyShiftForm, location_id: locations[0]?.id ?? "" });
     setModal(nextModal);
@@ -383,6 +482,23 @@ export function InventoryAdminPage() {
     setModal(null);
     setEditing(null);
     setSaveStatus(null);
+    setMovementSearch("");
+    setInternalUsageDrafts([]);
+  };
+
+  const openMovementModal = (movementType: InventoryMovementRow["movement_type"] = "entrada", reason = "") => {
+    openModal("movement");
+    setMovementSearch("");
+    setInternalUsageDrafts([]);
+    setMovementForm((current) => ({ ...current, movement_type: movementType, reason }));
+  };
+
+  const applyReportPeriod = (period: ReportPeriod) => {
+    setReportPeriod(period);
+    if (period === "custom") return;
+    const nextRange = getDefaultReportRange(period);
+    setReportStartDate(nextRange.startDate);
+    setReportEndDate(nextRange.endDate);
   };
 
   const submit = async () => {
@@ -453,7 +569,18 @@ export function InventoryAdminPage() {
     const presentationUnitId = normalizeText(lotForm.presentation_unit_id) ?? selectedItem?.presentation_unit_id ?? null;
     const unitsPerPresentation = Math.max(Number(lotForm.units_per_presentation) || Number(selectedItem?.units_per_presentation ?? 1), 1);
     const usesPresentation = hasPresentationConfig(presentationUnitId, unitsPerPresentation);
-    const payload = {
+    const initialQuantity = usesPresentation
+      ? toInternalQuantity(Number(lotForm.initial_quantity_presentations), unitsPerPresentation)
+      : Number(lotForm.initial_quantity);
+    const currentQuantity = usesPresentation
+      ? toInternalQuantity(Number(lotForm.current_quantity_presentations), unitsPerPresentation)
+      : Number(lotForm.current_quantity);
+
+    if (!Number.isFinite(initialQuantity) || initialQuantity < 0 || !Number.isFinite(currentQuantity) || currentQuantity < 0) {
+      throw new Error("Las cantidades del lote no pueden ser negativas.");
+    }
+
+    const basePayload = {
       item_id: lotForm.item_id || activeItems[0]?.id,
       lot_number: lotForm.lot_number,
       supplier_id: normalizeText(lotForm.supplier_id),
@@ -461,12 +588,8 @@ export function InventoryAdminPage() {
       presentation_unit_id: presentationUnitId,
       received_date: normalizeText(lotForm.received_date),
       expiration_date: normalizeText(lotForm.expiration_date),
-      initial_quantity: usesPresentation
-        ? toInternalQuantity(Number(lotForm.initial_quantity_presentations), unitsPerPresentation)
-        : Number(lotForm.initial_quantity),
-      current_quantity: usesPresentation
-        ? toInternalQuantity(Number(lotForm.current_quantity_presentations), unitsPerPresentation)
-        : Number(lotForm.current_quantity),
+      initial_quantity: initialQuantity,
+      current_quantity: currentQuantity,
       units_per_presentation: unitsPerPresentation,
       unit_cost: lotForm.unit_cost > 0 ? Number(lotForm.unit_cost) : null,
       notes: normalizeText(lotForm.notes),
@@ -474,11 +597,110 @@ export function InventoryAdminPage() {
       updated_by: actorId,
     };
     const current = editing as InventoryLotRow | null;
-    if (current) await updateInventoryLot(current.id, payload);
-    else await createInventoryLot({ ...payload, created_by: actorId });
+    if (current) {
+      if (current.item_id !== basePayload.item_id) {
+        throw new Error("No se puede cambiar el item de un lote existente. Crea un lote nuevo para otro insumo.");
+      }
+
+      const previousCurrentQuantity = Number(current.current_quantity ?? 0);
+      const delta = currentQuantity - previousCurrentQuantity;
+
+      if (Math.abs(delta) > 0.0001) {
+        await recordInventoryMovement({
+          itemId: current.item_id,
+          movementType: delta > 0 ? "entrada" : "salida",
+          quantity: Math.abs(delta),
+          lotId: current.id,
+          unitCost: lotForm.unit_cost > 0 ? Number(lotForm.unit_cost) : null,
+          toLocationId: delta > 0 ? basePayload.location_id : null,
+          supplierId: delta > 0 ? basePayload.supplier_id : null,
+          reference: `Lote ${lotForm.lot_number}`,
+          reason: delta > 0 ? "Ajuste de lote: ingreso adicional" : "Ajuste de lote: descuento de cantidad disponible",
+          movementDate: lotForm.received_date ? new Date(`${lotForm.received_date}T12:00:00`).toISOString() : null,
+        });
+      }
+
+      await updateInventoryLot(current.id, {
+        ...basePayload,
+        current_quantity: currentQuantity,
+      });
+      return;
+    }
+
+    const createdLot = await createInventoryLot({
+      ...basePayload,
+      initial_quantity: 0,
+      current_quantity: 0,
+      created_by: actorId,
+    });
+
+    if (currentQuantity > 0) {
+      await recordInventoryMovement({
+        itemId: createdLot.item_id,
+        movementType: "entrada",
+        quantity: currentQuantity,
+        lotId: createdLot.id,
+        unitCost: lotForm.unit_cost > 0 ? Number(lotForm.unit_cost) : null,
+        toLocationId: basePayload.location_id,
+        supplierId: basePayload.supplier_id,
+        reference: `Lote ${lotForm.lot_number}`,
+        reason: "Ingreso inicial de lote",
+        movementDate: lotForm.received_date ? new Date(`${lotForm.received_date}T12:00:00`).toISOString() : null,
+      });
+    }
+
+    if (initialQuantity !== currentQuantity) {
+      await updateInventoryLot(createdLot.id, {
+        initial_quantity: initialQuantity,
+        updated_by: actorId,
+      });
+    }
   };
 
   const saveMovement = async () => {
+    if (movementForm.movement_type === "entrada") {
+      validateInventoryEntryDrafts(internalUsageDrafts, itemMap, lots);
+      const movementDate = movementForm.movement_date ? new Date(movementForm.movement_date).toISOString() : null;
+      const reference = normalizeText(movementForm.reference) ?? `Entrada inventario ${getLocalDateValue()}`;
+      const fallbackReason = normalizeText(movementForm.reason) ?? "Ingreso de inventario";
+
+      for (const draft of internalUsageDrafts) {
+        await recordInventoryMovement({
+          itemId: draft.item_id,
+          movementType: "entrada",
+          quantity: Number(draft.quantity),
+          lotId: normalizeText(draft.lot_id),
+          unitCost: movementForm.unit_cost > 0 ? Number(movementForm.unit_cost) : null,
+          toLocationId: normalizeText(movementForm.to_location_id),
+          supplierId: normalizeText(movementForm.supplier_id),
+          reference,
+          reason: normalizeText(draft.reason) ?? fallbackReason,
+          movementDate,
+        });
+      }
+      return;
+    }
+
+    if (movementForm.movement_type === "salida") {
+      validateInternalUsageDrafts(internalUsageDrafts, itemMap, lots);
+      const movementDate = movementForm.movement_date ? new Date(movementForm.movement_date).toISOString() : null;
+      const reference = normalizeText(movementForm.reference) ?? `Uso interno ${getLocalDateValue()}`;
+      const fallbackReason = normalizeText(movementForm.reason) ?? "Uso interno sin paciente";
+
+      for (const draft of internalUsageDrafts) {
+        await recordInventoryMovement({
+          itemId: draft.item_id,
+          movementType: "salida",
+          quantity: Number(draft.quantity),
+          lotId: normalizeText(draft.lot_id),
+          reference,
+          reason: normalizeText(draft.reason) ?? fallbackReason,
+          movementDate,
+        });
+      }
+      return;
+    }
+
     await recordInventoryMovement({
       itemId: movementForm.item_id,
       movementType: movementForm.movement_type,
@@ -604,8 +826,9 @@ export function InventoryAdminPage() {
   const archive = (table: DeletableTable, id: string) =>
     softDeleteRecord({ table, id, actorId, actorRole: role, actorName, actorEmail }).then(load);
 
-  const exportReport = (kind: "items" | "lots" | "movements" | "counts" | "suppliers") => {
+  const exportReport = (kind: "items" | "lots" | "movements" | "counts" | "suppliers" | "usage" | "usageSummary" | "countPeople" | "responsibles") => {
     const today = new Date().toISOString().slice(0, 10);
+    const rangeSlug = `${reportRange.startDate}_a_${reportRange.endDate}`;
     if (kind === "items") {
       downloadCsv(`inventario-items-${today}.csv`, filteredItems.map((item) => itemReport(item, categoryMap, unitMap, supplierMap, locationMap)));
     }
@@ -620,6 +843,18 @@ export function InventoryAdminPage() {
     }
     if (kind === "suppliers") {
       downloadCsv(`inventario-proveedores-${today}.csv`, suppliers.map((supplier) => ({ ...supplier })));
+    }
+    if (kind === "usage") {
+      downloadCsv(`inventario-consumo-detalle-${rangeSlug}.csv`, reportUsageRows.map(usageReportCsvRow));
+    }
+    if (kind === "usageSummary") {
+      downloadCsv(`inventario-consumo-resumen-${rangeSlug}.csv`, reportUsageSummaryRows.map(usageSummaryCsvRow));
+    }
+    if (kind === "countPeople") {
+      downloadCsv(`inventario-conteos-responsables-${rangeSlug}.csv`, reportCountRows.map(countReportCsvRow));
+    }
+    if (kind === "responsibles") {
+      downloadCsv(`inventario-responsables-${rangeSlug}.csv`, reportResponsibleRows);
     }
   };
 
@@ -636,12 +871,10 @@ export function InventoryAdminPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <CommandButton icon={<Plus className="h-4 w-4" />} label="Nuevo item" onClick={() => openModal("item")} primary />
-            <CommandButton icon={<Warehouse className="h-4 w-4" />} label="Registrar entrada" onClick={() => openModal("movement")} />
+            <CommandButton icon={<Warehouse className="h-4 w-4" />} label="Registrar entrada" onClick={() => openMovementModal("entrada")} />
+            <CommandButton icon={<PackageMinus className="h-4 w-4" />} label="Uso interno" onClick={() => openMovementModal("salida", "Uso interno sin paciente")} />
             <CommandButton icon={<ClipboardCheck className="h-4 w-4" />} label="Abrir turno" onClick={() => openModal("shift")} />
-            <CommandButton icon={<Archive className="h-4 w-4" />} label="Registrar merma" onClick={() => {
-              openModal("movement");
-              setMovementForm((current) => ({ ...current, movement_type: "merma" }));
-            }} />
+            <CommandButton icon={<Archive className="h-4 w-4" />} label="Registrar merma" onClick={() => openMovementModal("merma")} />
             <CommandButton icon={<Download className="h-4 w-4" />} label="CSV" onClick={() => exportReport("items")} />
           </div>
         </div>
@@ -677,9 +910,10 @@ export function InventoryAdminPage() {
           <div className="grid gap-5 xl:grid-cols-3">
             <Panel eyebrow="Operacion" title="Acciones rapidas">
               <div className="grid gap-3">
-                <button onClick={() => openModal("movement")} className="rounded-full bg-[rgba(198,162,123,0.28)] px-5 py-3 text-sm font-bold text-[var(--color-ink)]">Registrar compra / entrada</button>
-                <button onClick={() => { openModal("movement"); setMovementForm((current) => ({ ...current, movement_type: "merma" })); }} className="rounded-full bg-[rgba(154,107,67,0.14)] px-5 py-3 text-sm font-bold text-[var(--color-ink)]">Registrar merma</button>
-                <button onClick={() => { openModal("movement"); setMovementForm((current) => ({ ...current, movement_type: "transferencia" })); }} className="rounded-full bg-[var(--color-mocha)] px-5 py-3 text-sm font-bold text-white">Transferir ubicación</button>
+                <button onClick={() => openMovementModal("entrada")} className="rounded-full bg-[rgba(198,162,123,0.28)] px-5 py-3 text-sm font-bold text-[var(--color-ink)]">Registrar compra / entrada</button>
+                <button onClick={() => openMovementModal("salida", "Uso interno sin paciente")} className="rounded-full bg-[rgba(154,107,67,0.14)] px-5 py-3 text-sm font-bold text-[var(--color-ink)]">Descontar uso interno</button>
+                <button onClick={() => openMovementModal("merma")} className="rounded-full bg-[rgba(154,107,67,0.14)] px-5 py-3 text-sm font-bold text-[var(--color-ink)]">Registrar merma</button>
+                <button onClick={() => openMovementModal("transferencia")} className="rounded-full bg-[var(--color-mocha)] px-5 py-3 text-sm font-bold text-white">Transferir ubicación</button>
                 <button onClick={() => openModal("shift")} className="rounded-full bg-[var(--color-mocha)] px-5 py-3 text-sm font-bold text-white">Abrir turno de inventario</button>
                 <button onClick={() => setActiveTab("pedidos")} className="rounded-full bg-[rgba(110,74,47,0.92)] px-5 py-3 text-sm font-bold text-white">Pedidos a proveedor</button>
               </div>
@@ -756,7 +990,7 @@ export function InventoryAdminPage() {
       ) : null}
 
       {activeTab === "movimientos" ? (
-        <Panel eyebrow="Kardex" title="Entradas, salidas, mermas y transferencias" action={<CommandButton icon={<Plus className="h-4 w-4" />} label="Movimiento" onClick={() => openModal("movement")} primary />}>
+        <Panel eyebrow="Kardex" title="Entradas, usos internos, mermas y transferencias" action={<CommandButton icon={<Plus className="h-4 w-4" />} label="Movimiento" onClick={() => openMovementModal("entrada")} primary />}>
           <label className="mb-4 flex items-center gap-3 rounded-[18px] border border-[var(--color-border)] bg-white/80 px-4 py-3">
             <Search className="h-4 w-4 text-[var(--color-copy)]" />
             <input
@@ -829,12 +1063,97 @@ export function InventoryAdminPage() {
       ) : null}
 
       {activeTab === "reportes" ? (
-        <Panel eyebrow="Reportes" title="Descargas CSV">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <Panel eyebrow="Reportes" title="Consumo, conteos y responsables">
+          <div className="grid gap-4 rounded-[22px] border border-[rgba(198,162,123,0.18)] bg-[rgba(247,242,236,0.72)] p-4 xl:grid-cols-[1fr_auto]">
+            <div className="flex flex-wrap gap-2">
+              {(["day", "week", "month", "custom"] as ReportPeriod[]).map((period) => (
+                <ReportPeriodButton key={period} period={period} active={reportPeriod === period} onClick={() => applyReportPeriod(period)} />
+              ))}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-1 text-sm font-semibold">
+                Desde
+                <input
+                  type="date"
+                  value={reportRange.startDate}
+                  onChange={(event) => {
+                    setReportPeriod("custom");
+                    setReportStartDate(event.target.value);
+                  }}
+                  className="premium-input"
+                />
+              </label>
+              <label className="grid gap-1 text-sm font-semibold">
+                Hasta
+                <input
+                  type="date"
+                  value={reportRange.endDate}
+                  onChange={(event) => {
+                    setReportPeriod("custom");
+                    setReportEndDate(event.target.value);
+                  }}
+                  className="premium-input"
+                />
+              </label>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <MetricBox label="Consumos" value={String(reportConsumptionRows.length)} />
+            <MetricBox label="Entradas" value={String(reportEntryRows.length)} />
+            <MetricBox label="Conteos" value={String(reportCountRows.length)} />
+            <MetricBox label="Diferencias" value={String(reportCountDifferenceRows.length)} />
+            <MetricBox label="Valor consumido" value={formatMoney(reportEstimatedConsumptionCost)} />
+          </div>
+
+          <div className="mt-5 grid gap-5 xl:grid-cols-2">
+            <section className="rounded-[22px] border border-[rgba(198,162,123,0.18)] bg-white/70 p-4">
+              <h3 className="text-lg font-semibold text-[var(--color-ink)]">Consumo por insumo</h3>
+              <div className="mt-4 grid gap-3">
+                <RowsEmpty rows={reportUsageSummaryRows.slice(0, 8)} empty="Sin consumos en este periodo." render={(row) => (
+                  <ReportSummaryRow key={row.key} row={row} />
+                )} />
+              </div>
+            </section>
+
+            <section className="rounded-[22px] border border-[rgba(198,162,123,0.18)] bg-white/70 p-4">
+              <h3 className="text-lg font-semibold text-[var(--color-ink)]">Responsables del periodo</h3>
+              <div className="mt-4 grid gap-3">
+                <RowsEmpty rows={reportResponsibleRows.slice(0, 8)} empty="Sin responsables en este periodo." render={(row) => (
+                  <ReportResponsibleRow key={row.responsable} row={row} />
+                )} />
+              </div>
+            </section>
+          </div>
+
+          <div className="mt-5 grid gap-5 xl:grid-cols-2">
+            <section className="rounded-[22px] border border-[rgba(198,162,123,0.18)] bg-white/70 p-4">
+              <h3 className="text-lg font-semibold text-[var(--color-ink)]">Detalle de consumo</h3>
+              <div className="mt-4 grid gap-3">
+                <RowsEmpty rows={reportUsageRows.slice(0, 10)} empty="Sin movimientos en este periodo." render={(row) => (
+                  <ReportUsageRow key={row.id} row={row} />
+                )} />
+              </div>
+            </section>
+
+            <section className="rounded-[22px] border border-[rgba(198,162,123,0.18)] bg-white/70 p-4">
+              <h3 className="text-lg font-semibold text-[var(--color-ink)]">Personas que hicieron conteos</h3>
+              <div className="mt-4 grid gap-3">
+                <RowsEmpty rows={reportCountRows.slice(0, 10)} empty="Sin conteos en este periodo." render={(row) => (
+                  <ReportCountRow key={row.id} row={row} />
+                )} />
+              </div>
+            </section>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <ReportButton label="Consumo detalle" onClick={() => exportReport("usage")} />
+            <ReportButton label="Consumo resumen" onClick={() => exportReport("usageSummary")} />
+            <ReportButton label="Conteos responsables" onClick={() => exportReport("countPeople")} />
+            <ReportButton label="Responsables periodo" onClick={() => exportReport("responsibles")} />
             <ReportButton label="Items" onClick={() => exportReport("items")} />
             <ReportButton label="Lotes" onClick={() => exportReport("lots")} />
-            <ReportButton label="Kardex" onClick={() => exportReport("movements")} />
-            <ReportButton label="Conteos" onClick={() => exportReport("counts")} />
+            <ReportButton label="Kardex completo" onClick={() => exportReport("movements")} />
             <ReportButton label="Proveedores" onClick={() => exportReport("suppliers")} />
           </div>
         </Panel>
@@ -892,6 +1211,10 @@ export function InventoryAdminPage() {
             setLotForm,
             movementForm,
             setMovementForm,
+            movementSearch,
+            setMovementSearch,
+            internalUsageDrafts,
+            setInternalUsageDrafts,
             countForm,
             setCountForm,
             shiftForm,
@@ -1040,6 +1363,7 @@ function InventoryShiftCard({
     const draft = getLineDraft(line);
     return Number(draft.counted_stock ?? 0) !== Number(line.expected_stock ?? 0);
   });
+  const countLineActors = formatCountLineActors(lines);
 
   return (
     <div className="rounded-[24px] border border-[rgba(198,162,123,0.18)] bg-[rgba(247,242,236,0.74)] p-4">
@@ -1057,6 +1381,7 @@ function InventoryShiftCard({
               {formatInventoryShiftAudit(count)} - Items: {lines.length} - Diferencia: {formatInventoryNumber(totalDifference)}
             </p>
           <p className="mt-1 text-sm leading-6 text-[var(--color-copy)]">{count.notes ?? "Sin notas de apertura."}</p>
+          <p className="mt-1 text-sm leading-6 text-[var(--color-copy)]">Conteos: {countLineActors}</p>
           <DeletedStatusNote row={count} />
         </div>
           <div className="flex flex-wrap gap-2 xl:justify-end">
@@ -1090,6 +1415,7 @@ function InventoryShiftCard({
                   <div className="rounded-2xl bg-white/72 px-4 py-3">
                     <p className="text-sm font-semibold">{item?.name ?? "Item"}</p>
                     <p className="mt-1 text-xs text-[var(--color-copy)]">Unidad: {unitLabel}</p>
+                    <p className="mt-1 text-xs text-[var(--color-copy)]">Contado por: {formatActorLabel(line.counted_by_profile, line.counted_by)}</p>
                   </div>
                   <MetricBox label="Dejado" value={`${formatInventoryNumber(line.opening_stock)} ${unitLabel}`} />
                   <MetricBox label="Esperado" value={`${formatInventoryNumber(line.expected_stock)} ${unitLabel}`} />
@@ -1133,7 +1459,7 @@ function InventoryShiftCard({
               <MetricBox
                 key={line.id}
                 label={item?.name ?? "Item"}
-                value={`${formatInventoryNumber(line.counted_stock)} ${unitLabel} - dif. ${formatInventoryNumber(line.difference_stock)}`}
+                value={`${formatInventoryNumber(line.counted_stock)} ${unitLabel} - dif. ${formatInventoryNumber(line.difference_stock)} - ${formatActorLabel(line.counted_by_profile, line.counted_by)}`}
               />
             );
           })}
@@ -1352,6 +1678,215 @@ function ReportButton({ label, onClick }: { label: string; onClick: () => void }
   );
 }
 
+function ReportPeriodButton({ period, active, onClick }: { period: ReportPeriod; active: boolean; onClick: () => void }) {
+  const labels: Record<ReportPeriod, string> = {
+    day: "Hoy",
+    week: "Semana",
+    month: "Mes",
+    custom: "Rango",
+  };
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-full px-4 py-2 text-sm font-bold transition ${
+        active ? "bg-[var(--color-mocha)] text-white" : "bg-white/75 text-[var(--color-copy)] hover:bg-white"
+      }`}
+    >
+      {labels[period]}
+    </button>
+  );
+}
+
+function ReportSummaryRow({ row }: { row: InventoryUsageSummaryRow }) {
+  return (
+    <div className="rounded-[18px] bg-[rgba(247,242,236,0.74)] px-4 py-3">
+      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+        <div>
+          <p className="font-semibold text-[var(--color-ink)]">{row.itemName}</p>
+          <p className="mt-1 text-sm text-[var(--color-copy)]">
+            Total {formatInventoryNumber(row.totalQuantity)} {row.unitLabel} - Pacientes {formatInventoryNumber(row.patientQuantity)} - Interno {formatInventoryNumber(row.internalQuantity)} - Merma {formatInventoryNumber(row.wasteQuantity)}
+          </p>
+        </div>
+        <span className="rounded-full bg-white/80 px-3 py-1 text-xs font-bold text-[var(--color-copy)]">{formatMoney(row.estimatedCost)}</span>
+      </div>
+    </div>
+  );
+}
+
+function ReportResponsibleRow({ row }: { row: InventoryResponsibleReportRow }) {
+  return (
+    <div className="rounded-[18px] bg-[rgba(247,242,236,0.74)] px-4 py-3">
+      <p className="font-semibold text-[var(--color-ink)]">{row.responsable}</p>
+      <p className="mt-1 text-sm text-[var(--color-copy)]">
+        Movimientos {row.movimientos} - Conteos {row.conteos} - Consumo estimado {formatMoney(row.valor_consumido)}
+      </p>
+    </div>
+  );
+}
+
+function ReportUsageRow({ row }: { row: InventoryUsageReportRow }) {
+  return (
+    <div className="rounded-[18px] bg-[rgba(247,242,236,0.74)] px-4 py-3">
+      <div className="flex flex-wrap gap-2">
+        <span className="rounded-full bg-white/75 px-3 py-1 text-xs font-bold text-[var(--color-copy)]">{row.reportType}</span>
+        <span className="rounded-full bg-white/75 px-3 py-1 text-xs font-bold text-[var(--color-copy)]">{formatDate(row.date)}</span>
+        <span className="rounded-full bg-white/75 px-3 py-1 text-xs font-bold text-[var(--color-copy)]">{row.responsible}</span>
+      </div>
+      <p className="mt-2 font-semibold text-[var(--color-ink)]">{row.itemName}</p>
+      <p className="mt-1 text-sm text-[var(--color-copy)]">
+        {formatInventoryNumber(row.quantity)} {row.unitLabel} - {row.patient || "Sin paciente"} - {row.lotLabel || "Sin lote"}
+      </p>
+    </div>
+  );
+}
+
+function ReportCountRow({ row }: { row: InventoryCountReportRow }) {
+  return (
+    <div className="rounded-[18px] bg-[rgba(247,242,236,0.74)] px-4 py-3">
+      <div className="flex flex-wrap gap-2">
+        <span className="rounded-full bg-white/75 px-3 py-1 text-xs font-bold text-[var(--color-copy)]">{formatDate(row.date)}</span>
+        <span className="rounded-full bg-white/75 px-3 py-1 text-xs font-bold text-[var(--color-copy)]">{row.countedBy}</span>
+      </div>
+      <p className="mt-2 font-semibold text-[var(--color-ink)]">{row.itemName}</p>
+      <p className="mt-1 text-sm text-[var(--color-copy)]">
+        Contado {formatInventoryNumber(row.countedStock)} {row.unitLabel} - Esperado {formatInventoryNumber(row.expectedStock)} - Dif. {formatInventoryNumber(row.differenceStock)}
+      </p>
+    </div>
+  );
+}
+
+function InternalUsageBuilder({
+  mode,
+  search,
+  setSearch,
+  drafts,
+  setDrafts,
+  items,
+  lots,
+  itemMap,
+  unitMap,
+}: {
+  mode: "entrada" | "salida";
+  search: string;
+  setSearch: (value: string) => void;
+  drafts: InternalUsageDraft[];
+  setDrafts: Dispatch<SetStateAction<InternalUsageDraft[]>>;
+  items: InventoryItemRow[];
+  lots: InventoryLotRow[];
+  itemMap: Map<string, InventoryItemRow>;
+  unitMap: Map<string, InventoryUnitRow>;
+}) {
+  const isEntry = mode === "entrada";
+  const normalizedSearch = normalizeSearchText(search);
+  const resultItems = normalizedSearch
+    ? items
+        .filter((item) =>
+          normalizeSearchText([
+            item.name,
+            item.sku,
+            item.barcode,
+            item.category,
+            item.unit,
+          ].join(" ")).includes(normalizedSearch)
+        )
+        .slice(0, 8)
+    : [];
+  const totals = buildInternalUsageDraftTotals(drafts, itemMap, unitMap);
+
+  const updateDraft = (draftId: string, patch: Partial<InternalUsageDraft>) => {
+    setDrafts((current) => current.map((draft) => (draft.id === draftId ? { ...draft, ...patch } : draft)));
+  };
+
+  return (
+    <div className="grid gap-4">
+      <Field label={isEntry ? "Buscar insumo para ingresar" : "Buscar insumo para descontar"}>
+        <input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Nombre, SKU, categoria o codigo"
+          className="premium-input"
+        />
+      </Field>
+
+      {resultItems.length > 0 ? (
+        <div className="grid gap-2">
+          {resultItems.map((item) => {
+            const unitLabel = getItemUnitLabel(item, unitMap);
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  setDrafts((current) => [...current, createInternalUsageDraft(item.id)]);
+                  setSearch("");
+                }}
+                className="flex flex-col gap-1 rounded-[18px] border border-[rgba(198,162,123,0.18)] bg-white/75 px-4 py-3 text-left transition hover:bg-white"
+              >
+                <span className="font-semibold text-[var(--color-ink)]">{item.name}</span>
+                <span className="text-xs text-[var(--color-copy)]">
+                  Stock actual {formatInventoryNumber(item.current_stock)} {unitLabel} - {item.sku ?? "Sin SKU"}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
+      <div className="grid gap-3">
+        {drafts.length === 0 ? (
+          <EmptyState label={isEntry ? "Sin entradas agregadas." : "Sin descuentos agregados."} />
+        ) : (
+          drafts.map((draft) => {
+            const item = itemMap.get(draft.item_id);
+            const unitLabel = getItemUnitLabel(item, unitMap);
+            const itemLots = lots.filter((lot) => lot.item_id === draft.item_id && !lot.is_deleted && (isEntry || Number(lot.current_quantity ?? 0) > 0));
+            return (
+              <div key={draft.id} className="rounded-[20px] border border-[rgba(198,162,123,0.18)] bg-[rgba(247,242,236,0.74)] p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <p className="font-semibold text-[var(--color-ink)]">{item?.name ?? "Insumo"}</p>
+                    <p className="mt-1 text-xs text-[var(--color-copy)]">Disponible {formatInventoryNumber(item?.current_stock)} {unitLabel}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setDrafts((current) => current.filter((row) => row.id !== draft.id))}
+                    className="w-fit rounded-full border border-[var(--color-border)] px-4 py-2 text-xs font-bold"
+                  >
+                    Quitar
+                  </button>
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  <SelectField
+                    label={isEntry ? "Lote existente (opcional)" : "Lote"}
+                    value={draft.lot_id}
+                    onChange={(lot_id) => updateDraft(draft.id, { lot_id })}
+                    options={itemLots.map((lot) => ({
+                      value: lot.id,
+                      label: `${lot.lot_number} - ${formatInventoryNumber(lot.current_quantity)} ${unitLabel}`,
+                    }))}
+                  />
+                  <NumberField label={`Cantidad (${unitLabel})`} value={draft.quantity} onChange={(quantity) => updateDraft(draft.id, { quantity })} />
+                  <TextField label={isEntry ? "Nota de ingreso" : "Nota"} value={draft.reason} onChange={(reason) => updateDraft(draft.id, { reason })} />
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {totals.length > 0 ? (
+        <div className="grid gap-2 rounded-[18px] bg-white/75 p-4">
+          {totals.map((row) => (
+            <p key={row.key} className="text-sm font-semibold text-[var(--color-ink)]">
+              {row.itemName}: {formatInventoryNumber(row.quantity)} {row.unitLabel}
+            </p>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function Field({ label, children, className = "" }: { label: string; children: ReactNode; className?: string }) {
   return (
     <label className={className}>
@@ -1406,6 +1941,10 @@ function renderModalFields(props: {
   setLotForm: (value: typeof emptyLotForm) => void;
   movementForm: typeof emptyMovementForm;
   setMovementForm: (value: typeof emptyMovementForm) => void;
+  movementSearch: string;
+  setMovementSearch: (value: string) => void;
+  internalUsageDrafts: InternalUsageDraft[];
+  setInternalUsageDrafts: Dispatch<SetStateAction<InternalUsageDraft[]>>;
   countForm: typeof emptyCountForm;
   setCountForm: (value: typeof emptyCountForm) => void;
   shiftForm: typeof emptyShiftForm;
@@ -1538,6 +2077,54 @@ function renderModalFields(props: {
   if (props.modal === "movement") {
     const f = props.movementForm;
     const set = props.setMovementForm;
+    const movementTypeOptions = [
+      { value: "entrada", label: "Entrada / compra" },
+      { value: "salida", label: "Uso interno / descuento manual" },
+      { value: "merma", label: "Merma / vencido / descarte" },
+      { value: "transferencia", label: "Transferencia" },
+      { value: "ajuste", label: "Ajuste positivo" },
+    ];
+    const movementTypeField = (
+      <SelectField
+        label="Tipo de movimiento"
+        value={f.movement_type}
+        onChange={(movement_type) => set({ ...f, movement_type: movement_type as InventoryMovementRow["movement_type"] })}
+        options={movementTypeOptions}
+      />
+    );
+
+    if (f.movement_type === "entrada" || f.movement_type === "salida") {
+      const isEntry = f.movement_type === "entrada";
+      return (
+        <div className="grid gap-4">
+          {movementTypeField}
+          <InternalUsageBuilder
+            mode={f.movement_type}
+            search={props.movementSearch}
+            setSearch={props.setMovementSearch}
+            drafts={props.internalUsageDrafts}
+            setDrafts={props.setInternalUsageDrafts}
+            items={props.items}
+            lots={props.lots}
+            itemMap={props.itemMap}
+            unitMap={new Map(props.units.map((unit) => [unit.id, unit]))}
+          />
+          <div className="grid gap-4 md:grid-cols-2">
+            {isEntry ? (
+              <>
+                <SelectField label="Proveedor" value={f.supplier_id} onChange={(supplier_id) => set({ ...f, supplier_id })} options={props.suppliers.map((s) => ({ value: s.id, label: s.name }))} />
+                <SelectField label="Ubicacion de ingreso" value={f.to_location_id} onChange={(to_location_id) => set({ ...f, to_location_id })} options={props.locations.map((l) => ({ value: l.id, label: l.name }))} />
+                <NumberField label="Costo unitario general" value={f.unit_cost} onChange={(unit_cost) => set({ ...f, unit_cost })} />
+              </>
+            ) : null}
+            <TextField label="Referencia" value={f.reference} onChange={(reference) => set({ ...f, reference })} />
+            <Field label="Fecha"><input type="datetime-local" value={f.movement_date} onChange={(event) => set({ ...f, movement_date: event.target.value })} className="premium-input" /></Field>
+            <TextareaField label="Motivo general" value={f.reason} onChange={(reason) => set({ ...f, reason })} />
+          </div>
+        </div>
+      );
+    }
+
     const itemLots = props.lots.filter((lot) => lot.item_id === f.item_id);
     const selectedItem = props.itemMap.get(f.item_id);
     const movementUnit = props.units.find((unit) => unit.id === selectedItem?.unit_id)?.abbreviation ?? selectedItem?.unit ?? "u";
@@ -1547,7 +2134,7 @@ function renderModalFields(props: {
     return (
       <div className="grid gap-4 md:grid-cols-2">
         <SelectField label="Item" value={f.item_id} onChange={(item_id) => set({ ...f, item_id, lot_id: "" })} options={props.items.map((i) => ({ value: i.id, label: i.name }))} />
-        <SelectField label="Tipo de movimiento" value={f.movement_type} onChange={(movement_type) => set({ ...f, movement_type: movement_type as InventoryMovementRow["movement_type"] })} options={["entrada", "salida", "merma", "transferencia", "ajuste"].map((v) => ({ value: v, label: v }))} />
+        {movementTypeField}
         <NumberField label={`Cantidad en ${movementUnit}`} value={f.quantity} onChange={(quantity) => set({ ...f, quantity })} />
         {movementUsesPresentation ? (
           <InlineHint text={`Este movimiento se registra en ${movementUnit}. Ejemplo: 1 ${movementPresentation} = ${formatInventoryNumber(movementUnitsPerPresentation)} ${movementUnit}.`} />
@@ -1826,6 +2413,19 @@ function formatActorLabel(
   return actor?.full_name ?? actor?.email ?? actorId ?? fallback;
 }
 
+function formatCountLineActors(lines: InventoryCountLineRow[]) {
+  const actors = Array.from(
+    new Set(
+      lines
+        .map((line) => formatActorLabel(line.counted_by_profile, line.counted_by, ""))
+        .filter(Boolean)
+    )
+  );
+  if (actors.length === 0) return "Sin responsable registrado";
+  if (actors.length <= 3) return actors.join(", ");
+  return `${actors.slice(0, 3).join(", ")} y ${actors.length - 3} mas`;
+}
+
 function movementTypeLabel(type: InventoryMovementRow["movement_type"]) {
   const labels: Record<InventoryMovementRow["movement_type"], string> = {
     entrada: "Entrada",
@@ -1890,6 +2490,375 @@ function formatStockSummary(
     return `${base} (equiv. ${formatInventoryNumber(equivalentPresentations)} ${presentationLabel})`;
   }
   return `${base} (config. ${formatInventoryNumber(presentationSize)} ${unitLabel} por ${presentationLabel})`;
+}
+
+function getLocalDateValue(date = new Date()) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function getDefaultReportRange(period: Exclude<ReportPeriod, "custom">): ReportRange {
+  const today = startOfToday();
+  if (period === "day") {
+    const value = getLocalDateValue(today);
+    return { startDate: value, endDate: value };
+  }
+  if (period === "week") {
+    return { startDate: getLocalDateValue(addDays(today, -6)), endDate: getLocalDateValue(today) };
+  }
+  return {
+    startDate: getLocalDateValue(new Date(today.getFullYear(), today.getMonth(), 1)),
+    endDate: getLocalDateValue(today),
+  };
+}
+
+function normalizeReportRange(range: ReportRange): ReportRange {
+  const fallback = getDefaultReportRange("week");
+  const startDate = range.startDate || fallback.startDate;
+  const endDate = range.endDate || fallback.endDate;
+  if (startDate > endDate) return { startDate: endDate, endDate: startDate };
+  return { startDate, endDate };
+}
+
+function getReportDateValue(value?: string | null) {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value.slice(0, 10);
+  return getLocalDateValue(parsed);
+}
+
+function isWithinReportRange(value: string | null | undefined, range: ReportRange) {
+  const dateValue = getReportDateValue(value);
+  return Boolean(dateValue) && dateValue >= range.startDate && dateValue <= range.endDate;
+}
+
+function getItemUnitLabel(item: InventoryItemRow | undefined, unitMap: Map<string, InventoryUnitRow>) {
+  return getUnitLabel(item?.unit_id ?? null, item?.unit ?? "u", unitMap);
+}
+
+function createInternalUsageDraft(itemId: string): InternalUsageDraft {
+  return {
+    id: `${itemId}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    item_id: itemId,
+    lot_id: "",
+    quantity: 1,
+    reason: "",
+  };
+}
+
+function buildInternalUsageDraftTotals(
+  drafts: InternalUsageDraft[],
+  itemMap: Map<string, InventoryItemRow>,
+  unitMap: Map<string, InventoryUnitRow>
+) {
+  const totals = new Map<string, { key: string; itemName: string; quantity: number; unitLabel: string }>();
+  drafts.forEach((draft) => {
+    const item = itemMap.get(draft.item_id);
+    const unitLabel = getItemUnitLabel(item, unitMap);
+    const key = `${draft.item_id}-${unitLabel}`;
+    const current = totals.get(key) ?? {
+      key,
+      itemName: item?.name ?? "Insumo",
+      quantity: 0,
+      unitLabel,
+    };
+    current.quantity += Number(draft.quantity ?? 0);
+    totals.set(key, current);
+  });
+  return Array.from(totals.values());
+}
+
+function validateInternalUsageDrafts(
+  drafts: InternalUsageDraft[],
+  itemMap: Map<string, InventoryItemRow>,
+  lots: InventoryLotRow[]
+) {
+  if (drafts.length === 0) {
+    throw new Error("Agrega al menos un descuento interno.");
+  }
+
+  const itemTotals = new Map<string, number>();
+  const lotTotals = new Map<string, number>();
+
+  drafts.forEach((draft) => {
+    const item = itemMap.get(draft.item_id);
+    const quantity = Number(draft.quantity ?? 0);
+    if (!item) throw new Error("Selecciona un insumo valido.");
+    if (!Number.isFinite(quantity) || quantity <= 0) throw new Error(`La cantidad de ${item.name} debe ser mayor a cero.`);
+
+    itemTotals.set(draft.item_id, (itemTotals.get(draft.item_id) ?? 0) + quantity);
+    if (draft.lot_id) {
+      const lot = lots.find((row) => row.id === draft.lot_id && row.item_id === draft.item_id && !row.is_deleted);
+      if (!lot) throw new Error(`El lote elegido para ${item.name} no corresponde al insumo.`);
+      lotTotals.set(draft.lot_id, (lotTotals.get(draft.lot_id) ?? 0) + quantity);
+    }
+  });
+
+  itemTotals.forEach((quantity, itemId) => {
+    const item = itemMap.get(itemId);
+    if (item && quantity > Number(item.current_stock ?? 0)) {
+      throw new Error(`No alcanza el stock de ${item.name}. Disponible: ${formatInventoryNumber(item.current_stock)}.`);
+    }
+  });
+
+  lotTotals.forEach((quantity, lotId) => {
+    const lot = lots.find((row) => row.id === lotId);
+    const item = lot ? itemMap.get(lot.item_id) : null;
+    if (lot && quantity > Number(lot.current_quantity ?? 0)) {
+      throw new Error(`No alcanza el lote ${lot.lot_number} de ${item?.name ?? "insumo"}. Disponible: ${formatInventoryNumber(lot.current_quantity)}.`);
+    }
+  });
+}
+
+function validateInventoryEntryDrafts(
+  drafts: InternalUsageDraft[],
+  itemMap: Map<string, InventoryItemRow>,
+  lots: InventoryLotRow[]
+) {
+  if (drafts.length === 0) {
+    throw new Error("Agrega al menos una entrada de inventario.");
+  }
+
+  drafts.forEach((draft) => {
+    const item = itemMap.get(draft.item_id);
+    const quantity = Number(draft.quantity ?? 0);
+    if (!item) throw new Error("Selecciona un insumo valido.");
+    if (!Number.isFinite(quantity) || quantity <= 0) throw new Error(`La cantidad de ${item.name} debe ser mayor a cero.`);
+
+    if (draft.lot_id) {
+      const lot = lots.find((row) => row.id === draft.lot_id && row.item_id === draft.item_id && !row.is_deleted);
+      if (!lot) throw new Error(`El lote elegido para ${item.name} no corresponde al insumo.`);
+    }
+  });
+}
+
+function estimateInventoryCost(quantity: number, item?: InventoryItemRow, unitCost?: number | null) {
+  const cost = Number(unitCost ?? item?.reference_cost ?? 0);
+  if (!Number.isFinite(cost) || cost <= 0) return null;
+  return quantity * cost;
+}
+
+function movementReportType(type: InventoryMovementRow["movement_type"]): InventoryUsageReportRow["reportType"] {
+  const labels: Record<InventoryMovementRow["movement_type"], InventoryUsageReportRow["reportType"]> = {
+    entrada: "Entrada",
+    salida: "Uso interno",
+    merma: "Merma",
+    transferencia: "Transferencia",
+    ajuste: "Ajuste",
+    conteo: "Diferencia de cierre",
+  };
+  return labels[type];
+}
+
+function buildInventoryUsageReportRows({
+  clinicalUsages,
+  movements,
+  itemMap,
+  categoryMap,
+  unitMap,
+  usageMovementIds,
+  range,
+}: {
+  clinicalUsages: InventoryClinicalUsageRow[];
+  movements: InventoryMovementRow[];
+  itemMap: Map<string, InventoryItemRow>;
+  categoryMap: Map<string, InventoryCategoryRow>;
+  unitMap: Map<string, InventoryUnitRow>;
+  usageMovementIds: Set<string>;
+  range: ReportRange;
+}) {
+  const clinicalRows: InventoryUsageReportRow[] = clinicalUsages
+    .filter((usage) => isWithinReportRange(usage.created_at, range))
+    .map((usage) => {
+      const item = itemMap.get(usage.item_id);
+      const quantity = Number(usage.quantity ?? 0);
+      return {
+        id: `uso-${usage.id}`,
+        date: getReportDateValue(usage.created_at),
+        itemId: usage.item_id,
+        itemName: usage.inventory_items?.name ?? item?.name ?? "Insumo",
+        category: categoryMap.get(item?.category_id ?? "")?.name ?? item?.category ?? "",
+        reportType: "Uso paciente" as const,
+        quantity,
+        unitLabel: usage.unit_label ?? getItemUnitLabel(item, unitMap),
+        lotLabel: usage.inventory_lots?.lot_number ?? "",
+        responsible: formatActorLabel(usage.created_by_profile, usage.created_by),
+        patient: usage.patients?.full_name ?? "",
+        notes: usage.notes ?? "",
+        estimatedCost: estimateInventoryCost(quantity, item),
+      };
+    });
+
+  const movementRows: InventoryUsageReportRow[] = movements
+    .filter((movement) => isWithinReportRange(movement.movement_date, range))
+    .filter((movement) => !usageMovementIds.has(movement.id))
+    .map((movement) => {
+      const item = itemMap.get(movement.item_id);
+      const quantity = Number(movement.quantity ?? 0);
+      return {
+        id: `movimiento-${movement.id}`,
+        date: getReportDateValue(movement.movement_date),
+        itemId: movement.item_id,
+        itemName: movement.item_name_snapshot ?? item?.name ?? "Insumo",
+        category: categoryMap.get(item?.category_id ?? "")?.name ?? item?.category ?? "",
+        reportType: movementReportType(movement.movement_type),
+        quantity,
+        unitLabel: getItemUnitLabel(item, unitMap),
+        lotLabel: movement.lot_number_snapshot ?? "",
+        responsible: formatActorLabel(movement.created_by_profile, movement.created_by),
+        patient: "",
+        notes: movement.reason ?? movement.reference ?? "",
+        estimatedCost: estimateInventoryCost(quantity, item, movement.unit_cost),
+      };
+    });
+
+  return [...clinicalRows, ...movementRows].sort((a, b) => b.date.localeCompare(a.date));
+}
+
+function buildInventoryUsageSummaryRows(rows: InventoryUsageReportRow[]) {
+  const summaryMap = new Map<string, InventoryUsageSummaryRow>();
+  rows
+    .filter((row) => ["Uso paciente", "Uso interno", "Merma"].includes(row.reportType))
+    .forEach((row) => {
+      const key = `${row.itemId}-${row.unitLabel}`;
+      const current = summaryMap.get(key) ?? {
+        key,
+        itemName: row.itemName,
+        unitLabel: row.unitLabel,
+        patientQuantity: 0,
+        internalQuantity: 0,
+        wasteQuantity: 0,
+        totalQuantity: 0,
+        estimatedCost: 0,
+      };
+
+      if (row.reportType === "Uso paciente") current.patientQuantity += row.quantity;
+      if (row.reportType === "Uso interno") current.internalQuantity += row.quantity;
+      if (row.reportType === "Merma") current.wasteQuantity += row.quantity;
+      current.totalQuantity += row.quantity;
+      current.estimatedCost += Number(row.estimatedCost ?? 0);
+      summaryMap.set(key, current);
+    });
+
+  return Array.from(summaryMap.values()).sort((a, b) => b.totalQuantity - a.totalQuantity);
+}
+
+function buildInventoryCountReportRows({
+  countLines,
+  countMap,
+  itemMap,
+  unitMap,
+  range,
+}: {
+  counts: InventoryCountRow[];
+  countLines: InventoryCountLineRow[];
+  countMap: Map<string, InventoryCountRow>;
+  itemMap: Map<string, InventoryItemRow>;
+  unitMap: Map<string, InventoryUnitRow>;
+  range: ReportRange;
+}) {
+  return countLines
+    .map((line) => {
+      const count = countMap.get(line.count_id);
+      const item = itemMap.get(line.item_id);
+      const date = getReportDateValue(count?.closed_at ?? count?.updated_at ?? count?.count_date ?? line.updated_at);
+      return {
+        id: line.id,
+        date,
+        shiftName: count?.shift_name || "Turno de inventario",
+        itemName: item?.name ?? "Item",
+        openingStock: Number(line.opening_stock ?? 0),
+        expectedStock: Number(line.expected_stock ?? 0),
+        countedStock: Number(line.counted_stock ?? 0),
+        differenceStock: Number(line.difference_stock ?? 0),
+        unitLabel: getItemUnitLabel(item, unitMap),
+        countedBy: formatActorLabel(line.counted_by_profile, line.counted_by, "Sin responsable"),
+        openedBy: count ? formatInventoryShiftActor(count.opened_by_profile, count.opened_by ?? count.created_by) : "Sin responsable",
+        closedBy: count?.closed_by ? formatInventoryShiftActor(count.closed_by_profile, count.closed_by) : "",
+        notes: line.notes ?? count?.notes ?? "",
+      };
+    })
+    .filter((row) => row.date >= range.startDate && row.date <= range.endDate)
+    .sort((a, b) => b.date.localeCompare(a.date));
+}
+
+function buildInventoryResponsibleReportRows(usageRows: InventoryUsageReportRow[], countRows: InventoryCountReportRow[]): InventoryResponsibleReportRow[] {
+  const responsibleMap = new Map<string, InventoryResponsibleReportRow>();
+  const ensure = (responsable: string) => {
+    const key = responsable || "Sin responsable";
+    const current = responsibleMap.get(key) ?? { responsable: key, movimientos: 0, conteos: 0, valor_consumido: 0 };
+    responsibleMap.set(key, current);
+    return current;
+  };
+
+  usageRows.forEach((row) => {
+    const current = ensure(row.responsible);
+    current.movimientos += 1;
+    if (["Uso paciente", "Uso interno", "Merma"].includes(row.reportType)) {
+      current.valor_consumido += Number(row.estimatedCost ?? 0);
+    }
+  });
+
+  countRows.forEach((row) => {
+    const current = ensure(row.countedBy);
+    current.conteos += 1;
+  });
+
+  return Array.from(responsibleMap.values()).sort((a, b) => (b.movimientos + b.conteos) - (a.movimientos + a.conteos));
+}
+
+function usageReportCsvRow(row: InventoryUsageReportRow) {
+  return {
+    fecha: row.date,
+    tipo: row.reportType,
+    item: row.itemName,
+    categoria: row.category,
+    cantidad: row.quantity,
+    unidad: row.unitLabel,
+    lote: row.lotLabel,
+    responsable: row.responsible,
+    paciente: row.patient,
+    notas: row.notes,
+    costo_estimado: row.estimatedCost,
+  };
+}
+
+function usageSummaryCsvRow(row: InventoryUsageSummaryRow) {
+  return {
+    item: row.itemName,
+    unidad: row.unitLabel,
+    uso_pacientes: row.patientQuantity,
+    uso_interno: row.internalQuantity,
+    merma: row.wasteQuantity,
+    total_consumido: row.totalQuantity,
+    costo_estimado: row.estimatedCost,
+  };
+}
+
+function countReportCsvRow(row: InventoryCountReportRow) {
+  return {
+    fecha: row.date,
+    turno: row.shiftName,
+    item: row.itemName,
+    dejado: row.openingStock,
+    esperado: row.expectedStock,
+    contado: row.countedStock,
+    diferencia: row.differenceStock,
+    unidad: row.unitLabel,
+    contado_por: row.countedBy,
+    abierto_por: row.openedBy,
+    cerrado_por: row.closedBy,
+    notas: row.notes,
+  };
 }
 
 function itemReport(

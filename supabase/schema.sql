@@ -40,6 +40,9 @@ create table if not exists public.treatments (
   expected_results text,
   cover_image text,
   city text,
+  allows_direct_booking boolean default false,
+  direct_booking_price numeric,
+  direct_booking_label text,
   is_featured boolean default false,
   is_active boolean default true,
   created_at timestamp default now()
@@ -174,6 +177,23 @@ create table if not exists public.testimonials (
   image_url text,
   is_active boolean default true,
   created_at timestamp default now()
+);
+
+create table if not exists public.service_feedback (
+  id uuid primary key default gen_random_uuid(),
+  patient_name text,
+  patient_phone text,
+  patient_email text,
+  city text,
+  treatment_name text,
+  context_type text default 'general',
+  context_title text,
+  context_reference_id uuid,
+  rating int,
+  would_recommend boolean,
+  comments text,
+  source text default 'public_link',
+  created_at timestamptz default now()
 );
 
 create table if not exists public.clinical_histories (
@@ -445,6 +465,7 @@ alter table public.calendar_events enable row level security;
 alter table public.gallery_albums enable row level security;
 alter table public.gallery_images enable row level security;
 alter table public.testimonials enable row level security;
+alter table public.service_feedback enable row level security;
 alter table public.clinical_histories enable row level security;
 alter table public.clinical_evolutions enable row level security;
 alter table public.patient_photos enable row level security;
@@ -517,6 +538,13 @@ drop policy if exists "Visitors read active testimonials" on public.testimonials
 create policy "Visitors read active testimonials" on public.testimonials for select using (is_active = true or public.is_staff());
 drop policy if exists "Staff manage testimonials" on public.testimonials;
 create policy "Staff manage testimonials" on public.testimonials for all using (public.is_staff()) with check (public.is_staff());
+
+drop policy if exists "Anyone can submit service feedback" on public.service_feedback;
+create policy "Anyone can submit service feedback" on public.service_feedback for insert with check (rating between 1 and 5);
+drop policy if exists "Staff read service feedback" on public.service_feedback;
+create policy "Staff read service feedback" on public.service_feedback for select using (public.is_staff());
+drop policy if exists "Staff manage service feedback" on public.service_feedback;
+create policy "Staff manage service feedback" on public.service_feedback for all using (public.is_staff()) with check (public.is_staff());
 
 drop policy if exists "Staff manage clinical histories" on public.clinical_histories;
 create policy "Staff manage clinical histories" on public.clinical_histories for all using (public.is_staff()) with check (public.is_staff());

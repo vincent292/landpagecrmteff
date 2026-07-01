@@ -1619,6 +1619,9 @@ function getFields(module: Exclude<Module, "inscripciones" | "solicitudes" | "us
     { name: "expected_results", label: "Resultados esperados", type: "textarea" },
     { name: "cover_image", label: "Imagen principal", type: "image" },
     { name: "city", label: "Ciudad", type: "text" },
+    { name: "allows_direct_booking", label: "Permite comprar y reservar directo", type: "checkbox" },
+    { name: "direct_booking_price", label: "Precio compra directa", type: "number" },
+    { name: "direct_booking_label", label: "Texto para compra directa", type: "text" },
     ...assessmentFields,
     { name: "agenda_mode", label: "Agenda", type: "select-agenda-mode" },
     { name: "appointment_type", label: "Tipo de cita agenda", type: "select-appointment-type" },
@@ -1806,6 +1809,11 @@ function normalizePayload(
   }
 
   if (module === "tratamientos" || module === "promociones") {
+    if (module === "tratamientos" && !values.allows_direct_booking) {
+      payload.direct_booking_price = null;
+      payload.direct_booking_label = null;
+    }
+
     if (!values.requires_assessment) {
       payload.assessment_mode = "presencial";
       payload.assessment_price = null;

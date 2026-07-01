@@ -71,6 +71,11 @@ export function TreatmentsPage() {
                       <Link to={`/tratamientos/${treatment.slug}`} className="rounded-full bg-[var(--color-mocha)] px-5 py-3 text-center text-sm font-semibold text-white transition hover:bg-[var(--color-chocolate)]">
                         Ver detalles
                       </Link>
+                      {canBookTreatmentDirectly(treatment) ? (
+                        <Link to={`/tratamientos/${treatment.slug}?accion=comprar`} className="rounded-full bg-[var(--color-caramel)] px-5 py-3 text-center text-sm font-semibold text-white transition hover:bg-[var(--color-chocolate)]">
+                          Comprar / reservar
+                        </Link>
+                      ) : null}
                       {treatment.requires_assessment ? (
                         <Link to={`/tratamientos/${treatment.slug}?accion=valoracion`} className="rounded-full border border-[var(--color-border)] px-5 py-3 text-center text-sm font-semibold transition hover:bg-white/80">
                           Reservar valoración
@@ -102,6 +107,10 @@ export function TreatmentsPage() {
       />
     </section>
   );
+}
+
+function canBookTreatmentDirectly(treatment: TreatmentRow) {
+  return Boolean(treatment.allows_direct_booking && Number(treatment.direct_booking_price ?? 0) > 0);
 }
 
 export function PageIntro({ eyebrow, title, text }: { eyebrow: string; title: string; text?: string }) {

@@ -22,6 +22,7 @@ export function TreatmentDetailPage() {
   const [error, setError] = useState(false);
   const [open, setOpen] = useState(false);
   const [showAssessmentModal, setShowAssessmentModal] = useState(false);
+  const [showDirectBookingModal, setShowDirectBookingModal] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -30,11 +31,6 @@ export function TreatmentDetailPage() {
       .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, [slug]);
-
-  useEffect(() => {
-    if (searchParams.get("accion") !== "valoracion" || !treatment?.requires_assessment) return;
-    setShowAssessmentModal(true);
-  }, [searchParams, treatment?.requires_assessment]);
 
   if (!slug) return <Navigate to="/tratamientos" replace />;
 
@@ -50,6 +46,9 @@ export function TreatmentDetailPage() {
   };
 
   const gallery = [treatment.cover_image, ...(treatment.treatment_images?.map((image) => image.image_url) ?? [])].filter(Boolean) as string[];
+  const actionIntent = searchParams.get("accion");
+  const assessmentIntentOpen = actionIntent === "valoracion" && Boolean(treatment.requires_assessment);
+  const directBookingIntentOpen = (actionIntent === "comprar" || actionIntent === "reservar") && canBookTreatmentDirectly(treatment);
 
   return (
     <section className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24">
@@ -77,6 +76,11 @@ export function TreatmentDetailPage() {
             Duracion aproximada: <strong className="text-[var(--color-ink)]">{treatment.duration}</strong>
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            {canBookTreatmentDirectly(treatment) ? (
+              <button onClick={() => setShowDirectBookingModal(true)} className="rounded-full bg-[var(--color-mocha)] px-6 py-3.5 text-sm font-semibold text-white">
+                Comprar / reservar
+              </button>
+            ) : null}
             {treatment.requires_assessment ? (
               <button onClick={() => setShowAssessmentModal(true)} className="rounded-full bg-[var(--color-caramel)] px-6 py-3.5 text-sm font-semibold text-white">
                 Reservar valoración
@@ -115,7 +119,7 @@ export function TreatmentDetailPage() {
       />
       <PublicAssessmentBookingFlow
         mode="modal"
-        open={showAssessmentModal}
+        open={showAssessmentModal || assessmentIntentOpen}
         onClose={() => {
           clearActionIntent();
           setShowAssessmentModal(false);
@@ -134,8 +138,42 @@ export function TreatmentDetailPage() {
           assessment_price_virtual: treatment.assessment_price_virtual ?? null,
         }}
       />
+      <PublicAssessmentBookingFlow
+        mode="modal"
+        open={showDirectBookingModal || directBookingIntentOpen}
+        onClose={() => {
+          clearActionIntent();
+          setShowDirectBookingModal(false);
+        }}
+        context={{
+          type: "treatment",
+          id: treatment.id,
+          title: treatment.title,
+          flow_label: treatment.direct_booking_label || "Compra / reserva de tratamiento",
+          heading_title: "Compra y reserva tu tratamiento",
+          payment_detail: `paga ${formatTreatmentPrice(treatment)} para reservar ${treatment.title}`,
+          success_message: "Gracias por enviar tu reserva y comprobante. Administracion revisara el pago y confirmara tu horario por WhatsApp.",
+          source: "direct_treatment",
+          city: treatment.city,
+          doctor_id: treatment.doctor_id ?? null,
+          agenda_tag: treatment.agenda_tag ?? null,
+          appointment_type: treatment.appointment_type ?? treatment.title,
+          assessment_mode: treatment.assessment_mode ?? "presencial",
+          assessment_price: Number(treatment.direct_booking_price ?? 0),
+          assessment_price_presencial: Number(treatment.direct_booking_price ?? 0),
+          assessment_price_virtual: Number(treatment.direct_booking_price ?? 0),
+        }}
+      />
     </section>
   );
+}
+
+function canBookTreatmentDirectly(treatment: TreatmentRow) {
+  return Boolean(treatment.allows_direct_booking && Number(treatment.direct_booking_price ?? 0) > 0);
+}
+
+function formatTreatmentPrice(treatment: TreatmentRow) {
+  return `Bs. ${Number(treatment.direct_booking_price ?? 0).toLocaleString("es-BO")}`;
 }
 
 function DetailBlock({ title, items }: { title: string; items: string[] }) {

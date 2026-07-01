@@ -1,4 +1,4 @@
-import { Bell, LogOut, Menu, X, type LucideIcon } from "lucide-react";
+import { BarChart3, Bell, LogOut, Menu, X, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Link, Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 
@@ -40,11 +40,13 @@ const adminSections: AdminSection[] = [
   {
     title: "Operacion",
     accent: "from-[rgba(255,249,244,0.88)] to-[rgba(216,194,174,0.3)]",
-    icon: Menu,
+    icon: BarChart3,
     links: [
       { label: "Inventario", href: "/panel/inventario", module: "inventario" },
       { label: "Caja", href: "/panel/caja", module: "caja" },
       { label: "Pagos y Reservas", href: "/panel/pagos-reservas", module: "pagos-reservas" },
+      { label: "Reportes operativos", href: "/panel/reportes-operativos", module: "reportes-operativos" },
+      { label: "Calificaciones", href: "/panel/calificaciones", module: "calificaciones" },
       { label: "Planes de pago", href: "/panel/planes-pago", module: "planes-pago" },
       { label: "Tarjetas ahorro", href: "/panel/tarjetas-ahorro", module: "tarjetas-ahorro" },
       { label: "Libros", href: "/panel/libros", module: "libros" },

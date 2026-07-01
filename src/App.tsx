@@ -50,6 +50,8 @@ const BooksAdminPage = lazyPage(() => import("./pages/admin/BooksAdminPage"), "B
 const InventoryAdminPage = lazyPage(() => import("./pages/admin/InventoryAdminPage"), "InventoryAdminPage");
 const CashAdminPage = lazyPage(() => import("./pages/admin/CashAdminPage"), "CashAdminPage");
 const PaymentsAndReservationsAdminPage = lazyPage(() => import("./pages/admin/PaymentsAndReservationsAdminPage"), "PaymentsAndReservationsAdminPage");
+const OperationalReportsAdminPage = lazyPage(() => import("./pages/admin/OperationalReportsAdminPage"), "OperationalReportsAdminPage");
+const ServiceFeedbackAdminPage = lazyPage(() => import("./pages/admin/ServiceFeedbackAdminPage"), "ServiceFeedbackAdminPage");
 const PatientAppointmentsAdminPage = lazyPage(() => import("./pages/admin/PatientAppointmentsAdminPage"), "PatientAppointmentsAdminPage");
 const PatientCaresAdminPage = lazyPage(() => import("./pages/admin/PatientCaresAdminPage"), "PatientCaresAdminPage");
 const PatientClinicalHistoryPage = lazyPage(() => import("./pages/admin/PatientClinicalHistoryPage"), "PatientClinicalHistoryPage");
@@ -81,6 +83,7 @@ const BookDetailPage = lazyPage(() => import("./pages/public/BookDetailPage"), "
 const BooksPage = lazyPage(loadBooksPage, "BooksPage");
 const BuyBookPage = lazyPage(() => import("./pages/public/BuyBookPage"), "BuyBookPage");
 const PublicAssessmentPage = lazyPage(() => import("./pages/public/PublicAssessmentPage"), "PublicAssessmentPage");
+const PublicServiceFeedbackPage = lazyPage(() => import("./pages/public/PublicServiceFeedbackPage"), "PublicServiceFeedbackPage");
 const PublicManualReservationPaymentPage = lazyPage(() => import("./pages/public/PublicManualReservationPaymentPage"), "PublicManualReservationPaymentPage");
 const AgendaPage = lazyPage(() => import("./pages/platform/AgendaPage"), "AgendaPage");
 const ForgotPasswordPage = lazyPage(loadAuthPages, "ForgotPasswordPage");
@@ -145,6 +148,7 @@ export default function App() {
         <Route path="/libros/:slug" element={<BookDetailPage />} />
         <Route path="/comprar-libro/:slug" element={<BuyBookPage />} />
         <Route path="/reservar-cita" element={<PublicAssessmentPage />} />
+        <Route path="/calificar-atencion" element={<PublicServiceFeedbackPage />} />
         <Route path="/pago-cita/:token" element={<PublicManualReservationPaymentPage />} />
         <Route path="/agenda" element={<AgendaPage />} />
         <Route path="/galeria" element={<GalleryPage />} />
@@ -183,6 +187,8 @@ export default function App() {
           <Route path="inventario" element={<InventoryAdminPage />} />
           <Route path="caja" element={<CashAdminPage />} />
           <Route path="pagos-reservas" element={<PaymentsAndReservationsAdminPage />} />
+          <Route path="reportes-operativos" element={<OperationalReportsAdminPage />} />
+          <Route path="calificaciones" element={<ServiceFeedbackAdminPage />} />
           <Route path="planes-pago" element={<PaymentPlansAdminPage />} />
           <Route path="planes-pago/:id" element={<PaymentPlanAdminDetailPage />} />
           <Route path="tarjetas-ahorro" element={<SavingsCardsAdminPage />} />

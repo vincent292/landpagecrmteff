@@ -19,6 +19,9 @@ export type TreatmentRow = DeletionMetadata & {
   expected_results: string | null;
   cover_image: string | null;
   city: string | null;
+  allows_direct_booking?: boolean | null;
+  direct_booking_price?: number | null;
+  direct_booking_label?: string | null;
   assessment_mode?: "presencial" | "virtual" | "ambas" | null;
   assessment_price?: number | null;
   assessment_price_presencial?: number | null;

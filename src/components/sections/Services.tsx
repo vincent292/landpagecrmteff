@@ -80,8 +80,12 @@ export function Services() {
             description: treatment.short_description ?? treatment.description ?? "Informacion disponible en el detalle del tratamiento.",
             image: treatment.cover_image,
             category: treatment.city ? `Tratamiento · ${getDisplayCity(treatment.city)}` : "Tratamiento destacado",
-            primaryLabel: treatment.requires_assessment ? "Reservar valoracion" : "Pedir informacion",
-            moreHref: treatment.requires_assessment ? `/tratamientos/${treatment.slug}?accion=valoracion` : `/tratamientos/${treatment.slug}`,
+            primaryLabel: canBookTreatmentDirectly(treatment) ? "Comprar / reservar" : treatment.requires_assessment ? "Reservar valoracion" : "Pedir informacion",
+            moreHref: canBookTreatmentDirectly(treatment)
+              ? `/tratamientos/${treatment.slug}?accion=comprar`
+              : treatment.requires_assessment
+                ? `/tratamientos/${treatment.slug}?accion=valoracion`
+                : `/tratamientos/${treatment.slug}`,
             interestType: "Tratamiento",
             payload: treatment,
           });
@@ -198,7 +202,7 @@ export function Services() {
                     >
                       {card.primaryLabel}
                     </Link>
-                  ) : card.kind === "Tratamiento" && card.payload.requires_assessment ? (
+                  ) : card.kind === "Tratamiento" && (card.payload.requires_assessment || canBookTreatmentDirectly(card.payload)) ? (
                     <Link
                       to={card.moreHref}
                       className="rounded-full bg-[var(--color-mocha)] px-5 py-3 text-center text-sm font-semibold text-white"
@@ -266,4 +270,8 @@ export function Services() {
       />
     </SectionReveal>
   );
+}
+
+function canBookTreatmentDirectly(treatment: TreatmentRow) {
+  return Boolean(treatment.allows_direct_booking && Number(treatment.direct_booking_price ?? 0) > 0);
 }
