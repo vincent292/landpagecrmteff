@@ -267,8 +267,8 @@ export function InventoryAdminPage() {
   const actorId = profile?.id ?? user?.id ?? null;
   const actorName = profile?.full_name ?? user?.user_metadata.full_name ?? null;
   const actorEmail = profile?.email ?? user?.email ?? null;
-  const includeDeleted = role === "superadmin";
-  const isSuperadmin = role === "superadmin";
+  const canManageInventoryCorrections = role === "superadmin" || role === "admin";
+  const includeDeleted = canManageInventoryCorrections;
 
   const itemMap = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
   const categoryMap = useMemo(() => new Map(categories.map((category) => [category.id, category])), [categories]);
@@ -548,7 +548,7 @@ export function InventoryAdminPage() {
       lot_number: normalizeText(itemForm.lot_number),
       expiration_date: normalizeText(itemForm.expiration_date),
       notes: normalizeText(itemForm.notes),
-      current_stock: isSuperadmin
+      current_stock: canManageInventoryCorrections
         ? usesPresentation
           ? toInternalQuantity(Number(itemForm.current_stock_presentations), unitsPerPresentation)
           : Number(itemForm.current_stock)
@@ -952,7 +952,21 @@ export function InventoryAdminPage() {
               ]}
               detail={`Stock ${formatStockSummary(item.current_stock, getUnitLabel(item.unit_id, item.unit, unitMap), item.presentation_unit_id, item.units_per_presentation, unitMap)} · minimo ${formatStockSummary(item.minimum_stock, getUnitLabel(item.unit_id, item.unit, unitMap), item.presentation_unit_id, item.units_per_presentation, unitMap)} · costo ${formatMoney(item.reference_cost)}`}
               deletedRow={item}
-              actions={<CrudActions role={role} row={item} table="inventory_items" onEdit={() => openModal("item", item)} onArchive={() => void archive("inventory_items", item.id)} onRestore={() => void restoreRecord("inventory_items", item.id).then(load)} onHardDelete={() => void hardDeleteRecord("inventory_items", item.id).then(load)} />}
+              actions={
+                <>
+                  <button
+                    onClick={() => {
+                      setActiveTab("movimientos");
+                      setMovementQuery(item.name);
+                    }}
+                    className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-semibold"
+                  >
+                    <Search className="h-4 w-4" />
+                    Ver movimientos
+                  </button>
+                  <CrudActions role={role} row={item} table="inventory_items" onEdit={() => openModal("item", item)} onArchive={() => void archive("inventory_items", item.id)} onRestore={() => void restoreRecord("inventory_items", item.id).then(load)} onHardDelete={() => void hardDeleteRecord("inventory_items", item.id).then(load)} />
+                </>
+              }
             />
           )} />
         </Panel>
@@ -1018,6 +1032,10 @@ export function InventoryAdminPage() {
               usageByMovement={usageByMovement}
               usageMovementIds={usageMovementIds}
               unitMap={unitMap}
+              canEditItem={canManageInventoryCorrections}
+              onEditItem={() => openModal("item", selectedHistoryItem)}
+              onRegisterEntry={() => openMovementModal("entrada")}
+              onRegisterExit={() => openMovementModal("salida", "Uso interno sin paciente")}
             />
           ) : null}
           <RowsEmpty rows={filteredMovements} empty="Sin movimientos con esa busqueda." render={(movement) => (
@@ -1231,7 +1249,7 @@ export function InventoryAdminPage() {
             locations,
             lots,
             itemMap,
-            isSuperadmin,
+            canManageInventoryCorrections,
           })}
           {saveStatus ? (
             <div className="mt-6 rounded-[22px] border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
@@ -1401,7 +1419,9 @@ function InventoryShiftCard({
                 {saving ? "Cerrando..." : canClose ? "Cerrar turno" : "Solo responsable"}
               </button>
             ) : null}
-          <DeleteActions role={role} row={count} compact onSoftDelete={onArchive} onRestore={onRestore} onHardDelete={onHardDelete} />
+          {role === "superadmin" || role === "admin" ? (
+            <DeleteActions role={role} row={count} compact onSoftDelete={onArchive} onRestore={onRestore} onHardDelete={onHardDelete} />
+          ) : null}
         </div>
       </div>
 
@@ -1501,7 +1521,7 @@ function CrudActions({
   onRestore: () => void;
   onHardDelete?: () => void;
 }) {
-  const canUseDeleteActions = role === "superadmin";
+  const canUseDeleteActions = role === "superadmin" || role === "admin";
 
   return (
     <>
@@ -1545,6 +1565,10 @@ function InventoryItemTracePanel({
   usageByMovement,
   usageMovementIds,
   unitMap,
+  canEditItem,
+  onEditItem,
+  onRegisterEntry,
+  onRegisterExit,
 }: {
   item: InventoryItemRow;
   unitLabel: string;
@@ -1557,6 +1581,10 @@ function InventoryItemTracePanel({
   usageByMovement: Map<string, InventoryClinicalUsageRow>;
   usageMovementIds: Set<string>;
   unitMap: Map<string, InventoryUnitRow>;
+  canEditItem: boolean;
+  onEditItem: () => void;
+  onRegisterEntry: () => void;
+  onRegisterExit: () => void;
 }) {
   const currentStock = Number(item.current_stock ?? 0);
   const lotStock = lots.reduce((sum, lot) => sum + Number(lot.current_quantity ?? 0), 0);
@@ -1579,6 +1607,22 @@ function InventoryItemTracePanel({
           <p className="mt-1 text-sm leading-6 text-[var(--color-copy)]">
             {locationName} - {item.sku ? `SKU ${item.sku}` : "Sin SKU"} - {item.lot_number ? `Lote actual ${item.lot_number}` : "Sin lote principal"}
           </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {canEditItem ? (
+              <button onClick={onEditItem} className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-white/70 px-4 py-2 text-sm font-semibold">
+                <Pencil className="h-4 w-4" />
+                Editar item
+              </button>
+            ) : null}
+            <button onClick={onRegisterEntry} className="inline-flex items-center gap-2 rounded-full bg-[rgba(198,162,123,0.28)] px-4 py-2 text-sm font-semibold text-[var(--color-ink)]">
+              <Plus className="h-4 w-4" />
+              Registrar entrada
+            </button>
+            <button onClick={onRegisterExit} className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-white/70 px-4 py-2 text-sm font-semibold">
+              <PackageMinus className="h-4 w-4" />
+              Registrar salida
+            </button>
+          </div>
         </div>
         <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[420px]">
           <MetricBox label="Stock actual" value={formatStockSummary(currentStock, unitLabel, item.presentation_unit_id, Number(item.units_per_presentation ?? 1), unitMap)} />
@@ -1974,7 +2018,7 @@ function renderModalFields(props: {
   locations: InventoryLocationRow[];
   lots: InventoryLotRow[];
   itemMap: Map<string, InventoryItemRow>;
-  isSuperadmin: boolean;
+  canManageInventoryCorrections: boolean;
 }) {
   if (props.modal === "item") {
     const f = props.itemForm;
@@ -2008,13 +2052,13 @@ function renderModalFields(props: {
         <CityField label="Ciudad" value={f.city} onChange={(city) => set({ ...f, city })} />
         <SelectField label="Ubicacion" value={f.location_id} onChange={(location_id) => set({ ...f, location_id })} options={props.locations.map((l) => ({ value: l.id, label: l.name }))} />
         <SelectField label="Proveedor principal" value={f.supplier_id} onChange={(supplier_id) => set({ ...f, supplier_id })} options={props.suppliers.map((s) => ({ value: s.id, label: s.name }))} />
-        {props.isSuperadmin && usesPresentation ? (
+        {props.canManageInventoryCorrections && usesPresentation ? (
           <>
             <NumberField label={`Stock actual en ${presentationUnit}`} value={f.current_stock_presentations} onChange={(current_stock_presentations) => set({ ...f, current_stock_presentations })} />
             <NumberField label={`Stock minimo en ${presentationUnit}`} value={f.minimum_stock_presentations} onChange={(minimum_stock_presentations) => set({ ...f, minimum_stock_presentations })} />
             <InlineHint text={`Ejemplo: si escribes ${formatInventoryNumber(Number(f.current_stock_presentations) || 0)} ${presentationUnit}, se guardaran ${formatInventoryNumber(projectedCurrentStock)} ${consumptionUnit}. El minimo quedara en ${formatInventoryNumber(projectedMinimumStock)} ${consumptionUnit}.`} />
           </>
-        ) : props.isSuperadmin ? (
+        ) : props.canManageInventoryCorrections ? (
           <>
             <NumberField label={`Stock actual en ${consumptionUnit}`} value={f.current_stock} onChange={(current_stock) => set({ ...f, current_stock })} />
             <NumberField label={`Stock minimo en ${consumptionUnit}`} value={f.minimum_stock} onChange={(minimum_stock) => set({ ...f, minimum_stock })} />
@@ -2027,7 +2071,7 @@ function renderModalFields(props: {
             ) : (
               <NumberField label={`Stock minimo en ${consumptionUnit}`} value={f.minimum_stock} onChange={(minimum_stock) => set({ ...f, minimum_stock })} />
             )}
-            <InlineHint text="Solo superadmin puede cambiar el stock actual directo. Para aumentar o descontar inventario usa movimientos, lotes, pedidos o cierre de turno." />
+            <InlineHint text="Solo Superusuario o Administrador/a puede cambiar el stock actual directo. Para aumentar o descontar inventario usa movimientos, lotes, pedidos o cierre de turno." />
           </>
         )}
         <NumberField label="Costo unitario" value={f.reference_cost} onChange={(reference_cost) => set({ ...f, reference_cost })} />

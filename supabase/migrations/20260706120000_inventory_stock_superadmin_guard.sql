@@ -8,8 +8,16 @@ begin
   if tg_op = 'UPDATE'
      and new.current_stock is distinct from old.current_stock
      and current_user in ('authenticated', 'anon')
-     and not public.is_superadmin() then
-    raise exception 'Solo superadmin puede editar stock actual directo. Usa movimientos, lotes, pedidos o conteos para cambiar inventario.';
+     and not (
+       public.is_superadmin()
+       or exists (
+         select 1
+         from public.profiles
+         where id = auth.uid()
+           and role = 'admin'
+       )
+     ) then
+    raise exception 'Solo Superusuario o Administrador/a puede editar stock actual directo. Usa movimientos, lotes, pedidos o conteos para cambiar inventario.';
   end if;
 
   return new;
