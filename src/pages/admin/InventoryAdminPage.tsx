@@ -268,6 +268,7 @@ export function InventoryAdminPage() {
   const actorName = profile?.full_name ?? user?.user_metadata.full_name ?? null;
   const actorEmail = profile?.email ?? user?.email ?? null;
   const includeDeleted = role === "superadmin";
+  const isSuperadmin = role === "superadmin";
 
   const itemMap = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
   const categoryMap = useMemo(() => new Map(categories.map((category) => [category.id, category])), [categories]);
@@ -530,6 +531,7 @@ export function InventoryAdminPage() {
     const presentationUnitId = normalizeText(itemForm.presentation_unit_id);
     const unitsPerPresentation = Math.max(Number(itemForm.units_per_presentation) || 1, 1);
     const usesPresentation = hasPresentationConfig(presentationUnitId, unitsPerPresentation);
+    const current = editing as InventoryItemRow | null;
     const payload = {
       category: category?.name ?? "General",
       unit: unit?.abbreviation ?? "u",
@@ -546,9 +548,13 @@ export function InventoryAdminPage() {
       lot_number: normalizeText(itemForm.lot_number),
       expiration_date: normalizeText(itemForm.expiration_date),
       notes: normalizeText(itemForm.notes),
-      current_stock: usesPresentation
-        ? toInternalQuantity(Number(itemForm.current_stock_presentations), unitsPerPresentation)
-        : Number(itemForm.current_stock),
+      current_stock: isSuperadmin
+        ? usesPresentation
+          ? toInternalQuantity(Number(itemForm.current_stock_presentations), unitsPerPresentation)
+          : Number(itemForm.current_stock)
+        : current
+          ? Number(current.current_stock ?? 0)
+          : 0,
       minimum_stock: usesPresentation
         ? toInternalQuantity(Number(itemForm.minimum_stock_presentations), unitsPerPresentation)
         : Number(itemForm.minimum_stock),
@@ -559,7 +565,6 @@ export function InventoryAdminPage() {
       is_active: itemForm.is_active,
       updated_by: actorId,
     };
-    const current = editing as InventoryItemRow | null;
     if (current) await updateInventoryItem(current.id, payload);
     else await createInventoryItem({ ...payload, created_by: actorId });
   };
@@ -1224,9 +1229,10 @@ export function InventoryAdminPage() {
             units,
             suppliers,
             locations,
-          lots,
-          itemMap,
-        })}
+            lots,
+            itemMap,
+            isSuperadmin,
+          })}
           {saveStatus ? (
             <div className="mt-6 rounded-[22px] border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
               {saveStatus.text}
@@ -1495,6 +1501,8 @@ function CrudActions({
   onRestore: () => void;
   onHardDelete?: () => void;
 }) {
+  const canUseDeleteActions = role === "superadmin";
+
   return (
     <>
       {onEdit ? (
@@ -1503,7 +1511,9 @@ function CrudActions({
           Editar
         </button>
       ) : null}
-      <DeleteActions role={role} row={row} compact onSoftDelete={onArchive} onRestore={onRestore} onHardDelete={onHardDelete} />
+      {canUseDeleteActions ? (
+        <DeleteActions role={role} row={row} compact onSoftDelete={onArchive} onRestore={onRestore} onHardDelete={onHardDelete} />
+      ) : null}
       <span className="sr-only">{table}</span>
     </>
   );
@@ -1548,7 +1558,9 @@ function InventoryItemTracePanel({
   usageMovementIds: Set<string>;
   unitMap: Map<string, InventoryUnitRow>;
 }) {
+  const currentStock = Number(item.current_stock ?? 0);
   const lotStock = lots.reduce((sum, lot) => sum + Number(lot.current_quantity ?? 0), 0);
+  const stockWithoutLot = currentStock - lotStock;
   const patientUsageTotal = usages.reduce((sum, usage) => sum + Number(usage.quantity ?? 0), 0);
   const manualDiscountTotal = movements
     .filter((movement) => ["salida", "merma"].includes(movement.movement_type) && !usageMovementIds.has(movement.id))
@@ -1569,12 +1581,17 @@ function InventoryItemTracePanel({
           </p>
         </div>
         <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[420px]">
-          <MetricBox label="Stock actual" value={formatStockSummary(Number(item.current_stock ?? 0), unitLabel, item.presentation_unit_id, Number(item.units_per_presentation ?? 1), unitMap)} />
+          <MetricBox label="Stock actual" value={formatStockSummary(currentStock, unitLabel, item.presentation_unit_id, Number(item.units_per_presentation ?? 1), unitMap)} />
           <MetricBox label="Stock minimo" value={formatStockSummary(Number(item.minimum_stock ?? 0), unitLabel, item.presentation_unit_id, Number(item.units_per_presentation ?? 1), unitMap)} />
           <MetricBox label="Lotes disponibles" value={`${formatInventoryNumber(lotStock)} ${unitLabel}`} />
-          <MetricBox label="Diferencia en turnos" value={`${formatInventoryNumber(countDifferenceTotal)} ${unitLabel}`} />
+          <MetricBox label="Ajustes por conteo" value={`${formatInventoryNumber(countDifferenceTotal)} ${unitLabel}`} />
         </div>
       </div>
+      {Math.abs(stockWithoutLot) > 0.0001 ? (
+        <p className="mt-3 rounded-[18px] border border-[var(--color-border)] bg-white/70 px-4 py-3 text-xs leading-6 text-[var(--color-copy)]">
+          Stock general sin lote activo: {formatInventoryNumber(stockWithoutLot)} {unitLabel}. Para trazabilidad, las nuevas entradas deben ir ligadas a lote cuando aplique.
+        </p>
+      ) : null}
 
       <div className="mt-4 grid gap-3 md:grid-cols-3">
         <MetricBox label="Ingresos registrados" value={`${formatInventoryNumber(entryTotal)} ${unitLabel}`} />
@@ -1625,7 +1642,8 @@ function InventoryItemTracePanel({
                 title={`${count?.shift_name || "Turno"} - dif. ${formatInventoryNumber(line.difference_stock)} ${unitLabel}`}
                 detail={[
                   count ? formatDate(count.count_date) : null,
-                  `Dejado ${formatInventoryNumber(line.opening_stock)} / contado ${formatInventoryNumber(line.counted_stock)}`,
+                  `Esperado ${formatInventoryNumber(line.expected_stock)} / contado ${formatInventoryNumber(line.counted_stock)}`,
+                  `Dejado al abrir ${formatInventoryNumber(line.opening_stock)}`,
                   `Contado por ${formatActorLabel(line.counted_by_profile, line.counted_by)}`,
                   count ? formatInventoryShiftAudit(count) : null,
                 ].filter(Boolean).join(" - ")}
@@ -1956,6 +1974,7 @@ function renderModalFields(props: {
   locations: InventoryLocationRow[];
   lots: InventoryLotRow[];
   itemMap: Map<string, InventoryItemRow>;
+  isSuperadmin: boolean;
 }) {
   if (props.modal === "item") {
     const f = props.itemForm;
@@ -1989,16 +2008,26 @@ function renderModalFields(props: {
         <CityField label="Ciudad" value={f.city} onChange={(city) => set({ ...f, city })} />
         <SelectField label="Ubicacion" value={f.location_id} onChange={(location_id) => set({ ...f, location_id })} options={props.locations.map((l) => ({ value: l.id, label: l.name }))} />
         <SelectField label="Proveedor principal" value={f.supplier_id} onChange={(supplier_id) => set({ ...f, supplier_id })} options={props.suppliers.map((s) => ({ value: s.id, label: s.name }))} />
-        {usesPresentation ? (
+        {props.isSuperadmin && usesPresentation ? (
           <>
             <NumberField label={`Stock actual en ${presentationUnit}`} value={f.current_stock_presentations} onChange={(current_stock_presentations) => set({ ...f, current_stock_presentations })} />
             <NumberField label={`Stock minimo en ${presentationUnit}`} value={f.minimum_stock_presentations} onChange={(minimum_stock_presentations) => set({ ...f, minimum_stock_presentations })} />
             <InlineHint text={`Ejemplo: si escribes ${formatInventoryNumber(Number(f.current_stock_presentations) || 0)} ${presentationUnit}, se guardaran ${formatInventoryNumber(projectedCurrentStock)} ${consumptionUnit}. El minimo quedara en ${formatInventoryNumber(projectedMinimumStock)} ${consumptionUnit}.`} />
           </>
-        ) : (
+        ) : props.isSuperadmin ? (
           <>
             <NumberField label={`Stock actual en ${consumptionUnit}`} value={f.current_stock} onChange={(current_stock) => set({ ...f, current_stock })} />
             <NumberField label={`Stock minimo en ${consumptionUnit}`} value={f.minimum_stock} onChange={(minimum_stock) => set({ ...f, minimum_stock })} />
+          </>
+        ) : (
+          <>
+            <ReadOnlyMetric label="Stock actual" value={formatStockSummary(Number(f.current_stock ?? 0), consumptionUnit, f.presentation_unit_id, Number(f.units_per_presentation), new Map(props.units.map((unit) => [unit.id, unit])))} />
+            {usesPresentation ? (
+              <NumberField label={`Stock minimo en ${presentationUnit}`} value={f.minimum_stock_presentations} onChange={(minimum_stock_presentations) => set({ ...f, minimum_stock_presentations })} />
+            ) : (
+              <NumberField label={`Stock minimo en ${consumptionUnit}`} value={f.minimum_stock} onChange={(minimum_stock) => set({ ...f, minimum_stock })} />
+            )}
+            <InlineHint text="Solo superadmin puede cambiar el stock actual directo. Para aumentar o descontar inventario usa movimientos, lotes, pedidos o cierre de turno." />
           </>
         )}
         <NumberField label="Costo unitario" value={f.reference_cost} onChange={(reference_cost) => set({ ...f, reference_cost })} />
@@ -2210,6 +2239,17 @@ function CityField({ label, value, onChange }: { label: string; value: string; o
 
 function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
   return <Field label={label}><input type="number" step="0.01" value={String(value)} onChange={(event) => onChange(Number(event.target.value))} className="premium-input" /></Field>;
+}
+
+function ReadOnlyMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <span className="text-sm font-semibold">{label}</span>
+      <div className="mt-2 rounded-[18px] border border-[var(--color-border)] bg-white/70 px-4 py-3 text-sm font-semibold text-[var(--color-ink)]">
+        {value}
+      </div>
+    </div>
+  );
 }
 
 function InlineHint({ text }: { text: string }) {
@@ -2482,7 +2522,13 @@ function formatStockSummary(
   unitMap: Map<string, InventoryUnitRow>
 ) {
   const base = `${formatInventoryNumber(quantity)} ${unitLabel}`;
-  const presentationLabel = unitMap.get(presentationUnitId ?? "")?.abbreviation ?? unitMap.get(presentationUnitId ?? "")?.name ?? "";
+  const presentationUnit = unitMap.get(presentationUnitId ?? "");
+  const presentationLabel =
+    presentationUnit?.abbreviation && presentationUnit.abbreviation !== unitLabel
+      ? presentationUnit.abbreviation
+      : presentationUnit?.name && presentationUnit.name !== unitLabel
+        ? presentationUnit.name
+        : "presentaciones";
   const presentationSize = Number(unitsPerPresentation ?? 0);
   if (!presentationLabel || presentationSize <= 1) return base;
   const equivalentPresentations = quantity / presentationSize;
