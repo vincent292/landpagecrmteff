@@ -133,6 +133,14 @@ export async function softDeleteRecord(params: {
   actorName?: string | null;
   actorEmail?: string | null;
 }) {
+  if (params.table === "inventory_movements") {
+    const { error } = await supabase.rpc("soft_delete_inventory_movement", {
+      p_movement_id: params.id,
+    });
+    if (error) throw error;
+    return;
+  }
+
   const mode = tableModes[params.table];
   const basePayload = {
     deleted_at: new Date().toISOString(),
@@ -152,6 +160,14 @@ export async function softDeleteRecord(params: {
 }
 
 export async function restoreRecord(table: DeletableTable, id: string) {
+  if (table === "inventory_movements") {
+    const { error } = await supabase.rpc("restore_inventory_movement", {
+      p_movement_id: id,
+    });
+    if (error) throw error;
+    return;
+  }
+
   const mode = tableModes[table];
   const payload =
     mode === "active"
@@ -461,6 +477,14 @@ async function cleanupBeforeHardDelete(table: DeletableTable, id: string) {
 }
 
 export async function hardDeleteRecord(table: DeletableTable, id: string) {
+  if (table === "inventory_movements") {
+    const { error } = await supabase.rpc("hard_delete_inventory_movement", {
+      p_movement_id: id,
+    });
+    if (error) throw error;
+    return;
+  }
+
   await cleanupBeforeHardDelete(table, id);
   const { error } = await supabase.from(table).delete().eq("id", id);
   if (error) throw error;

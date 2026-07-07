@@ -23,7 +23,7 @@ import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteA
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
-import { hardDeleteRecord, restoreRecord, softDeleteRecord, type DeletableTable, type DeletionMetadata } from "../../services/adminDeletionService";
+import { canSoftDelete, hardDeleteRecord, restoreRecord, softDeleteRecord, type DeletableTable, type DeletionMetadata } from "../../services/adminDeletionService";
 import {
   createInventoryCategory,
   createInventoryItem,
@@ -771,8 +771,12 @@ export function InventoryAdminPage() {
 
   const syncShiftDrafts = async (countId: string) => {
     const lines = countLinesByCount.get(countId) ?? [];
+    const activeLines = lines.filter((line) => {
+      const item = itemMap.get(line.item_id);
+      return item && !item.is_deleted;
+    });
     await Promise.all(
-      lines.map((line) => {
+      activeLines.map((line) => {
         const draft = getLineDraft(line);
         return updateInventoryShiftLine({
           countId,
@@ -791,8 +795,8 @@ export function InventoryAdminPage() {
       return;
     }
 
-    if (openerId && openerId !== actorId) {
-      setShiftStatus({ type: "error", text: "Solo la responsable que abrio este turno puede cerrarlo." });
+    if (openerId && openerId !== actorId && role !== "superadmin") {
+      setShiftStatus({ type: "error", text: "Solo la responsable que abrio este turno o Superusuario puede cerrarlo." });
       return;
     }
 
@@ -1036,10 +1040,21 @@ export function InventoryAdminPage() {
               onEditItem={() => openModal("item", selectedHistoryItem)}
               onRegisterEntry={() => openMovementModal("entrada")}
               onRegisterExit={() => openMovementModal("salida", "Uso interno sin paciente")}
+              renderMovementActions={(movement) => (
+                <CrudActions
+                  role={role}
+                  row={movement}
+                  table="inventory_movements"
+                  allowStaffSoftDelete
+                  onArchive={() => void archive("inventory_movements", movement.id)}
+                  onRestore={() => void restoreRecord("inventory_movements", movement.id).then(load)}
+                  onHardDelete={() => void hardDeleteRecord("inventory_movements", movement.id).then(load)}
+                />
+              )}
             />
           ) : null}
           <RowsEmpty rows={filteredMovements} empty="Sin movimientos con esa busqueda." render={(movement) => (
-            <RowCard key={movement.id} title={`${movement.item_name_snapshot} · ${movement.movement_type}`} tags={[movement.lot_number_snapshot ?? "Sin lote", movement.supplier_name_snapshot ?? "Sin proveedor"]} detail={`${movement.quantity} · ${movement.reason ?? "Sin motivo"} · ${new Date(movement.movement_date).toLocaleString("es-BO")}`} deletedRow={movement} actions={<CrudActions role={role} row={movement} table="inventory_movements" onEdit={undefined} onArchive={() => void archive("inventory_movements", movement.id)} onRestore={() => void restoreRecord("inventory_movements", movement.id).then(load)} onHardDelete={() => void hardDeleteRecord("inventory_movements", movement.id).then(load)} />} />
+            <RowCard key={movement.id} title={`${movement.item_name_snapshot} · ${movement.movement_type}`} tags={[movement.lot_number_snapshot ?? "Sin lote", movement.supplier_name_snapshot ?? "Sin proveedor"]} detail={`${movement.quantity} · ${movement.reason ?? "Sin motivo"} · ${new Date(movement.movement_date).toLocaleString("es-BO")}`} deletedRow={movement} actions={<CrudActions role={role} row={movement} table="inventory_movements" allowStaffSoftDelete onEdit={undefined} onArchive={() => void archive("inventory_movements", movement.id)} onRestore={() => void restoreRecord("inventory_movements", movement.id).then(load)} onHardDelete={() => void hardDeleteRecord("inventory_movements", movement.id).then(load)} />} />
           )} />
         </Panel>
       ) : null}
@@ -1378,7 +1393,7 @@ function InventoryShiftCard({
 }) {
   const isOpen = count.status === "abierto";
   const openerId = count.opened_by ?? count.created_by;
-  const canClose = isOpen && Boolean(actorId) && (!openerId || openerId === actorId);
+  const canClose = isOpen && Boolean(actorId) && (!openerId || openerId === actorId || role === "superadmin");
   const totalDifference = lines.reduce((sum, line) => {
     const draft = getLineDraft(line);
     return sum + (Number(draft.counted_stock ?? 0) - Number(line.expected_stock ?? 0));
@@ -1414,9 +1429,9 @@ function InventoryShiftCard({
                 onClick={onCloseShift}
                 disabled={saving || !canClose}
                 className="rounded-full bg-[var(--color-mocha)] px-5 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-                title={canClose ? "Cerrar este turno" : "Solo puede cerrar la responsable que abrio el turno"}
+                title={canClose ? "Cerrar este turno" : "Solo puede cerrar la responsable que abrio el turno o Superusuario"}
               >
-                {saving ? "Cerrando..." : canClose ? "Cerrar turno" : "Solo responsable"}
+                {saving ? "Cerrando..." : canClose ? "Cerrar turno" : "Solo responsable o Superusuario"}
               </button>
             ) : null}
           {role === "superadmin" || role === "admin" ? (
@@ -1508,6 +1523,7 @@ function CrudActions({
   role,
   row,
   table,
+  allowStaffSoftDelete = false,
   onEdit,
   onArchive,
   onRestore,
@@ -1516,12 +1532,13 @@ function CrudActions({
   role: ReturnType<typeof useAuth>["role"];
   row: DeletionMetadata;
   table: DeletableTable;
+  allowStaffSoftDelete?: boolean;
   onEdit?: () => void;
   onArchive: () => void;
   onRestore: () => void;
   onHardDelete?: () => void;
 }) {
-  const canUseDeleteActions = role === "superadmin" || role === "admin";
+  const canUseDeleteActions = role === "superadmin" || role === "admin" || (allowStaffSoftDelete && canSoftDelete(role));
 
   return (
     <>
@@ -1569,6 +1586,7 @@ function InventoryItemTracePanel({
   onEditItem,
   onRegisterEntry,
   onRegisterExit,
+  renderMovementActions,
 }: {
   item: InventoryItemRow;
   unitLabel: string;
@@ -1585,6 +1603,7 @@ function InventoryItemTracePanel({
   onEditItem: () => void;
   onRegisterEntry: () => void;
   onRegisterExit: () => void;
+  renderMovementActions?: (movement: InventoryMovementRow) => ReactNode;
 }) {
   const currentStock = Number(item.current_stock ?? 0);
   const lotStock = lots.reduce((sum, lot) => sum + Number(lot.current_quantity ?? 0), 0);
@@ -1656,6 +1675,7 @@ function InventoryItemTracePanel({
                   formatActorLabel(movement.created_by_profile, movement.created_by),
                   usage?.patients?.full_name ? `Paciente: ${usage.patients.full_name}` : movement.reason,
                 ].filter(Boolean).join(" - ")}
+                actions={renderMovementActions?.(movement)}
               />
             );
           })}
@@ -1712,11 +1732,16 @@ function TraceColumn({ title, empty, children }: { title: string; empty: string;
   );
 }
 
-function TraceRow({ title, detail, href }: { title: string; detail: string; href?: string }) {
+function TraceRow({ title, detail, href, actions }: { title: string; detail: string; href?: string; actions?: ReactNode }) {
   const content = (
     <>
-      <p className="font-semibold text-[var(--color-ink)]">{title}</p>
-      <p className="mt-1 text-xs leading-5 text-[var(--color-copy)]">{detail}</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="font-semibold text-[var(--color-ink)]">{title}</p>
+          <p className="mt-1 text-xs leading-5 text-[var(--color-copy)]">{detail}</p>
+        </div>
+        {actions ? <div className="shrink-0">{actions}</div> : null}
+      </div>
     </>
   );
 
@@ -2475,7 +2500,7 @@ function formatInventoryShiftAudit(count: InventoryCountRow) {
   if (count.status === "cerrado") {
     parts.push(`Cierre: ${closedAt || "sin fecha"} por ${closedBy ?? "sin responsable"}`);
   } else {
-    parts.push("Pendiente de cierre por la misma responsable");
+    parts.push("Pendiente de cierre por la responsable o Superusuario");
   }
 
   return parts.join(" - ");
