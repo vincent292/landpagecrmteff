@@ -162,6 +162,10 @@ export type InventoryCountRow = DeletionMetadata & {
   closed_by: string | null;
   closed_by_profile?: InventoryCountActor | null;
   closed_at: string | null;
+  reopen_count?: number | null;
+  last_reopened_by?: string | null;
+  last_reopened_by_profile?: InventoryCountActor | null;
+  last_reopened_at?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -339,7 +343,7 @@ export async function getInventoryCounts(includeDeleted = false) {
   const actorIds = Array.from(
     new Set(
       rows
-        .flatMap((row) => [row.opened_by, row.created_by, row.closed_by])
+        .flatMap((row) => [row.opened_by, row.created_by, row.closed_by, row.last_reopened_by])
         .filter((id): id is string => Boolean(id))
     )
   );
@@ -357,6 +361,7 @@ export async function getInventoryCounts(includeDeleted = false) {
     ...row,
     opened_by_profile: profileMap.get(row.opened_by ?? row.created_by ?? "") ?? null,
     closed_by_profile: profileMap.get(row.closed_by ?? "") ?? null,
+    last_reopened_by_profile: profileMap.get(row.last_reopened_by ?? "") ?? null,
   }));
 }
 
@@ -517,6 +522,15 @@ export async function updateInventoryShiftLine(data: {
 
 export async function closeInventoryShift(data: { countId: string; notes?: string | null }) {
   const { data: row, error } = await supabase.rpc("close_inventory_shift", {
+    p_count_id: data.countId,
+    p_notes: data.notes ?? null,
+  });
+  if (error) throw error;
+  return row as InventoryCountRow;
+}
+
+export async function reopenInventoryShift(data: { countId: string; notes?: string | null }) {
+  const { data: row, error } = await supabase.rpc("reopen_inventory_shift", {
     p_count_id: data.countId,
     p_notes: data.notes ?? null,
   });

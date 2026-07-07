@@ -45,6 +45,7 @@ import {
   openInventoryShift,
   recordInventoryCountLine,
   recordInventoryMovement,
+  reopenInventoryShift,
   updateInventoryCategory,
   updateInventoryItem,
   updateInventoryLocation,
@@ -820,6 +821,29 @@ export function InventoryAdminPage() {
     }
   };
 
+  const reopenShift = async (count: InventoryCountRow) => {
+    if (role !== "superadmin") {
+      setShiftStatus({ type: "error", text: "Solo Superusuario puede reabrir turnos cerrados." });
+      return;
+    }
+
+    setSaving(true);
+    setShiftStatus(null);
+    try {
+      await reopenInventoryShift({
+        countId: count.id,
+        notes: "Reapertura para correccion de conteo",
+      });
+      setShiftStatus({ type: "success", text: "Turno reabierto. Puedes corregir el conteo y cerrarlo nuevamente." });
+      load();
+    } catch (reopenError) {
+      console.error("Error reabriendo turno de inventario", reopenError);
+      setShiftStatus({ type: "error", text: getInventorySubmitErrorMessage(reopenError) });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const saveSimple = async <T extends { id: string }>(
     _table: DeletableTable,
     current: T | null,
@@ -1086,6 +1110,7 @@ export function InventoryAdminPage() {
               onSaveLine={saveShiftLine}
               onClosingNotesChange={(value) => setClosingNotesByShift((current) => ({ ...current, [count.id]: value }))}
               onCloseShift={() => void closeShift(count)}
+              onReopenShift={() => void reopenShift(count)}
               onArchive={() => void archive("inventory_counts", count.id)}
               onRestore={() => void restoreRecord("inventory_counts", count.id).then(load)}
               onHardDelete={() => void hardDeleteRecord("inventory_counts", count.id).then(load)}
@@ -1369,6 +1394,7 @@ function InventoryShiftCard({
   onSaveLine,
   onClosingNotesChange,
   onCloseShift,
+  onReopenShift,
   onArchive,
   onRestore,
   onHardDelete,
@@ -1387,6 +1413,7 @@ function InventoryShiftCard({
   onSaveLine: (line: InventoryCountLineRow) => void;
   onClosingNotesChange: (value: string) => void;
   onCloseShift: () => void;
+  onReopenShift: () => void;
   onArchive: () => void;
   onRestore: () => void;
   onHardDelete?: () => void;
@@ -1432,6 +1459,16 @@ function InventoryShiftCard({
                 title={canClose ? "Cerrar este turno" : "Solo puede cerrar la responsable que abrio el turno o Superusuario"}
               >
                 {saving ? "Cerrando..." : canClose ? "Cerrar turno" : "Solo responsable o Superusuario"}
+              </button>
+            ) : null}
+            {!isOpen && role === "superadmin" ? (
+              <button
+                onClick={onReopenShift}
+                disabled={saving}
+                className="rounded-full border border-[var(--color-border)] bg-white px-5 py-2 text-sm font-semibold text-[var(--color-ink)] disabled:cursor-not-allowed disabled:opacity-60"
+                title="Reabrir este turno para corregir conteo"
+              >
+                {saving ? "Reabriendo..." : "Reabrir turno"}
               </button>
             ) : null}
           {role === "superadmin" || role === "admin" ? (
@@ -2495,7 +2532,13 @@ function formatInventoryShiftAudit(count: InventoryCountRow) {
   const openedAt = formatDateTime(count.opened_at ?? count.created_at);
   const closedBy = count.closed_by ? formatInventoryShiftActor(count.closed_by_profile, count.closed_by, "responsable sin identificar") : null;
   const closedAt = formatDateTime(count.closed_at);
+  const reopenedBy = count.last_reopened_by ? formatInventoryShiftActor(count.last_reopened_by_profile, count.last_reopened_by, "Superusuario") : null;
+  const reopenedAt = formatDateTime(count.last_reopened_at);
   const parts = [`Apertura: ${openedAt || "sin fecha"} por ${openedBy}`];
+
+  if (Number(count.reopen_count ?? 0) > 0) {
+    parts.push(`Reabierto ${count.reopen_count} vez/veces${reopenedAt ? `: ${reopenedAt}` : ""}${reopenedBy ? ` por ${reopenedBy}` : ""}`);
+  }
 
   if (count.status === "cerrado") {
     parts.push(`Cierre: ${closedAt || "sin fecha"} por ${closedBy ?? "sin responsable"}`);
