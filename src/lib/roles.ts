@@ -23,7 +23,7 @@ export function isPortalRole(role: UserRole) {
 }
 
 export function canManageUsers(role: UserRole) {
-  return role === "superadmin";
+  return role === "superadmin" || role === "admin";
 }
 
 export function isSiteAdminRole(role: UserRole) {

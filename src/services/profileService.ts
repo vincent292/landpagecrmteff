@@ -11,6 +11,12 @@ export type ProfileRow = DeletionMetadata & {
   document_number?: string | null;
   role: string | null;
   created_at: string;
+  doctor_profile?: (DeletionMetadata & {
+    id: string;
+    full_name: string;
+    is_active: boolean;
+    access_role?: "doctor" | "doctor_inventory" | null;
+  }) | null;
 };
 
 export async function getCurrentProfile() {
@@ -28,7 +34,31 @@ export async function getProfiles(includeDeleted = false) {
   if (filter.column) query = query.eq(filter.column, filter.value);
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []) as ProfileRow[];
+  const profiles = (data ?? []) as ProfileRow[];
+  const profileIds = profiles.map((profile) => profile.id);
+
+  if (profileIds.length === 0) return profiles;
+
+  let doctorQuery = supabase
+    .from("doctor_profiles")
+    .select("id, profile_id, full_name, is_active, access_role, deleted_at, deleted_by, deleted_by_role, deleted_by_name, deleted_by_email")
+    .in("profile_id", profileIds);
+
+  if (!includeDeleted) {
+    doctorQuery = doctorQuery.is("deleted_at", null);
+  }
+
+  const { data: doctors, error: doctorsError } = await doctorQuery;
+  if (doctorsError) throw doctorsError;
+
+  const doctorByProfileId = new Map(
+    (doctors ?? []).map((doctor) => [doctor.profile_id as string, doctor])
+  );
+
+  return profiles.map((profile) => ({
+    ...profile,
+    doctor_profile: doctorByProfileId.get(profile.id) ?? null,
+  })) as ProfileRow[];
 }
 
 export async function updateProfileRole(id: string, role: string) {

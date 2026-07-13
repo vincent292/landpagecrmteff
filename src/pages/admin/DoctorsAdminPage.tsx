@@ -7,8 +7,15 @@ import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteA
 import { PublicImageUpload } from "../../components/admin/PublicImageUpload";
 import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
-import { hardDeleteRecord, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
-import { createDoctor, getAdminDoctors, updateDoctor, type DoctorProfileRow } from "../../services/doctorService";
+import { hardDeleteRecord } from "../../services/adminDeletionService";
+import {
+  createDoctor,
+  getAdminDoctors,
+  restoreDoctorLifecycle,
+  softDeleteDoctorLifecycle,
+  updateDoctor,
+  type DoctorProfileRow,
+} from "../../services/doctorService";
 import { updateProfileRole } from "../../services/profileService";
 import { normalizeDocumentNumber } from "../../utils/documentNumber";
 
@@ -31,7 +38,7 @@ const emptyDoctor = {
 };
 
 export function DoctorsAdminPage() {
-  const { role, profile, user } = useAuth();
+  const { role } = useAuth();
   const [rows, setRows] = useState<DoctorProfileRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<DoctorProfileRow | null>(null);
@@ -107,17 +114,8 @@ export function DoctorsAdminPage() {
                   role={role}
                   row={doctor}
                   compact
-                  onSoftDelete={() =>
-                    void softDeleteRecord({
-                      table: "doctor_profiles",
-                      id: doctor.id,
-                      actorId: profile?.id ?? user?.id ?? null,
-                      actorRole: role,
-                      actorName: profile?.full_name ?? user?.user_metadata.full_name ?? null,
-                      actorEmail: profile?.email ?? user?.email ?? null,
-                    }).then(load)
-                  }
-                  onRestore={() => void restoreRecord("doctor_profiles", doctor.id).then(load)}
+                  onSoftDelete={() => void softDeleteDoctorLifecycle(doctor.id).then(load)}
+                  onRestore={role === "superadmin" ? () => void restoreDoctorLifecycle(doctor.id).then(load) : undefined}
                   onHardDelete={() => void hardDeleteRecord("doctor_profiles", doctor.id).then(load)}
                 />
               </div>

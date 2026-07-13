@@ -104,3 +104,17 @@ export async function deleteDoctor(id: string) {
   const { error } = await supabase.from("doctor_profiles").update({ is_active: false }).eq("id", id);
   if (error) throw error;
 }
+
+export async function softDeleteDoctorLifecycle(id: string) {
+  const { error } = await supabase.rpc("soft_delete_doctor_lifecycle", {
+    p_doctor_id: id,
+  });
+  if (error) throw error;
+}
+
+export async function restoreDoctorLifecycle(id: string) {
+  const { error } = await supabase.rpc("restore_doctor_lifecycle", {
+    p_doctor_id: id,
+  });
+  if (error) throw error;
+}

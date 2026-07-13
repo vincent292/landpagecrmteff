@@ -30,7 +30,13 @@ import {
   type GalleryAlbumRow,
   type GalleryMediaRow,
 } from "../../services/galleryService";
-import { getAdminDoctors, getMyDoctorProfile, type DoctorProfileRow } from "../../services/doctorService";
+import {
+  getAdminDoctors,
+  getMyDoctorProfile,
+  restoreDoctorLifecycle,
+  softDeleteDoctorLifecycle,
+  type DoctorProfileRow,
+} from "../../services/doctorService";
 import { getProfiles, updateProfileRole, updateUserAccess, type ProfileRow } from "../../services/profileService";
 import {
   createPromotion,
@@ -53,7 +59,7 @@ import {
 } from "../../services/treatmentService";
 import { careModeOptions } from "../../lib/careMode";
 import { slugify } from "../../utils/text";
-import { canManageUsers, isDoctorRole, roleLabels } from "../../lib/roles";
+import { canManageUsers, isDoctorRole, normalizeRole, roleLabels } from "../../lib/roles";
 import { useAuth } from "../../hooks/useAuth";
 import { useWorkspaceState } from "../../hooks/useWorkspaceState";
 import { boliviaCities } from "../../data/cities";
@@ -245,11 +251,11 @@ export function AdminCollectionPage({ module }: Props) {
           Acceso restringido
         </p>
         <h1 className="font-display mt-3 text-5xl font-semibold">
-          Solo el superusuario puede gestionar roles.
+          Solo administracion puede gestionar usuarios.
         </h1>
         <p className="mt-4 max-w-xl text-sm leading-7 text-[var(--color-copy)]">
-          Tu rol actual es {roleLabels[role]}. Puedes gestionar los módulos operativos,
-          pero no cambiar permisos de usuarios.
+          Tu rol actual es {roleLabels[role]}. Esta seccion queda reservada para administradoras
+          y superusuario.
         </p>
       </div>
     );
@@ -567,6 +573,8 @@ function AdminListRow({
   const meta = getMeta(module, row);
   const tableName = getDeleteTableName(module);
   const deletionRow = row as AdminRow & DeletionMetadata;
+  const linkedDoctor = module === "usuarios" && "doctor_profile" in row ? row.doctor_profile : null;
+  const isDoctorUser = module === "usuarios" && "role" in row && isDoctorRole(normalizeRole(row.role));
 
   const handleSoftDelete = async () => {
     if (!tableName) return;
@@ -593,6 +601,18 @@ function AdminListRow({
     onRefresh();
   };
 
+  const handleDoctorLifecycleDelete = async () => {
+    if (!linkedDoctor?.id) return;
+    await softDeleteDoctorLifecycle(linkedDoctor.id);
+    onRefresh();
+  };
+
+  const handleDoctorLifecycleRestore = async () => {
+    if (!linkedDoctor?.id) return;
+    await restoreDoctorLifecycle(linkedDoctor.id);
+    onRefresh();
+  };
+
   const openEnrollmentReceipt = async () => {
     if (!("payment_receipt_path" in row) || !row.payment_receipt_path) return;
     const url = await getCourseEnrollmentReceiptUrl(row.payment_receipt_path);
@@ -615,6 +635,12 @@ function AdminListRow({
             <p className="mt-1">
               <span className="font-semibold text-[var(--color-ink)]">Usuario ID:</span> {row.id}
             </p>
+            {isDoctorUser ? (
+              <p className="mt-1">
+                <span className="font-semibold text-[var(--color-ink)]">Perfil doctora:</span>{" "}
+                {linkedDoctor?.full_name ?? "Sin perfil medico vinculado"}
+              </p>
+            ) : null}
           </div>
         ) : null}
         <DeletedStatusNote row={deletionRow} />
@@ -716,7 +742,16 @@ function AdminListRow({
             onHardDelete={() => void handleHardDelete()}
           />
         ) : null}
-        {module === "usuarios" && "role" in row && (
+        {module === "usuarios" && isDoctorUser && linkedDoctor ? (
+          <DeleteActions
+            role={role}
+            row={linkedDoctor}
+            compact
+            onSoftDelete={() => void handleDoctorLifecycleDelete()}
+            onRestore={role === "superadmin" ? () => void handleDoctorLifecycleRestore() : undefined}
+          />
+        ) : null}
+        {module === "usuarios" && "role" in row && role === "superadmin" ? (
           <>
             <button
               type="button"
@@ -737,7 +772,7 @@ function AdminListRow({
               ))}
             </select>
           </>
-        )}
+        ) : null}
       </div>
       </div>
       {module === "usuarios" && "role" in row ? (
@@ -1166,7 +1201,7 @@ function AdminEntityForm({
           setError("Define un precio del tratamiento para permitir pago directo.");
           return;
         }
-        if (Boolean(values.allows_partial_payment)) {
+        if (values.allows_partial_payment) {
           const percent = Number(values.partial_payment_percent ?? 0);
           if (percent <= 0 || percent > 100) {
             setError("El porcentaje de anticipo debe estar entre 1 y 100.");

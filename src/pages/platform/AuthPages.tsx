@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { ArrowRight, KeyRound, LockKeyhole, Mail, ShieldCheck, UserRoundPlus } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, KeyRound, LockKeyhole, Mail, ShieldCheck, UserRoundPlus } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -315,6 +315,7 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
   const location = useLocation();
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const isLogin = mode === "login";
   const {
     register,
@@ -349,6 +350,7 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
           .from("profiles")
           .select("role")
           .eq("id", auth.user?.id ?? "")
+          .eq("is_deleted", false)
           .maybeSingle();
         const role = normalizeRole(profile?.role);
         navigate(getSafeRedirectPath(role), { replace: true });
@@ -376,6 +378,7 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
           .from("profiles")
           .select("role")
           .eq("id", auth.user?.id ?? "")
+          .eq("is_deleted", false)
           .maybeSingle();
         const role = normalizeRole(createdProfile?.role);
         navigate(getSafeRedirectPath(role), { replace: true });
@@ -487,12 +490,23 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
 
         <label className="mt-5 block">
           <span className="text-sm font-semibold text-[var(--color-ink)]">Contrasena</span>
-          <input
-            type="password"
-            autoComplete={isLogin ? "current-password" : "new-password"}
-            {...register("password")}
-            className="premium-input mt-2"
-          />
+          <div className="relative mt-2">
+            <input
+              type={showPassword ? "text" : "password"}
+              autoComplete={isLogin ? "current-password" : "new-password"}
+              {...register("password")}
+              className="premium-input pr-12"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((current) => !current)}
+              className="absolute right-3 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-[var(--color-copy)] transition hover:bg-[rgba(216,194,174,0.22)] hover:text-[var(--color-ink)]"
+              aria-label={showPassword ? "Ocultar contrasena" : "Mostrar contrasena"}
+              title={showPassword ? "Ocultar contrasena" : "Mostrar contrasena"}
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
           {errors.password ? <span className="mt-1 block text-sm text-red-700">{errors.password.message as string | undefined}</span> : null}
         </label>
 
@@ -616,6 +630,10 @@ function getAuthErrorMessage(message: string) {
 
   if (normalized.includes("same password")) {
     return "Elige una contraseña distinta a la anterior.";
+  }
+
+  if (normalized.includes("cuenta desactivada")) {
+    return "Esta cuenta fue desactivada. Solo un superusuario puede restablecer el acceso.";
   }
 
   return message || "No pudimos completar el acceso. Revisa tus datos e intenta otra vez.";

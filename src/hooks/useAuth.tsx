@@ -66,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .from("profiles")
       .select("*")
       .eq("id", userId)
+      .eq("is_deleted", false)
       .maybeSingle();
 
     if (error) {
@@ -135,6 +136,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           password,
         });
         if (error) throw error;
+
+        const { data: auth } = await supabase.auth.getUser();
+        const { data: activeProfile, error: profileError } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("id", auth.user?.id ?? "")
+          .eq("is_deleted", false)
+          .maybeSingle();
+
+        if (profileError || !activeProfile) {
+          await supabase.auth.signOut({ scope: "local" });
+          clearWorkspaceState();
+          throw new Error("Cuenta desactivada. Solicita a un superusuario que la restablezca.");
+        }
       },
       signUp: async (email, password, fullName, extra) => {
         const normalizedEmail = normalizeEmail(email);
