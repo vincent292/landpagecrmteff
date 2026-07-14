@@ -171,7 +171,6 @@ export function TreatmentDetailPage() {
         }}
       />
       <TreatmentDirectBookingFlow
-        detailPath={`/tratamientos/${treatment.slug}`}
         open={showTreatmentOrderModal}
         treatment={treatment}
         onClose={() => {

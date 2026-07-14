@@ -54,7 +54,6 @@ export function PromotionDetailPage() {
   const [selectedVariantIds, setSelectedVariantIds] = useState<string[]>([]);
   const [paymentChoice, setPaymentChoice] = useState<PaymentChoice>("total");
   const [showOrderModal, setShowOrderModal] = useState(false);
-  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [showAssessmentModal, setShowAssessmentModal] = useState(false);
   const [openingOrder, setOpeningOrder] = useState(false);
@@ -122,13 +121,13 @@ export function PromotionDetailPage() {
   }, [promotion, searchParams]);
 
   useEffect(() => {
-    if (!showOrderModal && !showAuthPrompt && !showAssessmentModal) return;
+    if (!showOrderModal && !showAssessmentModal) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [showAssessmentModal, showAuthPrompt, showOrderModal]);
+  }, [showAssessmentModal, showOrderModal]);
 
   useEffect(() => {
     const slotCity = form.city.trim() || promotion?.city?.trim() || "";
@@ -230,7 +229,6 @@ export function PromotionDetailPage() {
     return Number(cartTotal.toFixed(2));
   }, [canUsePartialPayment, cartTotal, partialPercent, paymentChoice]);
 
-  const detailPath = `/promociones/${promotion?.slug ?? slug}`;
   const shouldChooseSlot = Boolean(form.wants_appointment && usesAppointmentSlots(promotion?.agenda_mode));
   const dataStepComplete =
     form.full_name.trim().length > 0 &&
@@ -311,10 +309,6 @@ export function PromotionDetailPage() {
   async function handleOpenOrder() {
     clearReserveIntent();
     if (!promotion) return;
-    if (!user) {
-      setShowAuthPrompt(true);
-      return;
-    }
 
     setOpeningOrder(true);
     try {
@@ -361,10 +355,6 @@ export function PromotionDetailPage() {
   }
 
   async function submitOrder() {
-    if (!user) {
-      setShowAuthPrompt(true);
-      return;
-    }
     if (selectedVariants.length === 0) {
       setFlashMessage("error", "Selecciona una o mas opciones antes de continuar.");
       return;
@@ -393,7 +383,7 @@ export function PromotionDetailPage() {
 
       const order = await savePromotionOrder({
         promotion_id: promotion!.id,
-        user_id: user.id,
+        user_id: user?.id ?? null,
         full_name: form.full_name,
         document_number: form.document_number,
         phone: form.phone,
@@ -633,7 +623,7 @@ export function PromotionDetailPage() {
         </aside>
       </div>
 
-      {!showOrderModal && !showAuthPrompt && !showAssessmentModal ? (
+      {!showOrderModal && !showAssessmentModal ? (
         <div className="fixed inset-x-0 bottom-0 z-[90] border-t border-[rgba(184,138,90,0.18)] bg-[rgba(255,249,244,0.94)] px-4 py-3 shadow-[0_-18px_48px_rgba(62,42,31,0.10)] backdrop-blur md:hidden">
           <div className="mx-auto flex max-w-7xl items-center gap-3">
             <div className="min-w-0 flex-1">
@@ -662,25 +652,6 @@ export function PromotionDetailPage() {
         </div>
       ) : null}
 
-      {showAuthPrompt ? createPortal(
-        <ModalShell onClose={() => setShowAuthPrompt(false)} maxWidthClassName="max-w-lg">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">Acceso requerido</p>
-          <h2 className="font-display mt-3 text-3xl font-semibold sm:text-4xl">Para reservar esta promocion primero debes acceder a tu cuenta</h2>
-          <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
-            Asi guardamos tus datos, el comprobante, el saldo pendiente y el seguimiento en tu dashboard.
-          </p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link to="/login" state={{ from: `${detailPath}?accion=reservar` }} className="inline-flex items-center justify-center rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white">
-              Iniciar sesion
-            </Link>
-            <Link to="/register" state={{ from: `${detailPath}?accion=reservar` }} className="inline-flex items-center justify-center rounded-full border border-[var(--color-border)] bg-white/80 px-6 py-3 text-sm font-semibold text-[var(--color-ink)]">
-              Crear cuenta
-            </Link>
-          </div>
-        </ModalShell>,
-        document.body
-      ) : null}
-
       {showOrderModal ? createPortal(
         <ModalShell onClose={() => setShowOrderModal(false)} maxWidthClassName="max-w-6xl">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -706,9 +677,9 @@ export function PromotionDetailPage() {
           <div className={`mt-8 grid min-w-0 gap-6 ${orderStep === "pago" ? "xl:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]" : "xl:grid-cols-1"}`}>
             <div className={orderStep === "pago" ? "hidden" : orderStep === "horario" ? "grid min-w-0 gap-4" : "grid min-w-0 gap-4 md:grid-cols-2"}>
               {orderStep === "datos" ? (
-              <div className="md:col-span-2 rounded-[24px] bg-[rgba(247,242,236,0.82)] p-4 text-sm leading-7 text-[var(--color-copy)]">
-                Paso 1: confirma tus datos. El numero de carnet tambien se guarda en tu perfil para no volver a pedirlo luego.
-              </div>
+                <div className="md:col-span-2 rounded-[24px] bg-[rgba(247,242,236,0.82)] p-4 text-sm leading-7 text-[var(--color-copy)]">
+                  Paso 1: confirma tus datos. No necesitas crear cuenta; estos datos se usan para validar el pago y coordinar tu cita.
+                </div>
               ) : null}
               {orderStep === "datos" ? (
               <Field label="Nombre completo">

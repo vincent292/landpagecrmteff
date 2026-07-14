@@ -55,7 +55,7 @@ export type PromotionOrderRow = DeletionMetadata & {
   id: string;
   promotion_id: string;
   variant_id: string;
-  user_id: string;
+  user_id: string | null;
   full_name: string;
   document_number: string | null;
   phone: string | null;
@@ -172,9 +172,11 @@ export function getPromotionOrderItemPreferredSlot(item: PromotionOrderItemRow, 
   };
 }
 
-async function replacePromotionOrderItems(orderId: string, items: PromotionOrderCartItemInput[]) {
-  const { error: deleteError } = await supabase.from("promotion_order_items").delete().eq("order_id", orderId);
-  if (deleteError) throw deleteError;
+async function replacePromotionOrderItems(orderId: string, items: PromotionOrderCartItemInput[], replaceExisting = true) {
+  if (replaceExisting) {
+    const { error: deleteError } = await supabase.from("promotion_order_items").delete().eq("order_id", orderId);
+    if (deleteError) throw deleteError;
+  }
 
   if (items.length === 0) return;
 
@@ -205,8 +207,9 @@ export async function getPromotionOrderById(orderId: string) {
 }
 
 export async function savePromotionOrder(data: {
+  id?: string;
   promotion_id: string;
-  user_id: string;
+  user_id?: string | null;
   full_name: string;
   document_number: string | null;
   phone: string | null;
@@ -222,11 +225,13 @@ export async function savePromotionOrder(data: {
   if (data.items.length === 0) throw new Error("Selecciona al menos una opcion de la promocion.");
   const primaryVariantId = data.items[0].variant_id;
   const primaryPreferredSlot = data.items.find((item) => item.preferred_slot)?.preferred_slot ?? null;
+  const orderId = data.id ?? (!data.user_id ? crypto.randomUUID() : undefined);
 
   const basePayload = {
     promotion_id: data.promotion_id,
     variant_id: primaryVariantId,
-    user_id: data.user_id,
+    ...(orderId ? { id: orderId } : {}),
+    user_id: data.user_id ?? null,
     full_name: data.full_name,
     document_number: data.document_number,
     phone: data.phone,
@@ -249,16 +254,21 @@ export async function savePromotionOrder(data: {
     preferred_agenda_tag: primaryPreferredSlot?.agenda_tag ?? null,
   };
 
-  const { data: row, error } = await supabase
-    .from("promotion_orders")
-    .insert({
-      ...basePayload,
-      status: "Pendiente",
-    })
-    .select("*")
-    .single();
+  const payload = {
+    ...basePayload,
+    status: "Pendiente",
+  };
+
+  if (!data.user_id) {
+    const { error } = await supabase.from("promotion_orders").insert(payload);
+    if (error) throw error;
+    await replacePromotionOrderItems(orderId!, data.items, false);
+    return { ...payload, id: orderId } as unknown as PromotionOrderRow;
+  }
+
+  const { data: row, error } = await supabase.from("promotion_orders").insert(payload).select("*").single();
   if (error) throw error;
-  await replacePromotionOrderItems(row.id, data.items);
+  await replacePromotionOrderItems(row.id, data.items, false);
   return getPromotionOrderById(row.id);
 }
 

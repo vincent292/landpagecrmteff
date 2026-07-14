@@ -20,7 +20,7 @@ export type TreatmentOrderPreferredSlotInput = {
 export type TreatmentOrderRow = DeletionMetadata & {
   id: string;
   treatment_id: string;
-  user_id: string;
+  user_id: string | null;
   full_name: string;
   document_number: string | null;
   phone: string | null;
@@ -98,8 +98,9 @@ export async function getTreatmentOrderById(orderId: string) {
 }
 
 export async function saveTreatmentOrder(data: {
+  id?: string;
   treatment_id: string;
-  user_id: string;
+  user_id?: string | null;
   full_name: string;
   document_number: string | null;
   phone: string | null;
@@ -112,35 +113,41 @@ export async function saveTreatmentOrder(data: {
   total_amount: number;
   preferred_slot?: TreatmentOrderPreferredSlotInput | null;
 }) {
-  const { data: row, error } = await supabase
-    .from("treatment_orders")
-    .insert({
-      treatment_id: data.treatment_id,
-      user_id: data.user_id,
-      full_name: data.full_name,
-      document_number: data.document_number,
-      phone: data.phone,
-      email: data.email,
-      city: data.city,
-      notes: data.notes,
-      wants_appointment: data.wants_appointment,
-      payment_mode: data.payment_mode,
-      payment_percent: data.payment_percent,
-      total_amount: data.total_amount,
-      amount_paid: null,
-      amount_pending: data.total_amount,
-      preferred_rule_id: data.preferred_slot?.rule_id ?? null,
-      preferred_appointment_date: data.preferred_slot?.date ?? null,
-      preferred_start_time: data.preferred_slot?.start_time ?? null,
-      preferred_end_time: data.preferred_slot?.end_time ?? null,
-      preferred_city: data.preferred_slot?.city ?? null,
-      preferred_location: data.preferred_slot?.location ?? null,
-      preferred_appointment_type: data.preferred_slot?.appointment_type ?? null,
-      preferred_agenda_tag: data.preferred_slot?.agenda_tag ?? null,
-      status: "Pendiente",
-    })
-    .select("*")
-    .single();
+  const orderId = data.id ?? (!data.user_id ? crypto.randomUUID() : undefined);
+  const payload = {
+    treatment_id: data.treatment_id,
+    ...(orderId ? { id: orderId } : {}),
+    user_id: data.user_id ?? null,
+    full_name: data.full_name,
+    document_number: data.document_number,
+    phone: data.phone,
+    email: data.email,
+    city: data.city,
+    notes: data.notes,
+    wants_appointment: data.wants_appointment,
+    payment_mode: data.payment_mode,
+    payment_percent: data.payment_percent,
+    total_amount: data.total_amount,
+    amount_paid: null,
+    amount_pending: data.total_amount,
+    preferred_rule_id: data.preferred_slot?.rule_id ?? null,
+    preferred_appointment_date: data.preferred_slot?.date ?? null,
+    preferred_start_time: data.preferred_slot?.start_time ?? null,
+    preferred_end_time: data.preferred_slot?.end_time ?? null,
+    preferred_city: data.preferred_slot?.city ?? null,
+    preferred_location: data.preferred_slot?.location ?? null,
+    preferred_appointment_type: data.preferred_slot?.appointment_type ?? null,
+    preferred_agenda_tag: data.preferred_slot?.agenda_tag ?? null,
+    status: "Pendiente",
+  };
+
+  if (!data.user_id) {
+    const { error } = await supabase.from("treatment_orders").insert(payload);
+    if (error) throw error;
+    return { ...payload, id: orderId } as unknown as TreatmentOrderRow;
+  }
+
+  const { data: row, error } = await supabase.from("treatment_orders").insert(payload).select("*").single();
   if (error) throw error;
   return getTreatmentOrderById(row.id);
 }

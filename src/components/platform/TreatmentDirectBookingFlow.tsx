@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Link } from "react-router-dom";
 
 import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
@@ -38,12 +37,10 @@ function usesAppointmentSlots(agendaMode?: string | null) {
 }
 
 export function TreatmentDirectBookingFlow({
-  detailPath,
   onClose,
   open,
   treatment,
 }: {
-  detailPath: string;
   onClose: () => void;
   open: boolean;
   treatment: TreatmentRow;
@@ -109,7 +106,7 @@ export function TreatmentDirectBookingFlow({
 
   useEffect(() => {
     const slotCity = form.city.trim() || treatment.city?.trim() || "";
-    if (!open || !user || !form.wants_appointment || !slotCity || !usesAppointmentSlots(treatment.agenda_mode)) {
+    if (!open || !form.wants_appointment || !slotCity || !usesAppointmentSlots(treatment.agenda_mode)) {
       setAppointmentSlots([]);
       setSelectedSlot(null);
       return;
@@ -147,7 +144,7 @@ export function TreatmentDirectBookingFlow({
         setSelectedSlot(null);
       })
       .finally(() => setLoadingAppointmentSlots(false));
-  }, [form.city, form.wants_appointment, open, treatment, user]);
+  }, [form.city, form.wants_appointment, open, treatment]);
 
   const groupedAppointmentSlots = useMemo(() => {
     const grouped = new Map<string, AvailableSlot[]>();
@@ -229,7 +226,6 @@ export function TreatmentDirectBookingFlow({
   }
 
   async function submitOrder() {
-    if (!user) return;
     if (!hasAvailableTreatmentSlots) {
       setFlashMessage("error", "Este tratamiento ya no tiene cupos disponibles.");
       return;
@@ -258,7 +254,7 @@ export function TreatmentDirectBookingFlow({
 
       const order = await saveTreatmentOrder({
         treatment_id: treatment.id,
-        user_id: user.id,
+        user_id: user?.id ?? null,
         full_name: form.full_name,
         document_number: form.document_number,
         phone: form.phone,
@@ -337,27 +333,6 @@ export function TreatmentDirectBookingFlow({
     setOrderStep("pago");
   }
 
-  if (!user) {
-    return createPortal(
-      <ModalShell onClose={onClose} maxWidthClassName="max-w-lg">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">Acceso requerido</p>
-        <h2 className="font-display mt-3 text-3xl font-semibold sm:text-4xl">Para optar por este tratamiento primero debes acceder a tu cuenta</h2>
-        <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
-          Asi guardamos tus datos, el comprobante, el saldo pendiente y el seguimiento en tu dashboard.
-        </p>
-        <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-          <Link to="/login" state={{ from: `${detailPath}?accion=reservar` }} className="inline-flex items-center justify-center rounded-full bg-[var(--color-mocha)] px-6 py-3 text-sm font-semibold text-white">
-            Iniciar sesion
-          </Link>
-          <Link to="/register" state={{ from: `${detailPath}?accion=reservar` }} className="inline-flex items-center justify-center rounded-full border border-[var(--color-border)] bg-white/80 px-6 py-3 text-sm font-semibold text-[var(--color-ink)]">
-            Crear cuenta
-          </Link>
-        </div>
-      </ModalShell>,
-      document.body
-    );
-  }
-
   return createPortal(
     <ModalShell onClose={onClose} maxWidthClassName="max-w-5xl">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -384,7 +359,7 @@ export function TreatmentDirectBookingFlow({
         <div className={orderStep === "pago" ? "hidden" : orderStep === "horario" ? "grid min-w-0 gap-4" : "grid min-w-0 gap-4 md:grid-cols-2"}>
           {orderStep === "datos" ? (
             <div className="md:col-span-2 rounded-[24px] bg-[rgba(247,242,236,0.82)] p-4 text-sm leading-7 text-[var(--color-copy)]">
-              Paso 1: confirma tus datos. El numero de carnet tambien se guarda en tu perfil para no volver a pedirlo luego.
+              Paso 1: confirma tus datos. No necesitas crear cuenta; estos datos se usan para validar el pago y coordinar tu cita.
             </div>
           ) : null}
           {orderStep === "datos" ? (

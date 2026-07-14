@@ -46,14 +46,14 @@ Deno.serve(async (request) => {
 
     const key = resolvePrivateObjectKey(bucket, rawPath);
 
-    if (!actor.user) {
+    const allowed = canUploadPrivate(actor.role, key, Boolean(actor.user));
+
+    if (!actor.user && !allowed) {
       return json(
         { error: "Tu sesion no es valida para subir archivos privados. Cierra sesion y vuelve a entrar." },
         401
       );
     }
-
-    const allowed = canUploadPrivate(actor.role, key);
 
     if (!allowed) {
       return json({ error: `No tienes permisos para subir este archivo privado en la ruta ${key}.` }, 403);
@@ -85,12 +85,21 @@ Deno.serve(async (request) => {
   }
 });
 
-function canUploadPrivate(role: string | null, key: string) {
+function canUploadPrivate(role: string | null, key: string, hasUser: boolean) {
   if (isStaffRole(role)) return true;
+  if (!hasUser) {
+    return (
+      key.startsWith("receipts/appointments/public-assessment/") ||
+      key.startsWith("receipts/appointments/manual-payment/") ||
+      key.startsWith("receipts/promotions/") ||
+      key.startsWith("receipts/treatments/")
+    );
+  }
 
   return (
     key.startsWith("receipts/appointments/") ||
     key.startsWith("receipts/promotions/") ||
+    key.startsWith("receipts/treatments/") ||
     key.startsWith("receipts/courses/") ||
     key.startsWith("receipts/books/") ||
     key.startsWith("receipts/savings-cards/") ||
