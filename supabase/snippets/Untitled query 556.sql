@@ -1,0 +1,1 @@
+ALTER TABLE public.admin_deletion_audit ENABLE ROW LEVEL SECURITY;
