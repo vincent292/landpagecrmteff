@@ -535,6 +535,7 @@ export function InventoryAdminPage() {
     const unitsPerPresentation = Math.max(Number(itemForm.units_per_presentation) || 1, 1);
     const usesPresentation = hasPresentationConfig(presentationUnitId, unitsPerPresentation);
     const current = editing as InventoryItemRow | null;
+    const canSetCurrentStock = canManageInventoryCorrections || !current;
     const payload = {
       category: category?.name ?? "General",
       unit: unit?.abbreviation ?? "u",
@@ -551,7 +552,7 @@ export function InventoryAdminPage() {
       lot_number: normalizeText(itemForm.lot_number),
       expiration_date: normalizeText(itemForm.expiration_date),
       notes: normalizeText(itemForm.notes),
-      current_stock: canManageInventoryCorrections
+      current_stock: canSetCurrentStock
         ? usesPresentation
           ? toInternalQuantity(Number(itemForm.current_stock_presentations), unitsPerPresentation)
           : Number(itemForm.current_stock)
@@ -1293,6 +1294,7 @@ export function InventoryAdminPage() {
             itemMap,
             canManageInventoryCorrections,
             canEditInventoryItemSettings,
+            isCreatingItem: modal === "item" && !editing,
           })}
           {saveStatus ? (
             <div className="mt-6 rounded-[22px] border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
@@ -2085,6 +2087,7 @@ function renderModalFields(props: {
   itemMap: Map<string, InventoryItemRow>;
   canManageInventoryCorrections: boolean;
   canEditInventoryItemSettings: boolean;
+  isCreatingItem: boolean;
 }) {
   if (props.modal === "item") {
     const f = props.itemForm;
@@ -2098,6 +2101,7 @@ function renderModalFields(props: {
     const projectedMinimumStock = usesPresentation
       ? toInternalQuantity(Number(f.minimum_stock_presentations), Number(f.units_per_presentation))
       : Number(f.minimum_stock);
+    const canEditCurrentStock = props.canManageInventoryCorrections || props.isCreatingItem;
     return (
       <div className="grid gap-4 md:grid-cols-2">
         <TextField label="Nombre" value={f.name} onChange={(name) => set({ ...f, name })} />
@@ -2118,13 +2122,13 @@ function renderModalFields(props: {
         <CityField label="Ciudad" value={f.city} onChange={(city) => set({ ...f, city })} />
         <SelectField label="Ubicacion" value={f.location_id} onChange={(location_id) => set({ ...f, location_id })} options={props.locations.map((l) => ({ value: l.id, label: l.name }))} />
         <SelectField label="Proveedor principal" value={f.supplier_id} onChange={(supplier_id) => set({ ...f, supplier_id })} options={props.suppliers.map((s) => ({ value: s.id, label: s.name }))} />
-        {props.canManageInventoryCorrections && usesPresentation ? (
+        {canEditCurrentStock && usesPresentation ? (
           <>
             <NumberField label={`Stock actual en ${presentationUnit}`} value={f.current_stock_presentations} onChange={(current_stock_presentations) => set({ ...f, current_stock_presentations })} />
             <NumberField label={`Stock minimo en ${presentationUnit}`} value={f.minimum_stock_presentations} onChange={(minimum_stock_presentations) => set({ ...f, minimum_stock_presentations })} />
             <InlineHint text={`Ejemplo: si escribes ${formatInventoryNumber(Number(f.current_stock_presentations) || 0)} ${presentationUnit}, se guardaran ${formatInventoryNumber(projectedCurrentStock)} ${consumptionUnit}. El minimo quedara en ${formatInventoryNumber(projectedMinimumStock)} ${consumptionUnit}.`} />
           </>
-        ) : props.canManageInventoryCorrections ? (
+        ) : canEditCurrentStock ? (
           <>
             <NumberField label={`Stock actual en ${consumptionUnit}`} value={f.current_stock} onChange={(current_stock) => set({ ...f, current_stock })} />
             <NumberField label={`Stock minimo en ${consumptionUnit}`} value={f.minimum_stock} onChange={(minimum_stock) => set({ ...f, minimum_stock })} />
