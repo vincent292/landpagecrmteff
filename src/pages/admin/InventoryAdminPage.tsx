@@ -23,6 +23,7 @@ import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteA
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
+import { isDoctorRole } from "../../lib/roles";
 import { canSoftDelete, hardDeleteRecord, restoreRecord, softDeleteRecord, type DeletableTable, type DeletionMetadata } from "../../services/adminDeletionService";
 import {
   createInventoryCategory,
@@ -269,6 +270,7 @@ export function InventoryAdminPage() {
   const actorName = profile?.full_name ?? user?.user_metadata.full_name ?? null;
   const actorEmail = profile?.email ?? user?.email ?? null;
   const canManageInventoryCorrections = role === "superadmin" || role === "admin";
+  const canEditInventoryItemSettings = canManageInventoryCorrections || isDoctorRole(role) || role === "assistant";
   const includeDeleted = canManageInventoryCorrections;
 
   const itemMap = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
@@ -1060,7 +1062,7 @@ export function InventoryAdminPage() {
               usageByMovement={usageByMovement}
               usageMovementIds={usageMovementIds}
               unitMap={unitMap}
-              canEditItem={canManageInventoryCorrections}
+              canEditItem={canEditInventoryItemSettings}
               onEditItem={() => openModal("item", selectedHistoryItem)}
               onRegisterEntry={() => openMovementModal("entrada")}
               onRegisterExit={() => openMovementModal("salida", "Uso interno sin paciente")}
@@ -1290,6 +1292,7 @@ export function InventoryAdminPage() {
             lots,
             itemMap,
             canManageInventoryCorrections,
+            canEditInventoryItemSettings,
           })}
           {saveStatus ? (
             <div className="mt-6 rounded-[22px] border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
@@ -2081,6 +2084,7 @@ function renderModalFields(props: {
   lots: InventoryLotRow[];
   itemMap: Map<string, InventoryItemRow>;
   canManageInventoryCorrections: boolean;
+  canEditInventoryItemSettings: boolean;
 }) {
   if (props.modal === "item") {
     const f = props.itemForm;
@@ -2125,7 +2129,7 @@ function renderModalFields(props: {
             <NumberField label={`Stock actual en ${consumptionUnit}`} value={f.current_stock} onChange={(current_stock) => set({ ...f, current_stock })} />
             <NumberField label={`Stock minimo en ${consumptionUnit}`} value={f.minimum_stock} onChange={(minimum_stock) => set({ ...f, minimum_stock })} />
           </>
-        ) : (
+        ) : props.canEditInventoryItemSettings ? (
           <>
             <ReadOnlyMetric label="Stock actual" value={formatStockSummary(Number(f.current_stock ?? 0), consumptionUnit, f.presentation_unit_id, Number(f.units_per_presentation), new Map(props.units.map((unit) => [unit.id, unit])))} />
             {usesPresentation ? (
@@ -2133,7 +2137,13 @@ function renderModalFields(props: {
             ) : (
               <NumberField label={`Stock minimo en ${consumptionUnit}`} value={f.minimum_stock} onChange={(minimum_stock) => set({ ...f, minimum_stock })} />
             )}
-            <InlineHint text="Solo Superusuario o Administrador/a puede cambiar el stock actual directo. Para aumentar o descontar inventario usa movimientos, lotes, pedidos o cierre de turno." />
+            <InlineHint text="Puedes cambiar el stock minimo. Solo Superusuario o Administrador/a puede cambiar el stock actual directo; para aumentar o descontar inventario usa movimientos, lotes, pedidos o cierre de turno." />
+          </>
+        ) : (
+          <>
+            <ReadOnlyMetric label="Stock actual" value={formatStockSummary(Number(f.current_stock ?? 0), consumptionUnit, f.presentation_unit_id, Number(f.units_per_presentation), new Map(props.units.map((unit) => [unit.id, unit])))} />
+            <ReadOnlyMetric label="Stock minimo" value={formatStockSummary(Number(f.minimum_stock ?? 0), consumptionUnit, f.presentation_unit_id, Number(f.units_per_presentation), new Map(props.units.map((unit) => [unit.id, unit])))} />
+            <InlineHint text="Este rol no puede modificar la configuracion del item." />
           </>
         )}
         <NumberField label="Costo unitario" value={f.reference_cost} onChange={(reference_cost) => set({ ...f, reference_cost })} />
