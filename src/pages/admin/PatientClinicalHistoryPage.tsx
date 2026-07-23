@@ -668,7 +668,7 @@ export function PatientClinicalHistoryPage() {
                   <div key={usage.id} className="rounded-[8px] bg-[rgba(247,242,236,0.78)] p-4">
                     <p className="font-semibold">{usage.inventory_items?.name ?? "Insumo"}</p>
                     <p className="mt-1 text-sm text-[var(--color-copy)]">
-                      {usage.quantity} {usage.unit_label ?? usage.inventory_items?.unit ?? "u"} - {formatDate(usage.created_at)}
+                      {usage.quantity} {usage.inventory_items?.unit ?? usage.unit_label ?? "u"} - {formatDate(usage.created_at)}
                     </p>
                     {usage.inventory_lots?.lot_number ? <p className="mt-1 text-xs text-[var(--color-copy)]">Lote: {usage.inventory_lots.lot_number}</p> : null}
                     {usage.notes ? <p className="mt-2 text-sm leading-7 text-[var(--color-copy)]">{usage.notes}</p> : null}
@@ -951,7 +951,7 @@ function NotesList({
               <ClinicalBlock label="Observaciones" value={note.observations} />
               <ClinicalBlock label="Consentimiento" value={note.consent_notes} />
             </div>
-            {noteUsages.length > 0 ? <TagLine icon={<PackageMinus className="h-4 w-4" />} text={noteUsages.map((usage) => `${usage.inventory_items?.name ?? "Insumo"}: ${usage.quantity} ${usage.unit_label ?? ""}`).join(" | ")} /> : null}
+            {noteUsages.length > 0 ? <TagLine icon={<PackageMinus className="h-4 w-4" />} text={noteUsages.map((usage) => `${usage.inventory_items?.name ?? "Insumo"}: ${usage.quantity} ${usage.inventory_items?.unit ?? usage.unit_label ?? ""}`).join(" | ")} /> : null}
             {noteEvolutions.length > 0 ? <TagLine icon={<ClipboardList className="h-4 w-4" />} text={`${noteEvolutions.length} control(es) registrado(s)`} /> : null}
             {notePhotos.length > 0 ? (
               <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">

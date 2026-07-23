@@ -1727,7 +1727,7 @@ function InventoryItemTracePanel({
           {usages.slice(0, 6).map((usage) => (
             <TraceRow
               key={usage.id}
-              title={`${usage.patients?.full_name ?? "Paciente"} - ${formatInventoryNumber(usage.quantity)} ${usage.unit_label ?? unitLabel}`}
+              title={`${usage.patients?.full_name ?? "Paciente"} - ${formatInventoryNumber(usage.quantity)} ${unitLabel}`}
               detail={[
                 formatDateTime(usage.created_at),
                 formatActorLabel(usage.created_by_profile, usage.created_by),
@@ -2861,7 +2861,7 @@ function buildInventoryUsageReportRows({
         category: categoryMap.get(item?.category_id ?? "")?.name ?? item?.category ?? "",
         reportType: "Uso paciente" as const,
         quantity,
-        unitLabel: usage.unit_label ?? getItemUnitLabel(item, unitMap),
+        unitLabel: item ? getItemUnitLabel(item, unitMap) : usage.unit_label ?? "u",
         lotLabel: usage.inventory_lots?.lot_number ?? "",
         responsible: formatActorLabel(usage.created_by_profile, usage.created_by),
         patient: usage.patients?.full_name ?? "",
