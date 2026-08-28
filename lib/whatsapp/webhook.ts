@@ -13,12 +13,30 @@ type WhatsAppMessage = {
   text?: {
     body?: string;
   };
+  image?: { id?: string; mime_type?: string; caption?: string };
+  document?: { id?: string; mime_type?: string; caption?: string; filename?: string };
+  audio?: { id?: string; mime_type?: string };
+  video?: { id?: string; mime_type?: string; caption?: string };
+  button?: { text?: string; payload?: string };
+  interactive?: {
+    button_reply?: { id?: string; title?: string };
+    list_reply?: { id?: string; title?: string; description?: string };
+  };
+  context?: { id?: string };
+};
+
+export type WhatsAppStatusEvent = {
+  id?: string;
+  status: "sent" | "delivered" | "read" | "failed" | "deleted";
+  timestamp?: string;
+  recipient_id?: string;
+  errors?: Array<{ code?: number | string; title?: string; message?: string }>;
 };
 
 type WhatsAppChangeValue = {
   contacts?: WhatsAppContact[];
   messages?: WhatsAppMessage[];
-  statuses?: unknown[];
+  statuses?: WhatsAppStatusEvent[];
 };
 
 type WhatsAppWebhookPayload = {
@@ -36,12 +54,17 @@ export type IncomingWhatsAppMessage = {
   timestamp?: string;
   type: string;
   text?: string;
+  mediaId?: string;
+  mimeType?: string;
+  filename?: string;
+  replyToMessageId?: string;
+  raw: Record<string, unknown>;
 };
 
 export type WebhookExtractionResult = {
   textMessages: IncomingWhatsAppMessage[];
   unsupportedMessages: IncomingWhatsAppMessage[];
-  statusEventCount: number;
+  statusEvents: WhatsAppStatusEvent[];
 };
 
 function findContactName(contacts: WhatsAppContact[] | undefined, waId: string) {
@@ -51,13 +74,27 @@ function findContactName(contacts: WhatsAppContact[] | undefined, waId: string) 
 function toIncomingMessage(message: WhatsAppMessage, contacts?: WhatsAppContact[]): IncomingWhatsAppMessage | null {
   if (!message.from) return null;
 
+  const text = message.text?.body
+    ?? message.image?.caption
+    ?? message.document?.caption
+    ?? message.video?.caption
+    ?? message.button?.text
+    ?? message.interactive?.button_reply?.title
+    ?? message.interactive?.list_reply?.title;
+  const media = message.image ?? message.document ?? message.audio ?? message.video;
+
   return {
     from: message.from,
     contactName: findContactName(contacts, message.from),
     id: message.id,
     timestamp: message.timestamp,
     type: message.type ?? "unknown",
-    text: message.text?.body,
+    text,
+    mediaId: media?.id,
+    mimeType: media?.mime_type,
+    filename: message.document?.filename,
+    replyToMessageId: message.context?.id,
+    raw: message as Record<string, unknown>,
   };
 }
 
@@ -69,7 +106,7 @@ export function extractIncomingWhatsAppMessages(payload: unknown): WebhookExtrac
   const result: WebhookExtractionResult = {
     textMessages: [],
     unsupportedMessages: [],
-    statusEventCount: 0,
+    statusEvents: [],
   };
 
   if (!isWebhookPayload(payload)) return result;
@@ -80,14 +117,14 @@ export function extractIncomingWhatsAppMessages(payload: unknown): WebhookExtrac
 
       if (!value) continue;
 
-      result.statusEventCount += value.statuses?.length ?? 0;
+      result.statusEvents.push(...(value.statuses ?? []));
 
       for (const message of value.messages ?? []) {
         const incomingMessage = toIncomingMessage(message, value.contacts);
 
         if (!incomingMessage) continue;
 
-        if (incomingMessage.type === "text" && incomingMessage.text) {
+        if (["text", "image", "document", "audio", "video", "button", "interactive"].includes(incomingMessage.type)) {
           result.textMessages.push(incomingMessage);
         } else {
           result.unsupportedMessages.push(incomingMessage);
@@ -97,10 +134,4 @@ export function extractIncomingWhatsAppMessages(payload: unknown): WebhookExtrac
   }
 
   return result;
-}
-
-export async function hasProcessedMessagePersistently(messageId: string) {
-  void messageId;
-  // Phase 1 keeps idempotency in memory per request. Persist this check in Supabase later.
-  return false;
 }

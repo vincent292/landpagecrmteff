@@ -11,8 +11,12 @@ type SendWhatsAppTextMessageInput = {
   body: string;
 };
 
-function readRequiredEnv(key: string) {
-  const value = process.env[key]?.trim();
+type MetaSendResponse = {
+  messages?: Array<{ id?: string }>;
+};
+
+function readRequiredEnv(key: string, fallbackKey?: string) {
+  const value = process.env[key]?.trim() || (fallbackKey ? process.env[fallbackKey]?.trim() : "");
 
   if (!value) {
     throw new Error(`Missing required WhatsApp environment variable: ${key}`);
@@ -45,8 +49,8 @@ function getMetaErrorDetails(body: MetaErrorBody | null) {
   };
 }
 
-export async function sendWhatsAppTextMessage({ to, body }: SendWhatsAppTextMessageInput) {
-  const accessToken = readRequiredEnv("WHATSAPP_ACCESS_TOKEN");
+async function sendWhatsAppPayload(to: string, payload: Record<string, unknown>) {
+  const accessToken = readRequiredEnv("WHATSAPP_ACCESS_TOKEN", "WHATSAPP_TOKEN");
   const phoneNumberId = readRequiredEnv("WHATSAPP_PHONE_NUMBER_ID");
   const apiVersion = readWhatsAppApiVersion();
 
@@ -60,11 +64,7 @@ export async function sendWhatsAppTextMessage({ to, body }: SendWhatsAppTextMess
       messaging_product: "whatsapp",
       recipient_type: "individual",
       to,
-      type: "text",
-      text: {
-        preview_url: false,
-        body,
-      },
+      ...payload,
     }),
   });
 
@@ -82,5 +82,33 @@ export async function sendWhatsAppTextMessage({ to, body }: SendWhatsAppTextMess
     throw new Error("Meta WhatsApp API request failed.");
   }
 
-  return response.json().catch(() => null);
+  return response.json().catch(() => null) as Promise<MetaSendResponse | null>;
+}
+
+export async function sendWhatsAppTextMessage({ to, body }: SendWhatsAppTextMessageInput) {
+  return sendWhatsAppPayload(to, {
+    type: "text",
+    text: { preview_url: /https?:\/\//i.test(body), body },
+  });
+}
+
+export async function sendWhatsAppImageMessage(input: { to: string; imageUrl: string; caption?: string }) {
+  return sendWhatsAppPayload(input.to, {
+    type: "image",
+    image: { link: input.imageUrl, ...(input.caption ? { caption: input.caption } : {}) },
+  });
+}
+
+export async function sendWhatsAppTemplateMessage(input: {
+  to: string;
+  templateName: string;
+  languageCode?: string;
+}) {
+  return sendWhatsAppPayload(input.to, {
+    type: "template",
+    template: {
+      name: input.templateName,
+      language: { code: input.languageCode || "es" },
+    },
+  });
 }

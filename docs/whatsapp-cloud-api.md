@@ -1,111 +1,99 @@
-# WhatsApp Cloud API
+# CRM de WhatsApp Cloud API + Gemini
 
-Este proyecto no usa Next.js App Router ni Pages Router. Es una app React/Vite desplegada en Vercel, por eso el webhook vive como Vercel Function en:
+El CRM vive en `/panel/crm-whatsapp` y solo es visible para los roles `admin` y `superadmin`.
 
-```text
-api/whatsapp/webhook.ts
-```
+## Arquitectura
 
-La URL publica del webhook queda:
+- `api/whatsapp/webhook.ts`: verificación y recepción del webhook de Meta.
+- `api/whatsapp/send.ts`: envío autenticado de texto, imagen/QR y plantillas.
+- `api/crm/knowledge-sync.ts`: sincronización controlada de información pública.
+- `lib/whatsapp/*`: firma HMAC, Meta, persistencia y Gemini.
+- `supabase/migrations/20260828120000_whatsapp_crm.sql`: tablas, índices, RLS y Realtime.
+- `src/pages/admin/WhatsAppCrmPage.tsx`: inbox, contacto, cita, pago y comprobante.
 
-```text
-https://DOMINIO-DEL-PROYECTO/api/whatsapp/webhook
-```
-
-Para el dominio actual del proyecto, usa:
-
-```text
-https://www.draballesteros.com/api/whatsapp/webhook
-```
+Los mensajes entrantes se guardan de forma idempotente usando `meta_message_id`. Los estados enviados por Meta (`sent`, `delivered`, `read`, `failed`, `deleted`) actualizan el mismo registro. La respuesta de Gemini se ejecuta con `waitUntil` para devolver `200` al webhook sin esperar a la IA.
 
 ## Variables de entorno
 
-Agrega estas variables en `.env.local` para pruebas locales con Vercel y tambien en Vercel para produccion:
+Configurar localmente y en Vercel. Nunca usar el service role o secretos en una variable `VITE_*`.
 
 ```env
-WHATSAPP_VERIFY_TOKEN=wp_ai_lab_verify_2026
+# Supabase solo servidor
+SUPABASE_URL=https://PROYECTO.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=
+
+# Meta WhatsApp
+WHATSAPP_VERIFY_TOKEN=
 WHATSAPP_ACCESS_TOKEN=
 WHATSAPP_PHONE_NUMBER_ID=
 WHATSAPP_BUSINESS_ACCOUNT_ID=
 META_APP_SECRET=
 WHATSAPP_API_VERSION=v25.0
+
+# Gemini
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-3.7-flash
+
+# URLs públicas
+PUBLIC_SITE_URL=https://www.draballesteros.com
+CRM_SOCIAL_URLS=https://www.instagram.com/PERFIL,https://www.tiktok.com/@PERFIL
+CRM_KNOWLEDGE_URLS=
 ```
 
-No coloques estos secretos directamente en el codigo.
+`WHATSAPP_TOKEN` sigue siendo aceptado como alias local de `WHATSAPP_ACCESS_TOKEN`, pero en producción se recomienda el nombre explícito.
 
-`WHATSAPP_VERIFY_TOKEN` no es el access token de Meta. Es una cadena privada creada por nosotros para que Meta pueda verificar que el endpoint nos pertenece. Puedes usar, por ejemplo:
+## Puesta en marcha
 
-```text
-wp_ai_lab_verify_2026
-```
+1. Aplicar la migración:
 
-## Variables en Vercel
+   ```powershell
+   npx supabase db push
+   ```
 
-En Vercel entra a Project Settings > Environment Variables y crea:
+2. Configurar todas las variables anteriores en Vercel para Production y Preview.
+3. Desplegar el proyecto.
+4. En Meta Developers configurar:
 
-```text
-WHATSAPP_VERIFY_TOKEN
-WHATSAPP_ACCESS_TOKEN
-WHATSAPP_PHONE_NUMBER_ID
-WHATSAPP_BUSINESS_ACCOUNT_ID
-META_APP_SECRET
-WHATSAPP_API_VERSION
-```
+   ```text
+   Callback URL: https://www.draballesteros.com/api/whatsapp/webhook
+   Verify token: el mismo valor de WHATSAPP_VERIFY_TOKEN
+   Campo suscrito: messages
+   ```
 
-Usa `v25.0` como valor de `WHATSAPP_API_VERSION`.
+5. Enviar un mensaje de prueba al número de WhatsApp.
+6. Abrir `/panel/crm-whatsapp` con administradora o superusuario.
+7. Pulsar **Sincronizar información** para cargar tratamientos, promociones, cursos, doctoras, ajustes públicos y las URLs externas configuradas.
 
-## Diferencia entre variables
+## Flujo de citas y pagos
 
-- `WHATSAPP_VERIFY_TOKEN`: texto privado creado por nosotros para validar el webhook en Meta.
-- `WHATSAPP_ACCESS_TOKEN`: token de acceso de Meta usado para enviar mensajes por la Graph API.
-- `WHATSAPP_PHONE_NUMBER_ID`: identificador del numero de WhatsApp dentro de Meta.
-- `WHATSAPP_BUSINESS_ACCOUNT_ID`: identificador de la cuenta de WhatsApp Business.
-- `META_APP_SECRET`: secreto de la app de Meta; se usa para validar la firma `x-hub-signature-256`.
+El CRM reutiliza el sistema existente:
 
-## Configuracion en Meta
+1. La persona solicita una cita y Gemini comparte `/reservar-cita` cuando corresponde.
+2. La administradora vincula la conversación con una fila de `appointment_reservations`.
+3. Si la reserva tiene `public_payment_token`, puede enviar `/pago-cita/:token` desde el CRM.
+4. También puede enviar la imagen del QR general configurado en el panel.
+5. La persona sube su comprobante desde la página pública de pago.
+6. El CRM muestra **Ver comprobante** mediante una URL privada firmada.
 
-En el panel de Meta Developers, configura el webhook con estos valores:
+## Reglas operativas y de seguridad
 
-```text
-URL de devolucion de llamada:
-https://www.draballesteros.com/api/whatsapp/webhook
+- Meta y Gemini se invocan solo en servidor; los secretos nunca llegan al navegador.
+- El webhook exige firma `x-hub-signature-256` en producción.
+- RLS restringe todas las tablas CRM a `admin` y `superadmin`.
+- Los endpoints manuales vuelven a validar JWT y rol en el servidor.
+- Gemini no diagnostica, prescribe ni promete resultados; deriva reclamos, emergencias y solicitudes de atención humana.
+- Al pedir atención humana se pausa la IA para esa conversación.
+- Fuera de la ventana de atención de 24 horas solo se permiten plantillas aprobadas por Meta.
+- Las redes sociales pueden bloquear extracción automatizada. En ese caso se debe agregar un resumen aprobado como fuente manual o una URL pública accesible; el error queda informado en la sincronización.
 
-Token de verificacion:
-wp_ai_lab_verify_2026
-```
+## Pruebas mínimas antes de producción
 
-El token de verificacion debe ser exactamente el mismo valor guardado en `WHATSAPP_VERIFY_TOKEN`.
-
-Luego:
-
-1. Presiona "Verificar y guardar".
-2. Suscribete al campo `messages`.
-3. Guarda los cambios.
-
-## Como probar
-
-1. Despliega el proyecto en Vercel con las variables configuradas.
-2. Envia un mensaje de texto al numero registrado en WhatsApp Cloud API.
-3. Revisa los logs de Vercel.
-4. Confirma que aparece un log de mensaje entrante.
-5. Confirma que WhatsApp responde:
-
-```text
-¡Hola! 👋 El asistente de WhatsApp está funcionando correctamente.
-```
-
-## Firma de Meta
-
-El codigo incluye validacion preparada para `x-hub-signature-256` usando `META_APP_SECRET` y HMAC SHA-256.
-
-En esta fase:
-
-- El `GET` de verificacion no bloquea por firma.
-- El `POST` rechaza la peticion si Meta envia una firma invalida.
-- Si no llega la firma, el webhook continua y deja un log informativo para facilitar la primera configuracion.
-
-## Alcance de esta fase
-
-Esta fase solo verifica el webhook, recibe eventos, registra mensajes entrantes en logs y responde con un texto fijo.
-
-No integra Gemini, OpenAI, DeepSeek, Google Calendar, logica de citas, n8n ni nuevas tablas de Supabase.
+- Verificación GET del webhook con token correcto e incorrecto.
+- POST sin firma, con firma inválida y con firma válida.
+- Reenvío del mismo payload para confirmar idempotencia.
+- Mensaje entrante de texto, imagen y documento.
+- Estado de entrega, lectura y fallo.
+- Toma manual del chat y pausa de Gemini.
+- Envío de texto dentro de 24 h y rechazo fuera de ventana.
+- Envío de una plantilla aprobada fuera de ventana.
+- Vinculación de cita, envío de QR/enlace y visualización del comprobante.

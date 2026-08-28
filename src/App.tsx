@@ -65,6 +65,7 @@ const ReservationsAdminPage = lazyPage(() => import("./pages/admin/ReservationsA
 const SavingsCardsAdminPage = lazyPage(() => import("./pages/admin/SavingsCardsAdminPage"), "SavingsCardsAdminPage");
 const SavingsCardAdminDetailPage = lazyPage(() => import("./pages/admin/SavingsCardAdminDetailPage"), "SavingsCardAdminDetailPage");
 const SiteSettingsAdminPage = lazyPage(() => import("./pages/admin/SiteSettingsAdminPage"), "SiteSettingsAdminPage");
+const WhatsAppCrmPage = lazyPage(() => import("./pages/admin/WhatsAppCrmPage"), "WhatsAppCrmPage");
 const HomePage = lazyPage(loadHomePage, "HomePage");
 const PatientAppointmentsPage = lazyPage(() => import("./pages/patient/PatientAppointmentsPage"), "PatientAppointmentsPage");
 const PatientBooksPage = lazyPage(() => import("./pages/patient/PatientBooksPage"), "PatientBooksPage");
@@ -187,6 +188,7 @@ export default function App() {
           <Route path="inventario" element={<InventoryAdminPage />} />
           <Route path="caja" element={<CashAdminPage />} />
           <Route path="pagos-reservas" element={<PaymentsAndReservationsAdminPage />} />
+          <Route path="crm-whatsapp" element={<WhatsAppCrmPage />} />
           <Route path="reportes-operativos" element={<OperationalReportsAdminPage />} />
           <Route path="calificaciones" element={<ServiceFeedbackAdminPage />} />
           <Route path="planes-pago" element={<PaymentPlansAdminPage />} />

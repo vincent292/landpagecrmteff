@@ -45,6 +45,7 @@ const adminSections: AdminSection[] = [
       { label: "Inventario", href: "/panel/inventario", module: "inventario" },
       { label: "Caja", href: "/panel/caja", module: "caja" },
       { label: "Pagos y Reservas", href: "/panel/pagos-reservas", module: "pagos-reservas" },
+      { label: "CRM WhatsApp", href: "/panel/crm-whatsapp", module: "crm-whatsapp" },
       { label: "Reportes operativos", href: "/panel/reportes-operativos", module: "reportes-operativos" },
       { label: "Calificaciones", href: "/panel/calificaciones", module: "calificaciones" },
       { label: "Planes de pago", href: "/panel/planes-pago", module: "planes-pago" },
