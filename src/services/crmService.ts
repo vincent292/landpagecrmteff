@@ -91,19 +91,19 @@ export async function updateCrmContact(contactId: string, values: Partial<Pick<C
   if (error) throw error;
 }
 
-async function authorizedPost(path: string, body: Record<string, unknown>) {
-  const { data } = await supabase.auth.getSession();
-  const accessToken = data.session?.access_token;
-  if (!accessToken) throw new Error("Tu sesión expiró. Inicia sesión nuevamente.");
+async function invokeCrmFunction(name: string, body: Record<string, unknown>) {
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData.session) throw new Error("Tu sesión expiró. Inicia sesión nuevamente.");
 
-  const response = await fetch(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-    body: JSON.stringify(body),
-  });
-  const payload = (await response.json().catch(() => ({}))) as { error?: string };
-  if (!response.ok) throw new Error(payload.error || "La operación no pudo completarse.");
-  return payload;
+  const { data, error } = await supabase.functions.invoke(name, { body });
+  if (error) {
+    const context = error.context as Response | undefined;
+    const payload = context
+      ? await context.clone().json().catch(() => null) as { error?: string } | null
+      : null;
+    throw new Error(payload?.error || error.message || "La operación no pudo completarse.");
+  }
+  return data as Record<string, unknown>;
 }
 
 export async function sendCrmMessage(input: {
@@ -112,11 +112,11 @@ export async function sendCrmMessage(input: {
   imageUrl?: string;
   templateName?: string;
 }) {
-  return authorizedPost("/api/whatsapp/send", input);
+  return invokeCrmFunction("whatsapp-send", input);
 }
 
 export async function syncCrmKnowledge() {
-  return authorizedPost("/api/crm/knowledge-sync", {});
+  return invokeCrmFunction("crm-knowledge-sync", {});
 }
 
 export async function getCrmReservationOptions() {
