@@ -17,18 +17,23 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { buildCanonicalUrl } from "../../lib/siteUrl";
 import {
   getCrmConversations,
+  getCrmBookingSession,
   getCrmMessages,
   getCrmReservationOptions,
+  getCrmSettings,
   markCrmConversationRead,
   sendCrmMessage,
   subscribeToCrm,
   syncCrmKnowledge,
   updateCrmContact,
   updateCrmConversation,
+  updateCrmSettings,
+  type CrmBookingSession,
   type CrmConversation,
   type CrmLeadStage,
   type CrmMessage,
   type CrmReservation,
+  type CrmSettings,
 } from "../../services/crmService";
 import { getReservationReceiptUrl } from "../../services/reservationService";
 import { getSiteSettings } from "../../services/siteSettingsService";
@@ -41,6 +46,19 @@ const stages: Array<{ value: CrmLeadStage; label: string }> = [
   { value: "paciente", label: "Paciente" },
   { value: "cerrado", label: "Cerrado" },
 ];
+
+const bookingStatusLabels: Record<CrmBookingSession["status"], string> = {
+  collecting_identity: "Solicitando datos",
+  choosing_date: "Eligiendo fecha",
+  choosing_time: "Eligiendo horario",
+  awaiting_payment: "Esperando comprobante",
+  payment_review: "Pago por revisar",
+  approved: "Cita confirmada",
+  rejected: "Pago rechazado",
+  expired: "Retención vencida",
+  cancelled: "Proceso cancelado",
+  needs_human: "Requiere administración",
+};
 
 function formatTime(value?: string | null) {
   if (!value) return "";
@@ -67,6 +85,8 @@ export function WhatsAppCrmPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
   const [paymentQrUrl, setPaymentQrUrl] = useState<string | null>(null);
+  const [booking, setBooking] = useState<CrmBookingSession | null>(null);
+  const [automationSettings, setAutomationSettings] = useState<CrmSettings | null>(null);
   const [clock, setClock] = useState(() => Date.now());
 
   const selected = useMemo(
@@ -85,11 +105,16 @@ export function WhatsAppCrmPage() {
     setMessages(rows);
   }, []);
 
+  const loadBooking = useCallback(async (conversationId: string) => {
+    setBooking(await getCrmBookingSession(conversationId));
+  }, []);
+
   useEffect(() => {
-    void Promise.all([loadConversations(), getCrmReservationOptions(), getSiteSettings()])
-      .then(([, reservationRows, settings]) => {
+    void Promise.all([loadConversations(), getCrmReservationOptions(), getSiteSettings(), getCrmSettings()])
+      .then(([, reservationRows, settings, crmSettings]) => {
         setReservations(reservationRows);
         setPaymentQrUrl(settings.payment_qr_image ?? settings.appointment_qr_payment_image ?? null);
+        setAutomationSettings(crmSettings);
       })
       .catch((cause) => setError(cause instanceof Error ? cause.message : "No se pudo cargar el CRM."))
       .finally(() => setLoading(false));
@@ -100,15 +125,18 @@ export function WhatsAppCrmPage() {
       setMessages([]);
       return;
     }
-    void Promise.all([loadMessages(selectedId), markCrmConversationRead(selectedId)])
+    void Promise.all([loadMessages(selectedId), loadBooking(selectedId), markCrmConversationRead(selectedId)])
       .then(() => setConversations((rows) => rows.map((row) => row.id === selectedId ? { ...row, unread_count: 0 } : row)))
       .catch((cause) => setError(cause instanceof Error ? cause.message : "No se pudo abrir la conversación."));
-  }, [loadMessages, selectedId]);
+  }, [loadBooking, loadMessages, selectedId]);
 
   useEffect(() => subscribeToCrm(selectedId, () => {
     void loadConversations();
-    if (selectedId) void loadMessages(selectedId);
-  }), [loadConversations, loadMessages, selectedId]);
+    if (selectedId) {
+      void loadMessages(selectedId);
+      void loadBooking(selectedId);
+    }
+  }), [loadBooking, loadConversations, loadMessages, selectedId]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setClock(Date.now()), 60_000);
@@ -213,6 +241,16 @@ export function WhatsAppCrmPage() {
   async function handleReservationLink(reservationId: string) {
     await patchConversation({ appointment_reservation_id: reservationId || null });
     if (reservationId) await patchContact({ lead_stage: "cita" });
+  }
+
+  async function patchAutomationSettings(values: Partial<CrmSettings>) {
+    try {
+      const updated = await updateCrmSettings(values);
+      setAutomationSettings(updated);
+      setNotice("Configuración de automatización actualizada.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo actualizar la automatización.");
+    }
   }
 
   const reservation = selected?.appointment_reservations;
@@ -342,6 +380,21 @@ export function WhatsAppCrmPage() {
                 </select>
               </div>
 
+              {booking ? (
+                <div className="border-t border-[var(--color-border)] pt-5">
+                  <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-accent-strong)]"><CreditCard className="h-4 w-4" /> Reserva por WhatsApp</p>
+                  <div className="mt-3 rounded-2xl border border-[var(--color-border)] bg-[#fbf7f2] p-3 text-xs">
+                    <p className="font-semibold">{booking.treatments?.title || "Tratamiento"}</p>
+                    <p className="mt-1 text-[var(--color-copy)]">{bookingStatusLabels[booking.status]}</p>
+                    {booking.appointment_date ? <p className="mt-2">{booking.appointment_date} · {booking.start_time?.slice(0, 5)}–{booking.end_time?.slice(0, 5)}</p> : null}
+                    {booking.amount_due ? <p className="mt-1">Pago solicitado: {Number(booking.amount_due).toFixed(2)} Bs</p> : null}
+                    {booking.hold_expires_at && booking.status === "awaiting_payment" ? <p className="mt-1 text-amber-800">Retención hasta {formatTime(booking.hold_expires_at)}</p> : null}
+                    {booking.payment_receipt_path ? <p className="mt-1 font-semibold text-emerald-800">Comprobante recibido</p> : null}
+                    {booking.status === "payment_review" ? <a href="/panel/pagos-reservas" className="mt-3 flex w-full items-center justify-center rounded-full bg-[var(--color-mocha)] px-3 py-2 font-semibold text-white">Revisar y aprobar pago</a> : null}
+                  </div>
+                </div>
+              ) : null}
+
               <div className="border-t border-[var(--color-border)] pt-5">
                 <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-accent-strong)]"><CalendarDays className="h-4 w-4" /> Cita vinculada</p>
                 <select value={selected.appointment_reservation_id ?? ""} onChange={(event) => void handleReservationLink(event.target.value)} className="mt-3 w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs">
@@ -363,6 +416,24 @@ export function WhatsAppCrmPage() {
                 <label className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-accent-strong)]">Notas internas</label>
                 <textarea key={`${selected.crm_contacts.id}-notes`} defaultValue={selected.crm_contacts.notes ?? ""} onBlur={(event) => void patchContact({ notes: event.target.value.trim() || null })} rows={5} placeholder="Seguimiento, preferencias o contexto comercial…" className="mt-3 w-full resize-none rounded-2xl border border-[var(--color-border)] bg-white px-3 py-2 text-sm" />
               </div>
+
+              {automationSettings ? (
+                <div className="border-t border-[var(--color-border)] pt-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-accent-strong)]">Automatización Meta</p>
+                  <label className="mt-3 block text-[11px] text-[var(--color-copy)]">Plantilla de confirmación al paciente</label>
+                  <input key={`patient-template-${automationSettings.patient_confirmation_template}`} defaultValue={automationSettings.patient_confirmation_template ?? ""} onBlur={(event) => void patchAutomationSettings({ patient_confirmation_template: event.target.value.trim() || null })} placeholder="cita_confirmada" className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs" />
+                  <label className="mt-2 block text-[11px] text-[var(--color-copy)]">Plantilla de aviso a la doctora</label>
+                  <input key={`doctor-template-${automationSettings.doctor_booking_template}`} defaultValue={automationSettings.doctor_booking_template ?? ""} onBlur={(event) => void patchAutomationSettings({ doctor_booking_template: event.target.value.trim() || null })} placeholder="nueva_cita_doctora" className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs" />
+                  <label className="mt-2 block text-[11px] text-[var(--color-copy)]">Plantilla de pago rechazado</label>
+                  <input key={`rejected-template-${automationSettings.payment_rejected_template}`} defaultValue={automationSettings.payment_rejected_template ?? ""} onBlur={(event) => void patchAutomationSettings({ payment_rejected_template: event.target.value.trim() || null })} placeholder="comprobante_rechazado" className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs" />
+                  <label className="mt-2 block text-[11px] text-[var(--color-copy)]">Minutos de retención del cupo</label>
+                  <input type="number" min={10} max={120} value={automationSettings.booking_hold_minutes} onChange={(event) => setAutomationSettings({ ...automationSettings, booking_hold_minutes: Number(event.target.value) })} onBlur={(event) => void patchAutomationSettings({ booking_hold_minutes: Math.max(10, Math.min(120, Number(event.target.value) || 30)) })} className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs" />
+                  <label className="mt-3 flex items-center gap-2 text-xs">
+                    <input type="checkbox" checked={automationSettings.allow_external_grounding} onChange={(event) => void patchAutomationSettings({ allow_external_grounding: event.target.checked })} />
+                    Permitir consulta web puntual con Gemini
+                  </label>
+                </div>
+              ) : null}
 
               <div className="grid grid-cols-2 gap-2">
                 <select value={selected.priority} onChange={(event) => void patchConversation({ priority: event.target.value as CrmConversation["priority"] })} className="rounded-xl border border-[var(--color-border)] bg-white px-2 py-2 text-xs"><option value="baja">Prioridad baja</option><option value="normal">Normal</option><option value="alta">Alta</option><option value="urgente">Urgente</option></select>

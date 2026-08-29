@@ -12,6 +12,7 @@ import {
   sendMetaMessage,
   verifyMetaSignature,
 } from "../_shared/whatsapp-crm.ts";
+import { handleBookingConversation } from "../_shared/whatsapp-booking.ts";
 
 declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
 
@@ -29,6 +30,7 @@ async function answerWithAi(input: {
     knowledge: context.knowledge,
     bookingUrl: context.settings.booking_url,
     customSystemPrompt: context.settings.ai_system_prompt,
+    allowExternalGrounding: context.settings.allow_external_grounding !== false,
   });
   const meta = await sendMetaMessage(input.to, {
     type: "text",
@@ -93,7 +95,9 @@ Deno.serve(async (request) => {
   for (const message of incoming) {
     try {
       const persisted = await persistInboundMessage(admin, message);
-      if (persisted.duplicate || !message.text || !persisted.conversation.ai_enabled || persisted.conversation.needs_human) continue;
+      if (persisted.duplicate) continue;
+      const bookingHandled = await handleBookingConversation(admin, persisted, message);
+      if (bookingHandled || !message.text || !persisted.conversation.ai_enabled || persisted.conversation.needs_human) continue;
       EdgeRuntime.waitUntil(answerWithAi({
         conversationId: persisted.conversation.id,
         contactName: persisted.contact.full_name,

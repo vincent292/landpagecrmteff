@@ -30,6 +30,7 @@ import {
   verifyBookOrder,
 } from "../../services/bookOrderService";
 import { getMyDoctorProfile } from "../../services/doctorService";
+import { dispatchCrmNotifications } from "../../services/crmService";
 import {
   approvePromotionOrder,
   getPromotionOrderReceiptUrl,
@@ -266,6 +267,7 @@ export function PaymentsAndReservationsAdminPage() {
     try {
       let successMessage = "Pago aprobado y enviado correctamente a caja.";
       let whatsappMessage = "";
+      let automatedWhatsApp = false;
 
       if (approvalDraft.item.kind === "promotion") {
         await approvePromotionOrder(approvalDraft.item.id, {
@@ -275,12 +277,19 @@ export function PaymentsAndReservationsAdminPage() {
         });
         whatsappMessage = buildApprovedWhatsappMessage(approvalDraft.item, approvalDraft.amount, approvalDraft.paymentMethod);
       } else if (approvalDraft.item.kind === "treatment") {
+        automatedWhatsApp = /whatsapp/i.test(approvalDraft.item.row.notes ?? "");
         await approveTreatmentOrder(approvalDraft.item.id, {
           adminNotes: approvalDraft.notes,
           paymentAmount: approvalDraft.amount,
           paymentMethod: approvalDraft.paymentMethod,
         });
         whatsappMessage = buildApprovedWhatsappMessage(approvalDraft.item, approvalDraft.amount, approvalDraft.paymentMethod);
+        if (automatedWhatsApp) {
+          const dispatch = await dispatchCrmNotifications() as { sent?: number; needsTemplate?: number; failed?: number };
+          successMessage = dispatch.needsTemplate
+            ? "Pago aprobado y cita confirmada. Quedaron notificaciones esperando las plantillas aprobadas de Meta."
+            : `Pago aprobado, cita confirmada y ${dispatch.sent ?? 0} notificación(es) enviada(s).`;
+        }
       } else if (approvalDraft.item.kind === "course") {
         await updateEnrollmentNotes(approvalDraft.item.id, approvalDraft.notes);
         await approveEnrollmentPayment(approvalDraft.item.id, {
@@ -313,7 +322,7 @@ export function PaymentsAndReservationsAdminPage() {
         whatsappMessage = buildApprovedWhatsappMessage(approvalDraft.item, approvalDraft.amount, approvalDraft.paymentMethod);
       }
 
-      openWhatsAppConversation(approvalDraft.item.phone, whatsappMessage);
+      if (!automatedWhatsApp) openWhatsAppConversation(approvalDraft.item.phone, whatsappMessage);
       setApprovalDraft(null);
       setMessage(successMessage);
       await load();
@@ -363,6 +372,7 @@ export function PaymentsAndReservationsAdminPage() {
     setError("");
     setMessage("");
     try {
+      const automatedWhatsApp = item.kind === "treatment" && /whatsapp/i.test(item.row.notes ?? "");
       if (item.kind === "promotion") {
         await updatePromotionOrderStatus(item.id, "Rechazado", notes);
       } else if (item.kind === "treatment") {
@@ -376,8 +386,15 @@ export function PaymentsAndReservationsAdminPage() {
       } else {
         await rejectReservationPayment(item.id, notes);
       }
-      openWhatsAppConversation(item.phone, buildRejectedWhatsappMessage(item, notes));
-      setMessage("Pago rechazado correctamente.");
+      if (automatedWhatsApp) {
+        const dispatch = await dispatchCrmNotifications() as { sent?: number; needsTemplate?: number };
+        setMessage(dispatch.needsTemplate
+          ? "Pago rechazado y cupo liberado. La notificación espera una plantilla aprobada de Meta."
+          : `Pago rechazado, cupo liberado y ${dispatch.sent ?? 0} notificación(es) enviada(s).`);
+      } else {
+        openWhatsAppConversation(item.phone, buildRejectedWhatsappMessage(item, notes));
+        setMessage("Pago rechazado correctamente.");
+      }
       await load();
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : "No pudimos rechazar este pago.");

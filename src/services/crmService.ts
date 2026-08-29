@@ -57,6 +57,35 @@ export type CrmMessage = {
   occurred_at: string;
 };
 
+export type CrmBookingSession = {
+  id: string;
+  status: "collecting_identity" | "choosing_date" | "choosing_time" | "awaiting_payment" | "payment_review" | "approved" | "rejected" | "expired" | "cancelled" | "needs_human";
+  full_name: string | null;
+  document_number: string | null;
+  email: string | null;
+  city: string | null;
+  appointment_date: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  amount_due: number | null;
+  hold_expires_at: string | null;
+  payment_receipt_path: string | null;
+  payment_submitted_at: string | null;
+  treatment_order_id: string | null;
+  appointment_reservation_id: string | null;
+  treatments?: { title: string | null } | null;
+  treatment_orders?: { status: string | null } | null;
+};
+
+export type CrmSettings = {
+  patient_confirmation_template: string | null;
+  doctor_booking_template: string | null;
+  payment_rejected_template: string | null;
+  template_language: string;
+  booking_hold_minutes: number;
+  allow_external_grounding: boolean;
+};
+
 export async function getCrmConversations() {
   const { data, error } = await supabase
     .from("crm_conversations")
@@ -74,6 +103,34 @@ export async function getCrmMessages(conversationId: string) {
     .order("occurred_at", { ascending: true });
   if (error) throw error;
   return (data ?? []) as CrmMessage[];
+}
+
+export async function getCrmBookingSession(conversationId: string) {
+  const { data, error } = await supabase
+    .from("crm_booking_sessions")
+    .select("id,status,full_name,document_number,email,city,appointment_date,start_time,end_time,amount_due,hold_expires_at,payment_receipt_path,payment_submitted_at,treatment_order_id,appointment_reservation_id,treatments(title),treatment_orders(status)")
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data as unknown as CrmBookingSession | null;
+}
+
+export async function getCrmSettings() {
+  const { data, error } = await supabase
+    .from("crm_settings")
+    .select("patient_confirmation_template,doctor_booking_template,payment_rejected_template,template_language,booking_hold_minutes,allow_external_grounding")
+    .eq("id", true)
+    .single();
+  if (error) throw error;
+  return data as CrmSettings;
+}
+
+export async function updateCrmSettings(values: Partial<CrmSettings>) {
+  const { data, error } = await supabase.from("crm_settings").update(values).eq("id", true).select("patient_confirmation_template,doctor_booking_template,payment_rejected_template,template_language,booking_hold_minutes,allow_external_grounding").single();
+  if (error) throw error;
+  return data as CrmSettings;
 }
 
 export async function markCrmConversationRead(conversationId: string) {
@@ -119,6 +176,10 @@ export async function syncCrmKnowledge() {
   return invokeCrmFunction("crm-knowledge-sync", {});
 }
 
+export async function dispatchCrmNotifications() {
+  return invokeCrmFunction("crm-notification-dispatch", {});
+}
+
 export async function getCrmReservationOptions() {
   const { data, error } = await supabase
     .from("appointment_reservations")
@@ -140,6 +201,7 @@ export function subscribeToCrm(conversationId: string | null, onChange: () => vo
       onChange
     )
     .on("postgres_changes", { event: "UPDATE", schema: "public", table: "appointment_reservations" }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "crm_booking_sessions" }, onChange)
     .subscribe();
   return () => { void supabase.removeChannel(channel); };
 }
