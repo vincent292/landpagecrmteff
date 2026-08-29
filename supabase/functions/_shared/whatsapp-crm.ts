@@ -287,10 +287,7 @@ export async function generateGeminiReply(input: {
     "Nunca pidas contraseñas, datos de tarjeta ni información clínica extensa por WhatsApp.",
     input.customSystemPrompt?.trim() || "",
   ].filter(Boolean).join("\n");
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-    body: JSON.stringify({
+  const buildBody = (withGrounding: boolean) => JSON.stringify({
       system_instruction: { parts: [{ text: systemInstruction }] },
       contents: [{ role: "user", parts: [{ text: [
         `Nombre: ${input.contactName || "no informado"}`,
@@ -298,10 +295,22 @@ export async function generateGeminiReply(input: {
         `CONVERSACIÓN RECIENTE:\n${transcript}`,
         "Redacta únicamente el próximo mensaje de WhatsApp.",
       ].join("\n\n") }] }],
-      ...(input.allowExternalGrounding ? { tools: [{ google_search: {} }] } : {}),
+      ...(withGrounding ? { tools: [{ google_search: {} }] } : {}),
       generationConfig: { maxOutputTokens: 900, temperature: 0.25 },
-    }),
+    });
+  let response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+    body: buildBody(input.allowExternalGrounding === true),
   });
+  if (!response.ok && input.allowExternalGrounding === true) {
+    console.warn(`[whatsapp] Gemini grounding failed with ${response.status}; retrying without Google Search.`);
+    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+      body: buildBody(false),
+    });
+  }
   if (!response.ok) throw new Error(`Gemini API ${response.status}: ${(await response.text()).slice(0, 400)}`);
   const payload = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
   const text = payload.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("").trim() ?? "";
