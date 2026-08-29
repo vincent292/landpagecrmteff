@@ -325,7 +325,10 @@ export async function getFastCrmReply(admin: SupabaseClient, text?: string | nul
     .order("title")
     .limit(12);
   if (error) throw error;
-  const names = (data ?? []).map((row) => String(row.title).trim()).filter(Boolean);
+  const names = (data ?? [])
+    .map((row) => String(row.title).trim())
+    // Test records must never be shown to a real WhatsApp contact.
+    .filter((name) => name && !/\b(prueba|test|interna)\b/i.test(name));
   if (!names.length) return "En este momento estamos actualizando el catálogo de tratamientos. Una administradora puede orientarte.";
   const shown = names.slice(0, 10).map((name) => `• ${name}`).join("\n");
   const more = names.length > 10 ? "\n• Y otros tratamientos disponibles." : "";

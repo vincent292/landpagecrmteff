@@ -90,7 +90,10 @@ async function getBookableTreatments(admin: SupabaseClient) {
     .order("title")
     .limit(40);
   if (error) throw error;
-  return (data ?? []).filter((row) => Number(row.treatment_price ?? row.direct_booking_price ?? row.assessment_price ?? 0) > 0);
+  return (data ?? []).filter((row) =>
+    Number(row.treatment_price ?? row.direct_booking_price ?? row.assessment_price ?? 0) > 0
+    && !/\b(prueba|test|interna)\b/i.test(String(row.title ?? ""))
+  );
 }
 
 async function showTreatmentChoices(admin: SupabaseClient, persisted: PersistedInbound) {
