@@ -34,6 +34,32 @@ function sourceTypeFor(url: URL) {
   return "website";
 }
 
+function normalizedUrl(value: URL) {
+  const url = new URL(value.toString());
+  url.hash = "";
+  if (url.pathname !== "/" && url.pathname.endsWith("/")) url.pathname = url.pathname.slice(0, -1);
+  return url.toString();
+}
+
+function extractSameSiteLinks(html: string, pageUrl: URL) {
+  const links = new Set<string>();
+  const usefulPath = /^\/(?:tratamientos|promociones|cursos|galeria|contacto|reservar-cita|sobre|servicios)(?:\/|$)/i;
+  for (const match of html.matchAll(/\bhref=["']([^"'#]+)["']/gi)) {
+    try {
+      const href = match[1]?.trim();
+      if (!href || /^(?:mailto:|tel:|whatsapp:|javascript:)/i.test(href)) continue;
+      const url = new URL(href, pageUrl);
+      if (url.protocol !== "https:" || url.hostname !== pageUrl.hostname) continue;
+      if (!usefulPath.test(url.pathname) && url.pathname !== "/") continue;
+      if (/\.(?:png|jpe?g|webp|gif|svg|pdf|zip|mp4|mov)$/i.test(url.pathname)) continue;
+      links.add(normalizedUrl(url));
+    } catch {
+      continue;
+    }
+  }
+  return [...links];
+}
+
 async function sha256(value: string) {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -92,25 +118,38 @@ Deno.serve(async (request) => {
       }
     }
 
+    const publicSite = safeExternalUrl(Deno.env.get("PUBLIC_SITE_URL") || "https://www.draballesteros.com");
+    const siteSettings = await admin.from("site_settings").select("instagram_url,tiktok_url").limit(1).maybeSingle();
+    if (siteSettings.error) errors.push(`Redes sociales: ${siteSettings.error.message}`);
+    const socialUrls = Object.values(siteSettings.data ?? {}).filter((item) => typeof item === "string") as string[];
     const configuredUrls = [
-      Deno.env.get("PUBLIC_SITE_URL") || "https://www.draballesteros.com",
+      publicSite?.toString() || "",
+      ...(publicSite ? ["/tratamientos", "/promociones", "/cursos", "/galeria", "/contacto"].map((path) => new URL(path, publicSite).toString()) : []),
+      ...socialUrls,
       ...(Deno.env.get("CRM_SOCIAL_URLS") || "").split(","),
       ...(Deno.env.get("CRM_KNOWLEDGE_URLS") || "").split(","),
     ].map((item) => item.trim()).filter(Boolean);
 
-    for (const value of [...new Set(configuredUrls)].slice(0, 15)) {
+    const queue = [...new Set(configuredUrls)].slice(0, 20);
+    const visited = new Set<string>();
+    for (let index = 0; index < queue.length && visited.size < 30; index += 1) {
+      const value = queue[index];
       const url = safeExternalUrl(value);
       if (!url) {
         errors.push(`URL omitida por seguridad: ${value}`);
         continue;
       }
+      const key = normalizedUrl(url);
+      if (visited.has(key)) continue;
+      visited.add(key);
       try {
         const response = await fetch(url, {
           headers: { "User-Agent": "DraBallesterosCRMKnowledge/1.0" },
           signal: AbortSignal.timeout(12000),
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const content = cleanText(await response.text());
+        const html = await response.text();
+        const content = cleanText(html);
         if (content.length < 80) throw new Error("contenido no accesible o insuficiente");
         const type = sourceTypeFor(url);
         await upsertSource({
@@ -120,6 +159,11 @@ Deno.serve(async (request) => {
           content,
         });
         synced += 1;
+        if (publicSite && url.hostname === publicSite.hostname) {
+          for (const link of extractSameSiteLinks(html, url)) {
+            if (!visited.has(link) && queue.length < 35) queue.push(link);
+          }
+        }
       } catch (error) {
         errors.push(`${url.hostname}: ${error instanceof Error ? error.message : "error"}`);
       }

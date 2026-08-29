@@ -270,6 +270,16 @@ export function WhatsAppCrmPage() {
           <Metric label="Abiertas" value={conversations.filter((item) => item.status === "abierta").length} />
           <Metric label="Sin leer" value={conversations.reduce((total, item) => total + item.unread_count, 0)} />
           <Metric label="Requieren persona" value={conversations.filter((item) => item.needs_human).length} />
+          {automationSettings ? (
+            <button
+              type="button"
+              onClick={() => void patchAutomationSettings({ ai_enabled: !automationSettings.ai_enabled })}
+              className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold ${automationSettings.ai_enabled ? "bg-emerald-100 text-emerald-800" : "bg-stone-200 text-stone-700"}`}
+            >
+              <Bot className="h-4 w-4" />
+              IA global {automationSettings.ai_enabled ? "activa" : "pausada"}
+            </button>
+          ) : null}
           <button type="button" onClick={() => void handleKnowledgeSync()} disabled={syncing} className="inline-flex items-center gap-2 rounded-full bg-[var(--color-mocha)] px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">
             <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
             Sincronizar información
@@ -324,7 +334,7 @@ export function WhatsAppCrmPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <button type="button" onClick={() => void patchConversation(selected.ai_enabled ? { ai_enabled: false } : { ai_enabled: true, needs_human: false })} className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold ${selected.ai_enabled && !selected.needs_human ? "bg-violet-100 text-violet-800" : "bg-stone-100 text-stone-600"}`}>
-                    <Bot className="h-4 w-4" /> IA {selected.ai_enabled ? "activa" : "pausada"}
+                    <Bot className="h-4 w-4" /> {selected.ai_enabled && !selected.needs_human ? "IA responde" : "IA pausada"}
                   </button>
                   <button type="button" onClick={() => void patchConversation(selected.needs_human ? { needs_human: false, ai_enabled: true } : { needs_human: true, ai_enabled: false })} className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold ${selected.needs_human ? "bg-amber-100 text-amber-900" : "border border-[var(--color-border)] bg-white"}`}>
                     <UserRoundCheck className="h-4 w-4" /> {selected.needs_human ? "Devolver a IA" : "Tomar chat"}
@@ -420,6 +430,12 @@ export function WhatsAppCrmPage() {
               {automationSettings ? (
                 <div className="border-t border-[var(--color-border)] pt-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-accent-strong)]">Automatización Meta</p>
+                  <label className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs font-semibold">
+                    <span>IA global</span>
+                    <input type="checkbox" checked={automationSettings.ai_enabled} onChange={(event) => void patchAutomationSettings({ ai_enabled: event.target.checked })} />
+                  </label>
+                  <label className="mt-3 block text-[11px] text-[var(--color-copy)]">URL de reserva</label>
+                  <input key={`booking-url-${automationSettings.booking_url}`} defaultValue={automationSettings.booking_url} onBlur={(event) => void patchAutomationSettings({ booking_url: event.target.value.trim() || "/reservar-cita" })} className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs" />
                   <label className="mt-3 block text-[11px] text-[var(--color-copy)]">Plantilla de confirmación al paciente</label>
                   <input key={`patient-template-${automationSettings.patient_confirmation_template}`} defaultValue={automationSettings.patient_confirmation_template ?? ""} onBlur={(event) => void patchAutomationSettings({ patient_confirmation_template: event.target.value.trim() || null })} placeholder="cita_confirmada" className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs" />
                   <label className="mt-2 block text-[11px] text-[var(--color-copy)]">Plantilla de aviso a la doctora</label>
@@ -432,6 +448,15 @@ export function WhatsAppCrmPage() {
                     <input type="checkbox" checked={automationSettings.allow_external_grounding} onChange={(event) => void patchAutomationSettings({ allow_external_grounding: event.target.checked })} />
                     Permitir consulta web puntual con Gemini
                   </label>
+                  <label className="mt-3 block text-[11px] text-[var(--color-copy)]">Instrucciones extra para Gemini</label>
+                  <textarea
+                    key={`ai-prompt-${automationSettings.ai_system_prompt ?? ""}`}
+                    defaultValue={automationSettings.ai_system_prompt ?? ""}
+                    onBlur={(event) => void patchAutomationSettings({ ai_system_prompt: event.target.value.trim() || null })}
+                    rows={5}
+                    placeholder="Tono, politicas internas o mensajes que la IA debe respetar."
+                    className="mt-1 w-full resize-none rounded-2xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs"
+                  />
                 </div>
               ) : null}
 
