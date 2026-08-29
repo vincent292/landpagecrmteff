@@ -246,8 +246,8 @@ export async function applyWhatsAppStatus(admin: SupabaseClient, event: WhatsApp
 export async function getAiContext(admin: SupabaseClient, conversationId: string) {
   const [settingsResult, sourcesResult, messagesResult, bookingResult] = await Promise.all([
     admin.from("crm_settings").select("ai_enabled,ai_system_prompt,booking_url,allow_external_grounding").eq("id", true).maybeSingle(),
-    admin.from("crm_knowledge_sources").select("title,content").eq("is_active", true).order("updated_at", { ascending: false }).limit(40),
-    admin.from("crm_messages").select("direction,sender_type,body").eq("conversation_id", conversationId).order("occurred_at", { ascending: false }).limit(18),
+    admin.from("crm_knowledge_sources").select("title,content").eq("is_active", true).order("updated_at", { ascending: false }).limit(20),
+    admin.from("crm_messages").select("direction,sender_type,body").eq("conversation_id", conversationId).order("occurred_at", { ascending: false }).limit(12),
     admin.from("crm_booking_sessions")
       .select("status,identity_step,appointment_date,start_time,end_time,treatments(title)")
       .eq("conversation_id", conversationId)
@@ -263,7 +263,7 @@ export async function getAiContext(admin: SupabaseClient, conversationId: string
   const booking = bookingResult.data as { status?: string; identity_step?: string | null; appointment_date?: string | null; start_time?: string | null; end_time?: string | null; treatments?: { title?: string | null } | null } | null;
   return {
     settings: settingsResult.data ?? { ai_enabled: true, ai_system_prompt: null, booking_url: "/reservar-cita", allow_external_grounding: true },
-    knowledge: (sourcesResult.data ?? []).map((source) => `## ${source.title}\n${source.content}`).join("\n\n"),
+    knowledgeSources: (sourcesResult.data ?? []).map((source) => ({ title: String(source.title), content: String(source.content ?? "") })),
     messages: (messagesResult.data ?? []).reverse(),
     bookingState: booking
       ? `Reserva activa: ${booking.status}. Tratamiento: ${booking.treatments?.title ?? "no definido"}. Paso: ${booking.identity_step ?? "no aplica"}. Fecha: ${booking.appointment_date ?? "sin fecha"} ${booking.start_time ?? ""}-${booking.end_time ?? ""}.`
@@ -271,10 +271,71 @@ export async function getAiContext(admin: SupabaseClient, conversationId: string
   };
 }
 
+type KnowledgeSource = { title: string; content: string };
+
+function normalizeForSearch(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+/**
+ * Keep the AI prompt small and relevant. Sending the whole web site on every
+ * WhatsApp message was the main source of slow responses and unnecessary cost.
+ */
+function selectKnowledgeForQuestion(sources: KnowledgeSource[], question: string) {
+  const terms = normalizeForSearch(question)
+    .split(/[^a-z0-9]+/)
+    .filter((term) => term.length >= 4)
+    .slice(0, 12);
+  const ranked = [...sources]
+    .map((source) => ({
+      source,
+      score: terms.reduce((total, term) => total + (normalizeForSearch(`${source.title} ${source.content}`).includes(term) ? 1 : 0), 0),
+    }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 4)
+    .map(({ source }) => `## ${source.title}\n${source.content.slice(0, 2600)}`)
+    .join("\n\n");
+  return ranked.slice(0, 9000) || "Sin contenido sincronizado.";
+}
+
+const greetingPattern = /^(hola|holi|buenas|buenos dias|buenas tardes|buenas noches|que tal|como estas)[!¡,.\s]*$/i;
+// Includes common WhatsApp typos such as "trataientos".
+const treatmentWord = "trat[a]?m?ientos?";
+const treatmentListPattern = new RegExp(`\\b(que|cuales|cu[aá]les|ver|mu[eé]strame|informaci[oó]n).{0,45}\\b(${treatmentWord}|servicios?)\\b|\\b(${treatmentWord}|servicios?).{0,45}\\b(disponibles?|tienen|ofrecen|hay)\\b`, "i");
+const humanRequestPattern = /\b(humano|persona|administradora|asesor(?:a)?|reclamo|emergencia|urgencia)\b/i;
+
+export function isHumanRequest(text?: string | null) {
+  return humanRequestPattern.test(text ?? "");
+}
+
+/** Fast, deterministic replies for frequent operational questions. */
+export async function getFastCrmReply(admin: SupabaseClient, text?: string | null) {
+  const message = (text ?? "").trim();
+  if (!message) return null;
+  if (greetingPattern.test(message)) {
+    return "¡Hola! 😊 Soy la asistente virtual de la Dra. Estefany Ballesteros. Puedo informarte sobre tratamientos y, cuando decidas, ayudarte a reservar una cita. ¿Qué deseas consultar?";
+  }
+  if (!treatmentListPattern.test(message)) return null;
+
+  const { data, error } = await admin
+    .from("treatments")
+    .select("title")
+    .eq("is_active", true)
+    .is("deleted_at", null)
+    .order("title")
+    .limit(12);
+  if (error) throw error;
+  const names = (data ?? []).map((row) => String(row.title).trim()).filter(Boolean);
+  if (!names.length) return "En este momento estamos actualizando el catálogo de tratamientos. Una administradora puede orientarte.";
+  const shown = names.slice(0, 10).map((name) => `• ${name}`).join("\n");
+  const more = names.length > 10 ? "\n• Y otros tratamientos disponibles." : "";
+  return `Estos son algunos tratamientos disponibles:\n${shown}${more}\n\nSi quieres conocer alguno en particular, escríbeme su nombre. Cuando quieras agendar, escribe “quiero reservar una cita”.`;
+}
+
 export async function generateGeminiReply(input: {
   contactName?: string | null;
   messages: Array<{ direction: string; sender_type: string; body: string | null }>;
-  knowledge: string;
+  knowledgeSources: KnowledgeSource[];
   bookingUrl: string;
   bookingState?: string;
   customSystemPrompt?: string | null;
@@ -286,6 +347,7 @@ export async function generateGeminiReply(input: {
   const bookingUrl = input.bookingUrl.startsWith("http") ? input.bookingUrl : `${siteUrl}${input.bookingUrl}`;
   const transcript = input.messages.map((message) => `${message.direction === "inbound" ? "Paciente" : message.sender_type === "ai" ? "Asistente" : "Equipo"}: ${message.body ?? "[archivo]"}`).join("\n");
   const latestInbound = [...input.messages].reverse().find((message) => message.direction === "inbound" && message.body?.trim())?.body ?? "";
+  const knowledge = selectKnowledgeForQuestion(input.knowledgeSources, latestInbound);
   const shouldUseGrounding = input.allowExternalGrounding === true
     && /\b(actualidad|actual|hoy|internet|web|google|busca|buscar|fuente|fuentes|estudio|articulo|artículo|investigacion|investigación|reciente|2026)\b/i.test(latestInbound);
   const systemInstruction = [
@@ -309,24 +371,24 @@ export async function generateGeminiReply(input: {
       contents: [{ role: "user", parts: [{ text: [
         `Nombre: ${input.contactName || "no informado"}`,
         `ESTADO REAL DE RESERVA ACTIVA:\n${input.bookingState ?? "No informado."}`,
-        `CONTEXTO DEL NEGOCIO:\n${input.knowledge.slice(0, 24000) || "Sin contenido sincronizado."}`,
+        `CONTEXTO DEL NEGOCIO:\n${knowledge}`,
         `CONVERSACIÓN RECIENTE:\n${transcript}`,
         "Redacta únicamente el próximo mensaje de WhatsApp.",
       ].join("\n\n") }] }],
       ...(withGrounding ? { tools: [{ google_search: {} }] } : {}),
-      generationConfig: { maxOutputTokens: 900, temperature: 0.25 },
+      generationConfig: { maxOutputTokens: 550, temperature: 0.25 },
     });
   let response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-    body: buildBody(shouldUseGrounding),
+    body: buildBody(shouldUseGrounding), signal: AbortSignal.timeout(12_000),
   });
   if (!response.ok && shouldUseGrounding) {
     console.warn(`[whatsapp] Gemini grounding failed with ${response.status}; retrying without Google Search.`);
     response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-      body: buildBody(false),
+      body: buildBody(false), signal: AbortSignal.timeout(12_000),
     });
   }
   if (!response.ok) throw new Error(`Gemini API ${response.status}: ${(await response.text()).slice(0, 400)}`);
