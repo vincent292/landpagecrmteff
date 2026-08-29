@@ -323,11 +323,11 @@ export function WhatsAppCrmPage() {
                   <p className="text-xs text-[var(--color-copy)]">+{selected.crm_contacts.phone} · {windowOpen ? "ventana de 24 h activa" : "requiere plantilla aprobada"}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button type="button" onClick={() => void patchConversation({ ai_enabled: !selected.ai_enabled })} className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold ${selected.ai_enabled ? "bg-violet-100 text-violet-800" : "bg-stone-100 text-stone-600"}`}>
+                  <button type="button" onClick={() => void patchConversation(selected.ai_enabled ? { ai_enabled: false } : { ai_enabled: true, needs_human: false })} className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold ${selected.ai_enabled && !selected.needs_human ? "bg-violet-100 text-violet-800" : "bg-stone-100 text-stone-600"}`}>
                     <Bot className="h-4 w-4" /> IA {selected.ai_enabled ? "activa" : "pausada"}
                   </button>
-                  <button type="button" onClick={() => void patchConversation({ needs_human: !selected.needs_human, ai_enabled: selected.needs_human ? selected.ai_enabled : false })} className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold ${selected.needs_human ? "bg-amber-100 text-amber-900" : "border border-[var(--color-border)] bg-white"}`}>
-                    <UserRoundCheck className="h-4 w-4" /> {selected.needs_human ? "En atención" : "Tomar chat"}
+                  <button type="button" onClick={() => void patchConversation(selected.needs_human ? { needs_human: false, ai_enabled: true } : { needs_human: true, ai_enabled: false })} className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold ${selected.needs_human ? "bg-amber-100 text-amber-900" : "border border-[var(--color-border)] bg-white"}`}>
+                    <UserRoundCheck className="h-4 w-4" /> {selected.needs_human ? "Devolver a IA" : "Tomar chat"}
                   </button>
                 </div>
               </header>
