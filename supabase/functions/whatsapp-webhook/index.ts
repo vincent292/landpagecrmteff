@@ -24,14 +24,21 @@ async function answerWithAi(input: {
   const admin = createAdminClient();
   const context = await getAiContext(admin, input.conversationId);
   if (!context.settings.ai_enabled) return;
-  const reply = await generateGeminiReply({
-    contactName: input.contactName,
-    messages: context.messages,
-    knowledge: context.knowledge,
-    bookingUrl: context.settings.booking_url,
-    customSystemPrompt: context.settings.ai_system_prompt,
-    allowExternalGrounding: context.settings.allow_external_grounding !== false,
-  });
+  let reply: string;
+  try {
+    reply = await generateGeminiReply({
+      contactName: input.contactName,
+      messages: context.messages,
+      knowledge: context.knowledge,
+      bookingUrl: context.settings.booking_url,
+      bookingState: context.bookingState,
+      customSystemPrompt: context.settings.ai_system_prompt,
+      allowExternalGrounding: context.settings.allow_external_grounding !== false,
+    });
+  } catch (error) {
+    console.error("[whatsapp] Gemini reply failed; sending fallback", error);
+    reply = "Estoy teniendo una demora para consultar la información completa. Puedo ayudarte con información general de tratamientos o, si deseas reservar, escribe: quiero reservar una cita.";
+  }
   const meta = await sendMetaMessage(input.to, {
     type: "text",
     text: { preview_url: /https?:\/\//i.test(reply), body: reply },

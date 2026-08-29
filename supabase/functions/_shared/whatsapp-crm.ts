@@ -244,18 +244,30 @@ export async function applyWhatsAppStatus(admin: SupabaseClient, event: WhatsApp
 }
 
 export async function getAiContext(admin: SupabaseClient, conversationId: string) {
-  const [settingsResult, sourcesResult, messagesResult] = await Promise.all([
+  const [settingsResult, sourcesResult, messagesResult, bookingResult] = await Promise.all([
     admin.from("crm_settings").select("ai_enabled,ai_system_prompt,booking_url,allow_external_grounding").eq("id", true).maybeSingle(),
     admin.from("crm_knowledge_sources").select("title,content").eq("is_active", true).order("updated_at", { ascending: false }).limit(40),
     admin.from("crm_messages").select("direction,sender_type,body").eq("conversation_id", conversationId).order("occurred_at", { ascending: false }).limit(18),
+    admin.from("crm_booking_sessions")
+      .select("status,identity_step,appointment_date,start_time,end_time,treatments(title)")
+      .eq("conversation_id", conversationId)
+      .in("status", ["collecting_identity", "choosing_date", "choosing_time", "awaiting_payment", "payment_review", "needs_human"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
   if (settingsResult.error) throw settingsResult.error;
   if (sourcesResult.error) throw sourcesResult.error;
   if (messagesResult.error) throw messagesResult.error;
+  if (bookingResult.error) throw bookingResult.error;
+  const booking = bookingResult.data as { status?: string; identity_step?: string | null; appointment_date?: string | null; start_time?: string | null; end_time?: string | null; treatments?: { title?: string | null } | null } | null;
   return {
     settings: settingsResult.data ?? { ai_enabled: true, ai_system_prompt: null, booking_url: "/reservar-cita", allow_external_grounding: true },
     knowledge: (sourcesResult.data ?? []).map((source) => `## ${source.title}\n${source.content}`).join("\n\n"),
     messages: (messagesResult.data ?? []).reverse(),
+    bookingState: booking
+      ? `Reserva activa: ${booking.status}. Tratamiento: ${booking.treatments?.title ?? "no definido"}. Paso: ${booking.identity_step ?? "no aplica"}. Fecha: ${booking.appointment_date ?? "sin fecha"} ${booking.start_time ?? ""}-${booking.end_time ?? ""}.`
+      : "No hay reserva activa. Si el historial menciona una reserva vieja, no la continúes; responde la nueva consulta con normalidad.",
   };
 }
 
@@ -264,6 +276,7 @@ export async function generateGeminiReply(input: {
   messages: Array<{ direction: string; sender_type: string; body: string | null }>;
   knowledge: string;
   bookingUrl: string;
+  bookingState?: string;
   customSystemPrompt?: string | null;
   allowExternalGrounding?: boolean;
 }) {
@@ -272,10 +285,14 @@ export async function generateGeminiReply(input: {
   const siteUrl = (Deno.env.get("PUBLIC_SITE_URL") || "https://www.draballesteros.com").replace(/\/$/, "");
   const bookingUrl = input.bookingUrl.startsWith("http") ? input.bookingUrl : `${siteUrl}${input.bookingUrl}`;
   const transcript = input.messages.map((message) => `${message.direction === "inbound" ? "Paciente" : message.sender_type === "ai" ? "Asistente" : "Equipo"}: ${message.body ?? "[archivo]"}`).join("\n");
+  const latestInbound = [...input.messages].reverse().find((message) => message.direction === "inbound" && message.body?.trim())?.body ?? "";
+  const shouldUseGrounding = input.allowExternalGrounding === true
+    && /\b(actualidad|actual|hoy|internet|web|google|busca|buscar|fuente|fuentes|estudio|articulo|artículo|investigacion|investigación|reciente|2026)\b/i.test(latestInbound);
   const systemInstruction = [
     "Eres la asistente virtual oficial del consultorio de la Dra. Estefany Ballesteros.",
     "Si la persona solo pide informacion, conversa y explica con lenguaje simple usando el contexto; no la fuerces a reservar.",
     "Solo orienta hacia reserva cuando la persona exprese claramente que quiere agendar, reservar, tomar cita o continuar con el proceso.",
+    "No asumas que hay una reserva activa por mensajes anteriores; usa el ESTADO REAL DE RESERVA ACTIVA.",
     "Responde en español cálido, profesional, breve y claro. No inventes precios, horarios, resultados ni servicios.",
     "Para precios, horarios, servicios, sedes, profesionales y políticas del consultorio usa exclusivamente CONTEXTO DEL NEGOCIO.",
     "Para una pregunta puntual de información general puedes consultar Google Search solo si está habilitado. Prioriza fuentes oficiales, médicas institucionales o artículos científicos y agrega al final los enlaces consultados.",
@@ -291,6 +308,7 @@ export async function generateGeminiReply(input: {
       system_instruction: { parts: [{ text: systemInstruction }] },
       contents: [{ role: "user", parts: [{ text: [
         `Nombre: ${input.contactName || "no informado"}`,
+        `ESTADO REAL DE RESERVA ACTIVA:\n${input.bookingState ?? "No informado."}`,
         `CONTEXTO DEL NEGOCIO:\n${input.knowledge.slice(0, 24000) || "Sin contenido sincronizado."}`,
         `CONVERSACIÓN RECIENTE:\n${transcript}`,
         "Redacta únicamente el próximo mensaje de WhatsApp.",
@@ -301,9 +319,9 @@ export async function generateGeminiReply(input: {
   let response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-    body: buildBody(input.allowExternalGrounding === true),
+    body: buildBody(shouldUseGrounding),
   });
-  if (!response.ok && input.allowExternalGrounding === true) {
+  if (!response.ok && shouldUseGrounding) {
     console.warn(`[whatsapp] Gemini grounding failed with ${response.status}; retrying without Google Search.`);
     response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: "POST",
