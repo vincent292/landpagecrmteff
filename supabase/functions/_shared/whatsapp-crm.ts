@@ -62,6 +62,33 @@ type WhatsAppMessage = {
     list_reply?: { id?: string; title?: string; description?: string };
   };
   context?: { id?: string };
+  referral?: {
+    source_id?: string;
+    source_type?: string;
+    source_url?: string;
+    headline?: string;
+    body?: string;
+    media_type?: string;
+    image_url?: string;
+    video_url?: string;
+    thumbnail_url?: string;
+    ctwa_clid?: string;
+  };
+  ctwa_clid?: string;
+};
+
+export type MetaCtwaReferral = {
+  sourceId: string | null;
+  sourceType: string | null;
+  sourceUrl: string | null;
+  headline: string | null;
+  body: string | null;
+  mediaType: string | null;
+  imageUrl: string | null;
+  videoUrl: string | null;
+  thumbnailUrl: string | null;
+  ctwaClid: string | null;
+  raw: Record<string, unknown>;
 };
 
 export type WhatsAppStatusEvent = {
@@ -84,8 +111,32 @@ export type IncomingWhatsAppMessage = {
   filename?: string;
   interactiveId?: string;
   replyToMessageId?: string;
+  referral?: MetaCtwaReferral;
   raw: Record<string, unknown>;
 };
+
+function referralText(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+/** Normalizes the optional referral object sent by Meta for Click-to-WhatsApp ads. */
+export function normalizeMetaCtwaReferral(referral: unknown, messageCtwaClid?: unknown): MetaCtwaReferral | undefined {
+  if (!referral || typeof referral !== "object" || Array.isArray(referral)) return undefined;
+  const raw = referral as Record<string, unknown>;
+  return {
+    sourceId: referralText(raw.source_id),
+    sourceType: referralText(raw.source_type),
+    sourceUrl: referralText(raw.source_url),
+    headline: referralText(raw.headline),
+    body: referralText(raw.body),
+    mediaType: referralText(raw.media_type),
+    imageUrl: referralText(raw.image_url),
+    videoUrl: referralText(raw.video_url),
+    thumbnailUrl: referralText(raw.thumbnail_url),
+    ctwaClid: referralText(raw.ctwa_clid) ?? referralText(messageCtwaClid),
+    raw,
+  };
+}
 
 export function extractWebhookPayload(payload: unknown) {
   const incoming: IncomingWhatsAppMessage[] = [];
@@ -118,6 +169,7 @@ export function extractWebhookPayload(payload: unknown) {
           filename: message.document?.filename,
           interactiveId: message.interactive?.button_reply?.id ?? message.interactive?.list_reply?.id ?? message.button?.payload,
           replyToMessageId: message.context?.id,
+          referral: normalizeMetaCtwaReferral(message.referral, message.ctwa_clid),
           raw: message as unknown as Record<string, unknown>,
         };
         if (["text", "image", "document", "audio", "video", "button", "interactive"].includes(normalized.type)) incoming.push(normalized);
@@ -156,6 +208,65 @@ type CrmConversation = {
   unread_count: number;
   appointment_reservation_id: string | null;
 };
+
+/**
+ * Stores the first Click-to-WhatsApp origin for a contact/conversation.
+ * A Meta referral without source_id cannot be safely deduplicated as an ad,
+ * so its raw value remains on crm_messages but it is not turned into a record.
+ */
+export async function persistMetaCtwaAttribution(
+  admin: SupabaseClient,
+  input: { contactId: string; conversationId: string; occurredAt: string; referral?: MetaCtwaReferral },
+) {
+  const referral = input.referral;
+  if (!referral?.sourceId) return null;
+
+  const { data: ad, error: adError } = await admin
+    .from("meta_ctwa_ads")
+    .upsert({
+      source_id: referral.sourceId,
+      source_type: referral.sourceType,
+      source_url: referral.sourceUrl,
+      headline: referral.headline,
+      body: referral.body,
+      media_type: referral.mediaType,
+      image_url: referral.imageUrl,
+      video_url: referral.videoUrl,
+      thumbnail_url: referral.thumbnailUrl,
+      ctwa_clid: referral.ctwaClid,
+      last_seen_at: input.occurredAt,
+      raw_referral: referral.raw,
+    }, { onConflict: "source_id" })
+    .select("id")
+    .single();
+  if (adError || !ad) throw adError ?? new Error("No se pudo guardar el anuncio de Meta.");
+
+  const { data: attribution, error: attributionError } = await admin
+    .from("meta_ctwa_attributions")
+    .upsert({
+      conversation_id: input.conversationId,
+      contact_id: input.contactId,
+      meta_ctwa_ad_id: ad.id,
+      ctwa_clid: referral.ctwaClid,
+      referral_payload: referral.raw,
+      attributed_at: input.occurredAt,
+    }, { onConflict: "conversation_id", ignoreDuplicates: true })
+    .select("id")
+    .maybeSingle();
+  if (attributionError) throw attributionError;
+
+  // Preserve first-touch attribution. A later shared/referral message must not
+  // overwrite the campaign that originally opened the conversation.
+  if (attribution) {
+    const [conversationUpdate, contactUpdate] = await Promise.all([
+      admin.from("crm_conversations").update({ meta_ctwa_ad_id: ad.id }).eq("id", input.conversationId).is("meta_ctwa_ad_id", null),
+      admin.from("crm_contacts").update({ meta_ctwa_ad_id: ad.id }).eq("id", input.contactId).is("meta_ctwa_ad_id", null),
+    ]);
+    if (conversationUpdate.error) throw conversationUpdate.error;
+    if (contactUpdate.error) throw contactUpdate.error;
+  }
+  return ad.id as string;
+}
 
 export async function persistInboundMessage(admin: SupabaseClient, message: IncomingWhatsAppMessage) {
   const occurredAt = message.timestamp ? new Date(Number(message.timestamp) * 1000).toISOString() : new Date().toISOString();
@@ -213,6 +324,13 @@ export async function persistInboundMessage(admin: SupabaseClient, message: Inco
   if (messageError) throw messageError;
   if (!insertedMessage) return { duplicate: true, contact, conversation: conversation as CrmConversation, messageId: null };
 
+  await persistMetaCtwaAttribution(admin, {
+    contactId: contact.id,
+    conversationId: conversation.id,
+    occurredAt,
+    referral: message.referral,
+  });
+
   const handoff = /\b(humano|persona|administradora|reclamo|emergencia)\b/i.test(message.text ?? "");
   const { data: updatedConversation, error: updateError } = await admin
     .from("crm_conversations")
@@ -243,8 +361,74 @@ export async function applyWhatsAppStatus(admin: SupabaseClient, event: WhatsApp
   if (updateError) throw updateError;
 }
 
+type MetaAdContext = {
+  id: string;
+  status: "pending" | "configured";
+  headline: string | null;
+  body: string | null;
+  sourceUrl: string | null;
+  welcomeMessage: string | null;
+  treatmentTitle: string | null;
+  treatmentInfo: string | null;
+  promotionTitle: string | null;
+  promotionInfo: string | null;
+};
+
+export async function getMetaAdContext(admin: SupabaseClient, conversationId: string): Promise<MetaAdContext | null> {
+  const { data, error } = await admin
+    .from("crm_conversations")
+    .select("meta_ctwa_ad_id,meta_ctwa_ads(id,status,headline,body,source_url,welcome_message,treatments(title,public_info,description),promotions(title,public_info,description))")
+    .eq("id", conversationId)
+    .maybeSingle();
+  if (error) throw error;
+  const ad = data?.meta_ctwa_ads as {
+    id?: string; status?: "pending" | "configured"; headline?: string | null; body?: string | null; source_url?: string | null; welcome_message?: string | null;
+    treatments?: { title?: string | null; public_info?: string | null; description?: string | null } | null;
+    promotions?: { title?: string | null; public_info?: string | null; description?: string | null } | null;
+  } | null;
+  if (!ad?.id) return null;
+  return {
+    id: ad.id,
+    status: ad.status === "configured" ? "configured" : "pending",
+    headline: ad.headline ?? null,
+    body: ad.body ?? null,
+    sourceUrl: ad.source_url ?? null,
+    welcomeMessage: ad.welcome_message ?? null,
+    treatmentTitle: ad.treatments?.title ?? null,
+    treatmentInfo: ad.treatments?.public_info ?? ad.treatments?.description ?? null,
+    promotionTitle: ad.promotions?.title ?? null,
+    promotionInfo: ad.promotions?.public_info ?? ad.promotions?.description ?? null,
+  };
+}
+
+function isMetaAdEntryMessage(text: string) {
+  const normalized = normalizeForSearch(text).replace(/[^a-z0-9]+/g, " ").trim();
+  return /^(hola|holi|buenas|buenos dias|buenas tardes|buenas noches|quiero (mas )?informacion( de esto)?|mas informacion( de esto)?|informacion)$/.test(normalized);
+}
+
+/**
+ * CTWA entry intents must beat the generic greeting router. This response only
+ * states the configured target or asks one clarification; it never infers a
+ * medical service from ad creative alone.
+ */
+export async function getMetaAdEntryReply(admin: SupabaseClient, conversationId: string, text?: string | null) {
+  if (!text || !isMetaAdEntryMessage(text)) return null;
+  const ad = await getMetaAdContext(admin, conversationId);
+  if (!ad) return null;
+  if (ad.status === "configured" && ad.welcomeMessage?.trim()) return ad.welcomeMessage.trim();
+
+  const target = ad.treatmentTitle ?? ad.promotionTitle;
+  if (target) {
+    return `¡Hola! 😊 Gracias por escribirnos por ${target}. Puedo brindarte información general y resolver tus dudas. ¿Qué te gustaría conocer?`;
+  }
+  const creative = ad.headline?.trim() || ad.body?.trim();
+  return creative
+    ? `¡Hola! 😊 Vi que nos escribes por el anuncio “${creative.slice(0, 180)}”. Para orientarte bien, ¿qué tratamiento o promoción del anuncio te interesa?`
+    : "¡Hola! 😊 Para orientarte bien, ¿qué tratamiento o promoción del anuncio te interesa?";
+}
+
 export async function getAiContext(admin: SupabaseClient, conversationId: string) {
-  const [settingsResult, sourcesResult, messagesResult, bookingResult] = await Promise.all([
+  const [settingsResult, sourcesResult, messagesResult, bookingResult, metaAd] = await Promise.all([
     admin.from("crm_settings").select("ai_enabled,ai_system_prompt,booking_url,allow_external_grounding").eq("id", true).maybeSingle(),
     admin.from("crm_knowledge_sources").select("title,content").eq("is_active", true).order("updated_at", { ascending: false }).limit(20),
     admin.from("crm_messages").select("direction,sender_type,body").eq("conversation_id", conversationId).order("occurred_at", { ascending: false }).limit(12),
@@ -255,6 +439,7 @@ export async function getAiContext(admin: SupabaseClient, conversationId: string
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    getMetaAdContext(admin, conversationId),
   ]);
   if (settingsResult.error) throw settingsResult.error;
   if (sourcesResult.error) throw sourcesResult.error;
@@ -265,6 +450,16 @@ export async function getAiContext(admin: SupabaseClient, conversationId: string
     settings: settingsResult.data ?? { ai_enabled: true, ai_system_prompt: null, booking_url: "/reservar-cita", allow_external_grounding: true },
     knowledgeSources: (sourcesResult.data ?? []).map((source) => ({ title: String(source.title), content: String(source.content ?? "") })),
     messages: (messagesResult.data ?? []).reverse(),
+    metaAdContext: metaAd
+      ? [
+        `Origen: anuncio Meta Click-to-WhatsApp (${metaAd.status === "configured" ? "configurado" : "pendiente de vincular"}).`,
+        `Título del anuncio: ${metaAd.headline ?? "sin título"}.`,
+        `Texto del anuncio: ${metaAd.body ?? "sin texto"}.`,
+        metaAd.treatmentTitle ? `Tratamiento vinculado: ${metaAd.treatmentTitle}. Información pública: ${metaAd.treatmentInfo ?? "sin información adicional"}.` : "Sin tratamiento vinculado.",
+        metaAd.promotionTitle ? `Promoción vinculada: ${metaAd.promotionTitle}. Información pública: ${metaAd.promotionInfo ?? "sin información adicional"}.` : "Sin promoción vinculada.",
+        metaAd.welcomeMessage ? `Instrucciones/mensaje de bienvenida del anuncio: ${metaAd.welcomeMessage}.` : "Sin mensaje de bienvenida específico.",
+      ].join("\n")
+      : null,
     bookingState: booking
       ? `Reserva activa: ${booking.status}. Tratamiento: ${booking.treatments?.title ?? "no definido"}. Paso: ${booking.identity_step ?? "no aplica"}. Fecha: ${booking.appointment_date ?? "sin fecha"} ${booking.start_time ?? ""}-${booking.end_time ?? ""}.`
       : "No hay reserva activa. Si el historial menciona una reserva vieja, no la continúes; responde la nueva consulta con normalidad.",
@@ -341,6 +536,7 @@ export async function generateGeminiReply(input: {
   knowledgeSources: KnowledgeSource[];
   bookingUrl: string;
   bookingState?: string;
+  metaAdContext?: string | null;
   customSystemPrompt?: string | null;
   allowExternalGrounding?: boolean;
 }) {
@@ -365,6 +561,7 @@ export async function generateGeminiReply(input: {
     "No diagnostiques, no prescribas y no prometas resultados médicos. Ante una urgencia indica acudir a emergencias locales.",
     "Si no sabes algo o piden una persona, ofrece derivar a una administradora.",
     "No recomiendes dosis, medicamentos, inyectables, combinaciones clinicas ni automedicacion; si hace falta evaluacion, dilo con claridad.",
+    "Si existe CONTEXTO DE ANUNCIO META, tiene prioridad sobre el saludo genérico. Si está pendiente de vincular, úsalo solo como contexto literal: no deduzcas ni inventes el servicio; cuando no se pueda identificar, formula una sola pregunta de aclaración.",
     `Para solicitar una cita comparte este enlace cuando corresponda: ${bookingUrl}.`,
     "Nunca pidas contraseñas, datos de tarjeta ni información clínica extensa por WhatsApp.",
     input.customSystemPrompt?.trim() || "",
@@ -374,6 +571,7 @@ export async function generateGeminiReply(input: {
       contents: [{ role: "user", parts: [{ text: [
         `Nombre: ${input.contactName || "no informado"}`,
         `ESTADO REAL DE RESERVA ACTIVA:\n${input.bookingState ?? "No informado."}`,
+        input.metaAdContext ? `CONTEXTO DE ANUNCIO META:\n${input.metaAdContext}` : "",
         `CONTEXTO DEL NEGOCIO:\n${knowledge}`,
         `CONVERSACIÓN RECIENTE:\n${transcript}`,
         "Redacta únicamente el próximo mensaje de WhatsApp.",

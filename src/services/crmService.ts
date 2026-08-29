@@ -90,6 +90,31 @@ export type CrmSettings = {
   allow_external_grounding: boolean;
 };
 
+export type MetaCtwaAd = {
+  id: string;
+  source_id: string;
+  source_type: string | null;
+  source_url: string | null;
+  headline: string | null;
+  body: string | null;
+  media_type: string | null;
+  image_url: string | null;
+  video_url: string | null;
+  thumbnail_url: string | null;
+  ctwa_clid: string | null;
+  treatment_id: string | null;
+  promotion_id: string | null;
+  welcome_message: string | null;
+  status: "pending" | "configured";
+  first_seen_at: string;
+  last_seen_at: string;
+  conversation_count: number;
+  treatments?: { id: string; title: string } | null;
+  promotions?: { id: string; title: string } | null;
+};
+
+export type MetaCtwaTarget = { id: string; title: string; kind: "treatment" | "promotion" };
+
 export async function getCrmConversations() {
   const { data, error } = await supabase
     .from("crm_conversations")
@@ -129,6 +154,35 @@ export async function getCrmSettings() {
     .single();
   if (error) throw error;
   return data as CrmSettings;
+}
+
+export async function getMetaCtwaAds() {
+  const { data, error } = await supabase
+    .from("meta_ctwa_ads")
+    .select("id,source_id,source_type,source_url,headline,body,media_type,image_url,video_url,thumbnail_url,ctwa_clid,treatment_id,promotion_id,welcome_message,status,first_seen_at,last_seen_at,conversation_count,treatments(id,title),promotions(id,title)")
+    .order("last_seen_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as unknown as MetaCtwaAd[];
+}
+
+export async function getMetaCtwaTargets() {
+  const [treatmentsResult, promotionsResult] = await Promise.all([
+    supabase.from("treatments").select("id,title").eq("is_active", true).is("deleted_at", null).order("title"),
+    supabase.from("promotions").select("id,title").eq("is_active", true).is("deleted_at", null).order("title"),
+  ]);
+  if (treatmentsResult.error) throw treatmentsResult.error;
+  if (promotionsResult.error) throw promotionsResult.error;
+  const visible = (row: { title: string | null }) => !/\b(prueba|test|interna)\b/i.test(row.title ?? "");
+  return [
+    ...(treatmentsResult.data ?? []).filter(visible).map((row) => ({ id: row.id, title: row.title, kind: "treatment" as const })),
+    ...(promotionsResult.data ?? []).filter(visible).map((row) => ({ id: row.id, title: row.title, kind: "promotion" as const })),
+  ] as MetaCtwaTarget[];
+}
+
+export async function updateMetaCtwaAd(id: string, values: Partial<Pick<MetaCtwaAd, "treatment_id" | "promotion_id" | "welcome_message">>) {
+  const { data, error } = await supabase.from("meta_ctwa_ads").update(values).eq("id", id).select().single();
+  if (error) throw error;
+  return data as MetaCtwaAd;
 }
 
 export async function updateCrmSettings(values: Partial<CrmSettings>) {

@@ -37,6 +37,7 @@ import {
 } from "../../services/crmService";
 import { getReservationReceiptUrl } from "../../services/reservationService";
 import { getSiteSettings } from "../../services/siteSettingsService";
+import { MetaAdsPanel } from "../../components/admin/MetaAdsPanel";
 
 const stages: Array<{ value: CrmLeadStage; label: string }> = [
   { value: "nuevo", label: "Nuevo" },
@@ -289,6 +290,8 @@ export function WhatsAppCrmPage() {
 
       {error ? <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p> : null}
       {notice ? <p className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{notice}</p> : null}
+
+      <MetaAdsPanel />
 
       <section className="grid min-h-[680px] overflow-hidden rounded-[30px] border border-[var(--color-border)] bg-white/65 shadow-[0_22px_70px_rgba(62,42,31,0.08)] xl:grid-cols-[320px_minmax(0,1fr)_330px]">
         <aside className="border-b border-[var(--color-border)] bg-[#fbf7f2]/75 xl:border-b-0 xl:border-r">

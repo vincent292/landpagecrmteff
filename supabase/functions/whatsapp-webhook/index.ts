@@ -5,6 +5,7 @@ import {
   extractWebhookPayload,
   generateGeminiReply,
   getAiContext,
+  getMetaAdEntryReply,
   getFastCrmReply,
   isHumanRequest,
   json,
@@ -34,6 +35,7 @@ async function answerWithAi(input: {
       knowledgeSources: context.knowledgeSources,
       bookingUrl: context.settings.booking_url,
       bookingState: context.bookingState,
+      metaAdContext: context.metaAdContext,
       customSystemPrompt: context.settings.ai_system_prompt,
       allowExternalGrounding: context.settings.allow_external_grounding !== false,
     });
@@ -116,6 +118,12 @@ Deno.serve(async (request) => {
         continue;
       }
       if (!persisted.conversation.ai_enabled || persisted.conversation.needs_human) continue;
+      const metaAdReply = await getMetaAdEntryReply(admin, persisted.conversation.id, message.text);
+      if (metaAdReply) {
+        const meta = await sendMetaMessage(message.from, { type: "text", text: { preview_url: false, body: metaAdReply } });
+        await persistOutboundMessage(admin, { conversationId: persisted.conversation.id, metaMessageId: meta?.messages?.[0]?.id ?? null, body: metaAdReply, senderType: "ai" });
+        continue;
+      }
       const fastReply = await getFastCrmReply(admin, message.text);
       if (fastReply) {
         const meta = await sendMetaMessage(message.from, { type: "text", text: { preview_url: false, body: fastReply } });
