@@ -263,16 +263,18 @@ async function beginIdentityCollection(admin: SupabaseClient, persisted: Persist
     state_data: { booking_for_other: false },
   });
   if (error) throw error;
-  await admin.from("crm_conversations").update({ intent: "reservar_cita" }).eq("id", persisted.conversation.id);
+  // Elegir "Reservar cita" es una acción explícita para retomar la
+  // automatización, incluso si antes se pidió atención humana.
+  await admin.from("crm_conversations").update({ intent: "reservar_cita", needs_human: false }).eq("id", persisted.conversation.id);
   if (registeredPatient) {
     const name = registeredPatient.full_name?.trim() || "el paciente registrado";
-    const body = `Encontré los datos registrados de ${name}. ¿La cita de ${String(treatment.title)} será para esta persona o para otra?`;
+    const body = `Encontré los datos registrados de ${name}. ¿La cita de ${String(treatment.title)} será para este usuario o para otro paciente?`;
     await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, body, {
       type: "interactive",
       interactive: {
         type: "button", body: { text: body }, action: { buttons: [
-          { type: "reply", reply: { id: "booking-patient:same", title: "Para esta persona" } },
-          { type: "reply", reply: { id: "booking-patient:other", title: "Para otra persona" } },
+          { type: "reply", reply: { id: "booking-patient:same", title: "Para este usuario" } },
+          { type: "reply", reply: { id: "booking-patient:other", title: "Para otro paciente" } },
         ] },
       },
     });
@@ -451,7 +453,7 @@ async function handleIdentityStep(admin: SupabaseClient, session: BookingSession
       : message.interactiveId === "booking-patient:other"
         ? "other"
         : normalize(value);
-    if (choice === "same" || choice === "para esta persona") {
+    if (choice === "same" || choice === "para este usuario" || choice === "para esta persona") {
       const patient = await loadRegisteredContactPatient(admin, session.contact_id);
       if (!patient) {
         await admin.from("crm_booking_sessions").update({
@@ -483,7 +485,7 @@ async function handleIdentityStep(admin: SupabaseClient, session: BookingSession
       }
       return true;
     }
-    if (choice === "other" || choice === "para otra persona") {
+    if (choice === "other" || choice === "para otro paciente" || choice === "para otra persona") {
       const updated = await admin.from("crm_booking_sessions").update({
         user_id: null, patient_id: null, full_name: null, document_number: null, email: null,
         identity_step: "full_name", state_data: { booking_for_other: true },
@@ -494,12 +496,12 @@ async function handleIdentityStep(admin: SupabaseClient, session: BookingSession
       return true;
     }
     const name = session.full_name?.trim() || "el paciente registrado";
-    const body = `¿La cita será para ${name} o para otra persona?`;
+    const body = `¿La cita será para ${name} o para otro paciente?`;
     await sendBookingMessage(admin, session.conversation_id, persisted.contact.wa_id, body, {
       type: "interactive",
       interactive: { type: "button", body: { text: body }, action: { buttons: [
-        { type: "reply", reply: { id: "booking-patient:same", title: "Para esta persona" } },
-        { type: "reply", reply: { id: "booking-patient:other", title: "Para otra persona" } },
+        { type: "reply", reply: { id: "booking-patient:same", title: "Para este usuario" } },
+        { type: "reply", reply: { id: "booking-patient:other", title: "Para otro paciente" } },
       ] } },
     });
     return true;
@@ -607,8 +609,10 @@ export async function handleBookingConversation(
   message: IncomingWhatsAppMessage,
 ) {
   if (persisted.conversation.needs_human) return false;
+  // Expirar retenciones es mantenimiento. Una falla temporal en esa limpieza
+  // nunca debe impedir que el paciente continúe una reserva válida.
   const expiry = await admin.rpc("crm_expire_booking_holds");
-  if (expiry.error) throw expiry.error;
+  if (expiry.error) console.error("[whatsapp] Could not expire old booking holds", expiry.error);
   let session = await loadActiveSession(admin, persisted.conversation.id);
   if (!session && !bookingPattern.test(message.text ?? "")) {
     const { data: recentlyExpiredRows, error: expiredError } = await admin
