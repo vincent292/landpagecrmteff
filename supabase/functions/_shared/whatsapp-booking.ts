@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2.105.1";
+import { PutObjectCommand } from "npm:@aws-sdk/client-s3";
 
 import {
   persistOutboundMessage,
@@ -6,6 +7,12 @@ import {
   sendMetaMessage,
   type IncomingWhatsAppMessage,
 } from "./whatsapp-crm.ts";
+import {
+  createR2Client,
+  getRequiredEnv as getRequiredR2Env,
+  resolveBucketName,
+  resolvePrivateObjectKey,
+} from "./r2.ts";
 
 type BookingSession = {
   id: string;
@@ -87,6 +94,7 @@ async function getBookableTreatments(admin: SupabaseClient, city?: string | null
     .select("id,title,slug,city,doctor_id,appointment_type,agenda_tag,treatment_price,direct_booking_price,assessment_price")
     .eq("is_active", true)
     .eq("allows_direct_booking", true)
+    .eq("requires_assessment", false)
     .is("deleted_at", null)
     .order("title")
     .limit(40);
@@ -102,7 +110,7 @@ async function getBookableTreatments(admin: SupabaseClient, city?: string | null
 async function getInformationalTreatments(admin: SupabaseClient, city?: string | null) {
   let query = admin
     .from("treatments")
-    .select("id,title,short_description,description,public_info,requires_assessment,allows_direct_booking,treatment_price,direct_booking_price,assessment_price,assessment_price_presencial")
+    .select("id,title,short_description,description,public_info,city,doctor_id,appointment_type,agenda_tag,requires_assessment,allows_direct_booking,assessment_mode,treatment_price,direct_booking_price,assessment_price,assessment_price_presencial,assessment_price_virtual")
     .eq("is_active", true)
     .is("deleted_at", null)
     .order("title")
@@ -118,6 +126,18 @@ function displayPrice(treatment: Record<string, unknown>) {
     ? treatment.assessment_price_presencial ?? treatment.assessment_price
     : treatment.treatment_price ?? treatment.direct_booking_price ?? treatment.assessment_price ?? 0);
   return price > 0 ? `${price.toFixed(2)} Bs` : null;
+}
+
+function isAssessmentBooking(session: BookingSession) {
+  return session.state_data?.booking_kind === "assessment";
+}
+
+function assessmentPriceForMode(treatment: Record<string, unknown>, careMode: "presencial" | "virtual") {
+  const price = careMode === "virtual"
+    ? treatment.assessment_price_virtual ?? treatment.assessment_price
+    : treatment.assessment_price_presencial ?? treatment.assessment_price;
+  const numeric = Number(price ?? 0);
+  return Number.isFinite(numeric) && numeric > 0 ? `${numeric.toFixed(2)} Bs` : null;
 }
 
 async function rememberCityInterest(admin: SupabaseClient, contactId: string, city: string) {
@@ -202,6 +222,10 @@ export async function handleTreatmentCatalogConversation(admin: SupabaseClient, 
     const treatments = await getInformationalTreatments(admin);
     const treatment = treatments.find((item) => item.id === bookId);
     if (!treatment) return false;
+    if (treatment.requires_assessment) {
+      await beginIdentityCollection(admin, persisted, treatment);
+      return true;
+    }
     if (!treatment.allows_direct_booking) {
       await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, "Este tratamiento requiere una evaluación previa. Una administradora te orientará para coordinarla.");
       await admin.from("crm_conversations").update({ needs_human: true, intent: "solicitar_evaluacion" }).eq("id", persisted.conversation.id);
@@ -313,6 +337,8 @@ async function beginIdentityCollection(admin: SupabaseClient, persisted: Persist
   if (existing?.length) await admin.from("crm_booking_sessions").update({ status: "cancelled" }).in("id", existing.map((row) => row.id));
 
   const registeredPatient = await loadRegisteredContactPatient(admin, persisted.contact.id);
+  const assessmentBooking = treatment.requires_assessment === true;
+  const assessmentMode = String(treatment.assessment_mode ?? "presencial");
 
   const { error } = await admin.from("crm_booking_sessions").insert({
     conversation_id: persisted.conversation.id,
@@ -327,8 +353,12 @@ async function beginIdentityCollection(admin: SupabaseClient, persisted: Persist
     document_number: registeredPatient?.document_number ?? null,
     email: registeredPatient?.email ?? null,
     city: treatment.city ?? registeredPatient?.city ?? null,
-    care_mode: "presencial",
-    state_data: { booking_for_other: false },
+    care_mode: assessmentBooking && assessmentMode === "virtual" ? "virtual" : "presencial",
+    state_data: {
+      booking_for_other: false,
+      booking_kind: assessmentBooking ? "assessment" : "treatment",
+      assessment_mode: assessmentBooking ? assessmentMode : null,
+    },
   });
   if (error) throw error;
   // Elegir "Reservar cita" es una acción explícita para retomar la
@@ -336,7 +366,8 @@ async function beginIdentityCollection(admin: SupabaseClient, persisted: Persist
   await admin.from("crm_conversations").update({ intent: "reservar_cita", needs_human: false }).eq("id", persisted.conversation.id);
   if (registeredPatient) {
     const name = registeredPatient.full_name?.trim() || "el paciente registrado";
-    const body = `Encontré los datos registrados de ${name}. ¿La cita de ${String(treatment.title)} será para este usuario o para otro paciente?`;
+    const bookingLabel = assessmentBooking ? `la valoración para ${String(treatment.title)}` : `la cita de ${String(treatment.title)}`;
+    const body = `Encontré los datos registrados de ${name}. ¿${bookingLabel} será para este usuario o para otro paciente?`;
     await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, body, {
       type: "interactive",
       interactive: {
@@ -348,8 +379,9 @@ async function beginIdentityCollection(admin: SupabaseClient, persisted: Persist
     });
     return;
   }
+  const bookingLabel = assessmentBooking ? `la valoración de ${String(treatment.title)}` : `la reserva de ${String(treatment.title)}`;
   await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id,
-    `Perfecto, iniciaremos la reserva de ${String(treatment.title)}. Para completar la cita, empecemos con el nombre y apellido completos del paciente.`);
+    `Perfecto, iniciaremos ${bookingLabel}. Para completar la cita, empecemos con el nombre y apellido completos del paciente.`);
 }
 
 async function ensurePatientAccount(admin: SupabaseClient, session: BookingSession) {
@@ -410,7 +442,11 @@ async function ensurePatientAccount(admin: SupabaseClient, session: BookingSessi
 
   await admin.from("crm_booking_sessions").update({
     user_id: profile.id, patient_id: patientResult.data!.id, identity_step: null,
-    status: "choosing_date", state_data: { account_created: accountCreated, account_setup_url: setupUrl },
+    status: "choosing_date", state_data: {
+      ...session.state_data,
+      account_created: accountCreated,
+      account_setup_url: setupUrl,
+    },
   }).eq("id", session.id);
   await admin.from("crm_contacts").update({
     full_name: session.full_name, email, city: session.city, patient_id: patientResult.data!.id, lead_stage: "cita",
@@ -420,7 +456,7 @@ async function ensurePatientAccount(admin: SupabaseClient, session: BookingSessi
 
 async function loadSessionTreatment(admin: SupabaseClient, session: BookingSession) {
   const { data, error } = await admin.from("treatments")
-    .select("id,title,city,doctor_id,appointment_type,agenda_tag")
+    .select("id,title,city,doctor_id,appointment_type,agenda_tag,requires_assessment,assessment_mode,assessment_price,assessment_price_presencial,assessment_price_virtual")
     .eq("id", session.treatment_id).single();
   if (error) throw error;
   return data;
@@ -447,7 +483,41 @@ async function getMappedSlots(admin: SupabaseClient, session: BookingSession) {
     p_care_mode: session.care_mode,
   });
   if (result.error) throw result.error;
-  return (result.data ?? []).filter((slot: { rule_id: string; available_capacity: number }) => allowed.has(slot.rule_id) && Number(slot.available_capacity) > 0);
+  const restrictToTreatmentRules = !isAssessmentBooking(session);
+  return (result.data ?? []).filter((slot: { rule_id: string; available_capacity: number }) =>
+    (!restrictToTreatmentRules || allowed.has(slot.rule_id)) && Number(slot.available_capacity) > 0
+  );
+}
+
+async function showAssessmentCareModeChoice(admin: SupabaseClient, session: BookingSession, to: string, accountMessage?: string) {
+  const treatment = await loadSessionTreatment(admin, session);
+  const assessmentMode = String(treatment.assessment_mode ?? "presencial");
+  if (!isAssessmentBooking(session) || assessmentMode !== "ambas") {
+    if (isAssessmentBooking(session) && assessmentMode === "virtual" && session.care_mode !== "virtual") {
+      const updated = await admin.from("crm_booking_sessions").update({ care_mode: "virtual" }).eq("id", session.id).select("*").single();
+      if (updated.error) throw updated.error;
+      session = updated.data as BookingSession;
+    }
+    await showAvailableDates(admin, session, to, accountMessage);
+    return;
+  }
+
+  const presencialPrice = assessmentPriceForMode(treatment, "presencial");
+  const virtualPrice = assessmentPriceForMode(treatment, "virtual");
+  const body = `${accountMessage ? `${accountMessage}\n\n` : ""}La valoración de ${String(treatment.title)} puede ser presencial o virtual. Elige la modalidad para ver horarios${presencialPrice || virtualPrice ? " y el costo correspondiente" : ""}:`;
+  const update = await admin.from("crm_booking_sessions").update({ status: "choosing_date" }).eq("id", session.id);
+  if (update.error) throw update.error;
+  await sendBookingMessage(admin, session.conversation_id, to, body, {
+    type: "interactive",
+    interactive: {
+      type: "button",
+      body: { text: body },
+      action: { buttons: [
+        { type: "reply", reply: { id: "booking-care-mode:presencial", title: presencialPrice ? `Presencial · ${presencialPrice}`.slice(0, 20) : "Presencial" } },
+        { type: "reply", reply: { id: "booking-care-mode:virtual", title: virtualPrice ? `Virtual · ${virtualPrice}`.slice(0, 20) : "Virtual" } },
+      ] },
+    },
+  });
 }
 
 async function showAvailableDates(admin: SupabaseClient, session: BookingSession, to: string, accountMessage?: string) {
@@ -555,7 +625,7 @@ async function handleIdentityStep(admin: SupabaseClient, session: BookingSession
       if (!patient) {
         await admin.from("crm_booking_sessions").update({
           patient_id: null, user_id: null, full_name: null, document_number: null, email: null,
-          identity_step: "full_name", state_data: { booking_for_other: false },
+          identity_step: "full_name", state_data: { ...session.state_data, booking_for_other: false },
         }).eq("id", session.id);
         await sendBookingMessage(admin, session.conversation_id, persisted.contact.wa_id, "No pude recuperar la ficha anterior. Envíame el nombre y apellido completos del paciente para continuar.");
         return true;
@@ -569,7 +639,7 @@ async function handleIdentityStep(admin: SupabaseClient, session: BookingSession
         email: patient.email,
         city: patient.city ?? session.city,
         identity_step: missingStep,
-        state_data: { booking_for_other: false },
+        state_data: { ...session.state_data, booking_for_other: false },
       };
       if (!missingStep) sessionUpdate.status = "choosing_date";
       const updated = await admin.from("crm_booking_sessions").update(sessionUpdate).eq("id", session.id).select("*").limit(1);
@@ -578,14 +648,14 @@ async function handleIdentityStep(admin: SupabaseClient, session: BookingSession
       if (missingStep) {
         await sendBookingMessage(admin, session.conversation_id, persisted.contact.wa_id, identityPrompt(missingStep));
       } else {
-        await showAvailableDates(admin, updated.data[0] as BookingSession, persisted.contact.wa_id, `Reservaremos a nombre de ${patient.full_name}.`);
+        await showAssessmentCareModeChoice(admin, updated.data[0] as BookingSession, persisted.contact.wa_id, `Reservaremos a nombre de ${patient.full_name}.`);
       }
       return true;
     }
     if (choice === "other" || choice === "para otro paciente" || choice === "para otra persona") {
       const updated = await admin.from("crm_booking_sessions").update({
         user_id: null, patient_id: null, full_name: null, document_number: null, email: null,
-        identity_step: "full_name", state_data: { booking_for_other: true },
+        identity_step: "full_name", state_data: { ...session.state_data, booking_for_other: true },
       }).eq("id", session.id);
       if (updated.error) throw updated.error;
       await sendBookingMessage(admin, session.conversation_id, persisted.contact.wa_id,
@@ -640,7 +710,7 @@ async function handleIdentityStep(admin: SupabaseClient, session: BookingSession
         : "Tus datos ya estaban registrados; los vinculamos a esta reserva.";
       const ready = await loadActiveSession(admin, session.conversation_id);
       if (!ready) throw new Error("No se pudo recuperar la sesión de reserva.");
-      await showAvailableDates(admin, ready, persisted.contact.wa_id, accountMessage);
+      await showAssessmentCareModeChoice(admin, ready, persisted.contact.wa_id, accountMessage);
     } catch (error) {
       await admin.from("crm_booking_sessions").update({ status: "needs_human", state_data: { account_error: error instanceof Error ? error.message : "unknown" } }).eq("id", session.id);
       await admin.from("crm_conversations").update({ needs_human: true }).eq("id", session.conversation_id);
@@ -670,6 +740,21 @@ async function downloadMetaMedia(mediaId: string) {
   return { bytes, mimeType: mime_type || file.headers.get("content-type") || "application/octet-stream" };
 }
 
+async function uploadWhatsAppReceiptToR2(path: string, bytes: Uint8Array, contentType: string) {
+  const env = getRequiredR2Env();
+  const bucket = "payment-receipts-private";
+  const key = resolvePrivateObjectKey(bucket, path);
+  const client = createR2Client(env);
+  await client.send(new PutObjectCommand({
+    Bucket: resolveBucketName(env, bucket),
+    Key: key,
+    Body: bytes,
+    ContentType: contentType,
+    CacheControl: "private, max-age=0, no-cache",
+  }));
+  return key;
+}
+
 async function receivePaymentReceipt(admin: SupabaseClient, session: BookingSession, persisted: PersistedInbound, message: IncomingWhatsAppMessage) {
   if (!message.mediaId) return false;
   const downloaded = await downloadMetaMedia(message.mediaId);
@@ -679,9 +764,11 @@ async function receivePaymentReceipt(admin: SupabaseClient, session: BookingSess
     return true;
   }
   const safeMessageId = (message.id || crypto.randomUUID()).replace(/[^A-Za-z0-9_-]/g, "_");
-  const path = `whatsapp/${session.id}/${safeMessageId}.${extension}`;
-  const upload = await admin.storage.from("payment-receipts-private").upload(path, downloaded.bytes, { contentType: downloaded.mimeType, upsert: false });
-  if (upload.error) throw upload.error;
+  const path = await uploadWhatsAppReceiptToR2(
+    `whatsapp/${session.id}/${safeMessageId}.${extension}`,
+    downloaded.bytes,
+    downloaded.mimeType,
+  );
   const now = new Date().toISOString();
   const reviewExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   const submission = await admin.from("crm_payment_submissions").insert({
@@ -752,6 +839,22 @@ export async function handleBookingConversation(
     else await sendBookingMessage(admin, session.conversation_id, persisted.contact.wa_id, "Tu comprobante sigue en revisión. Te enviaremos la confirmación apenas sea aprobado.");
     return true;
   }
+  const careModeChoice = message.interactiveId?.match(/^booking-care-mode:(presencial|virtual)$/);
+  if (session && careModeChoice && isAssessmentBooking(session)) {
+    const treatment = await loadSessionTreatment(admin, session);
+    if (String(treatment.assessment_mode ?? "presencial") !== "ambas") {
+      await showAssessmentCareModeChoice(admin, session, persisted.contact.wa_id);
+      return true;
+    }
+    const updated = await admin.from("crm_booking_sessions")
+      .update({ care_mode: careModeChoice[1], status: "choosing_date" })
+      .eq("id", session.id)
+      .select("*")
+      .single();
+    if (updated.error) throw updated.error;
+    await showAvailableDates(admin, updated.data as BookingSession, persisted.contact.wa_id);
+    return true;
+  }
   if (session?.status === "needs_human") return false;
   if (session?.status === "collecting_identity") return await handleIdentityStep(admin, session, persisted, message);
   if (session?.status === "choosing_date") {
@@ -791,7 +894,11 @@ export async function handleBookingConversation(
       return true;
     }
     session = hold.data as BookingSession;
-    await sendPaymentInstructions(admin, session, persisted.contact.wa_id);
+    if (session.status === "needs_human") {
+      await sendBookingMessage(admin, session.conversation_id, persisted.contact.wa_id, "Tu solicitud de valoración fue registrada. Administración confirmará la cita lo antes posible.");
+    } else {
+      await sendPaymentInstructions(admin, session, persisted.contact.wa_id);
+    }
     return true;
   }
 

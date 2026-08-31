@@ -360,6 +360,17 @@ export async function attachReservationPaymentReceipt(reservationId: string, pay
 
 export async function getReservationReceiptUrl(path?: string | null) {
   if (!path) return null;
+
+  // The first WhatsApp receipts were stored in Supabase Storage before the
+  // application moved private files to R2. Keep them accessible while all
+  // newer receipts use the R2 signed-link flow below.
+  if (path.startsWith("whatsapp/")) {
+    const { data, error } = await supabase.storage
+      .from(receiptsBucket)
+      .createSignedUrl(path, 60 * 10);
+    if (!error && data?.signedUrl) return data.signedUrl;
+  }
+
   return getSignedUrl(receiptsBucket, path);
 }
 
