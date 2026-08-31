@@ -88,6 +88,11 @@ export type CrmSettings = {
   template_language: string;
   booking_hold_minutes: number;
   allow_external_grounding: boolean;
+  site_url: string;
+  admin_notification_whatsapps: string[];
+  admin_receipt_review_template: string | null;
+  patient_reschedule_template: string | null;
+  admin_doctor_unavailable_template: string | null;
 };
 
 export type MetaCtwaAd = {
@@ -149,7 +154,7 @@ export async function getCrmBookingSession(conversationId: string) {
 export async function getCrmSettings() {
   const { data, error } = await supabase
     .from("crm_settings")
-    .select("ai_enabled,ai_system_prompt,welcome_message,booking_url,patient_confirmation_template,doctor_booking_template,payment_rejected_template,template_language,booking_hold_minutes,allow_external_grounding")
+    .select("ai_enabled,ai_system_prompt,welcome_message,booking_url,patient_confirmation_template,doctor_booking_template,payment_rejected_template,template_language,booking_hold_minutes,allow_external_grounding,site_url,admin_notification_whatsapps,admin_receipt_review_template,patient_reschedule_template,admin_doctor_unavailable_template")
     .eq("id", true)
     .single();
   if (error) throw error;
@@ -186,7 +191,7 @@ export async function updateMetaCtwaAd(id: string, values: Partial<Pick<MetaCtwa
 }
 
 export async function updateCrmSettings(values: Partial<CrmSettings>) {
-  const { data, error } = await supabase.from("crm_settings").update(values).eq("id", true).select("ai_enabled,ai_system_prompt,welcome_message,booking_url,patient_confirmation_template,doctor_booking_template,payment_rejected_template,template_language,booking_hold_minutes,allow_external_grounding").single();
+  const { data, error } = await supabase.from("crm_settings").update(values).eq("id", true).select("ai_enabled,ai_system_prompt,welcome_message,booking_url,patient_confirmation_template,doctor_booking_template,payment_rejected_template,template_language,booking_hold_minutes,allow_external_grounding,site_url,admin_notification_whatsapps,admin_receipt_review_template,patient_reschedule_template,admin_doctor_unavailable_template").single();
   if (error) throw error;
   return data as CrmSettings;
 }

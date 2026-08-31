@@ -80,7 +80,7 @@ export function PaymentsAndReservationsAdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() => new URLSearchParams(window.location.search).get("reservation") ?? "");
   const [dateFilter, setDateFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<(typeof statusOptions)[number]["value"]>("pending");
   const [kindFilter, setKindFilter] = useState<"all" | PaymentsAndReservationsItem["kind"] | "manual_reservation">("all");
@@ -176,6 +176,7 @@ export function PaymentsAndReservationsAdminPage() {
             ? item.kind === "reservation" && item.reservationCategory === "manual"
             : item.kind === kindFilter && !(item.kind === "reservation" && item.reservationCategory === "manual" && kindFilter === "reservation");
       const text = JSON.stringify([
+        item.id,
         item.title,
         item.customerName,
         item.phone,

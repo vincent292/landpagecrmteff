@@ -1,5 +1,6 @@
 import {
   corsHeaders,
+  createAdminClient,
   json,
   persistOutboundMessage,
   requireCrmManager,
@@ -37,7 +38,11 @@ Deno.serve(async (request) => {
   if (request.method !== "POST") return json({ error: "Método no permitido." }, 405);
 
   try {
-    const { admin } = await requireCrmManager(request);
+    // El cron no tiene una sesión de usuario. Su secreto vive sólo en Edge/Vault;
+    // las invocaciones manuales siguen requiriendo administradora o superusuaria.
+    const cronSecret = Deno.env.get("CRM_DISPATCH_CRON_SECRET")?.trim();
+    const cronAuthorized = Boolean(cronSecret) && request.headers.get("x-crm-dispatch-secret") === cronSecret;
+    const admin = cronAuthorized ? createAdminClient() : (await requireCrmManager(request)).admin;
     const { data, error } = await admin
       .from("crm_notification_outbox")
       .select("*")

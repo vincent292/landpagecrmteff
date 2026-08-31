@@ -7,7 +7,7 @@ import { getSignedUrl, uploadPrivateFile } from "./storageService";
 
 const receiptsBucket = "payment-receipts-private";
 
-export type ReservationStatus = "Pendiente" | "Confirmada" | "Realizada" | "Cancelada" | "Rechazada";
+export type ReservationStatus = "Pendiente" | "Confirmada" | "Realizada" | "Cancelada" | "Rechazada" | "Reprogramacion";
 
 export type AppointmentReservationRow = DeletionMetadata & {
   id: string;

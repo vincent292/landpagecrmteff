@@ -38,7 +38,7 @@ import { normalizeDocumentNumber } from "../../utils/documentNumber";
 import { formatDate, formatMoney } from "../../utils/text";
 import { buildWhatsAppHref } from "../../utils/whatsapp";
 
-const reservationStatuses: ReservationStatus[] = ["Pendiente", "Confirmada", "Realizada", "Cancelada", "Rechazada"];
+const reservationStatuses: ReservationStatus[] = ["Pendiente", "Confirmada", "Reprogramacion", "Realizada", "Cancelada", "Rechazada"];
 const appointmentStatuses = ["Todos", "Pendiente", "Programada", "Confirmada", "Realizada", "Cancelada", "Rechazada"];
 const appointmentTypes = ["Valoracion estetica", "Control", "Procedimiento", "Promocion directa", "Revision postratamiento", "Consulta general"];
 const optionalEmailSchema = z.string().trim().pipe(z.string().email("Correo invalido").or(z.literal("")));
