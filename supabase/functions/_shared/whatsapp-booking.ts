@@ -197,6 +197,44 @@ async function resolveTreatmentSelection(admin: SupabaseClient, conversationId: 
   return treatments.find((item) => text.includes(normalize(item.title)) || normalize(item.title).includes(text)) ?? null;
 }
 
+type RegisteredPatient = {
+  id: string;
+  profile_id: string | null;
+  full_name: string | null;
+  document_number: string | null;
+  email: string | null;
+  city: string | null;
+};
+
+async function loadRegisteredContactPatient(admin: SupabaseClient, contactId: string) {
+  const contact = await admin.from("crm_contacts").select("patient_id").eq("id", contactId).limit(1);
+  if (contact.error) throw contact.error;
+  const patientId = contact.data?.[0]?.patient_id as string | null | undefined;
+  if (!patientId) return null;
+  const patient = await admin.from("patients")
+    .select("id,profile_id,full_name,document_number,email,city")
+    .eq("id", patientId)
+    .eq("is_deleted", false)
+    .limit(1);
+  if (patient.error) throw patient.error;
+  return (patient.data?.[0] ?? null) as RegisteredPatient | null;
+}
+
+function firstMissingIdentityStep(patient: RegisteredPatient, fallbackCity: string | null) {
+  if (!patient.full_name?.trim()) return "full_name";
+  if (!patient.document_number?.trim()) return "document_number";
+  if (!patient.email?.trim()) return "email";
+  if (!(patient.city ?? fallbackCity)?.trim()) return "city";
+  return null;
+}
+
+function identityPrompt(step: string) {
+  if (step === "document_number") return "Para completar la reserva, envíame el número de carnet del paciente, sin fotografía.";
+  if (step === "email") return "¿Cuál es el correo electrónico del paciente? Lo usaremos para registrar su reserva y darle acceso al seguimiento.";
+  if (step === "city") return "¿En qué ciudad desea atenderse el paciente?";
+  return "Para completar la reserva, envíame el nombre y apellido completos del paciente.";
+}
+
 async function beginIdentityCollection(admin: SupabaseClient, persisted: PersistedInbound, treatment: Record<string, unknown>) {
   const { data: existing, error: existingError } = await admin
     .from("crm_booking_sessions")
@@ -206,21 +244,42 @@ async function beginIdentityCollection(admin: SupabaseClient, persisted: Persist
   if (existingError) throw existingError;
   if (existing?.length) await admin.from("crm_booking_sessions").update({ status: "cancelled" }).in("id", existing.map((row) => row.id));
 
+  const registeredPatient = await loadRegisteredContactPatient(admin, persisted.contact.id);
+
   const { error } = await admin.from("crm_booking_sessions").insert({
     conversation_id: persisted.conversation.id,
     contact_id: persisted.contact.id,
     treatment_id: treatment.id,
     status: "collecting_identity",
-    identity_step: "full_name",
+    identity_step: registeredPatient ? "patient_choice" : "full_name",
     phone: persisted.contact.phone,
-    full_name: persisted.contact.full_name,
-    city: treatment.city ?? null,
+    user_id: registeredPatient?.profile_id ?? null,
+    patient_id: registeredPatient?.id ?? null,
+    full_name: registeredPatient?.full_name ?? persisted.contact.full_name,
+    document_number: registeredPatient?.document_number ?? null,
+    email: registeredPatient?.email ?? null,
+    city: registeredPatient?.city ?? treatment.city ?? null,
     care_mode: "presencial",
+    state_data: { booking_for_other: false },
   });
   if (error) throw error;
   await admin.from("crm_conversations").update({ intent: "reservar_cita" }).eq("id", persisted.conversation.id);
+  if (registeredPatient) {
+    const name = registeredPatient.full_name?.trim() || "el paciente registrado";
+    const body = `Encontré los datos registrados de ${name}. ¿La cita de ${String(treatment.title)} será para esta persona o para otra?`;
+    await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, body, {
+      type: "interactive",
+      interactive: {
+        type: "button", body: { text: body }, action: { buttons: [
+          { type: "reply", reply: { id: "booking-patient:same", title: "Para esta persona" } },
+          { type: "reply", reply: { id: "booking-patient:other", title: "Para otra persona" } },
+        ] },
+      },
+    });
+    return;
+  }
   await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id,
-    `Perfecto, iniciaremos la reserva de ${String(treatment.title)}. Para darte seguimiento y completar la cita, registraremos tus datos en la plataforma. Empecemos con tu nombre completo.`);
+    `Perfecto, iniciaremos la reserva de ${String(treatment.title)}. Para completar la cita, empecemos con el nombre y apellido completos del paciente.`);
 }
 
 async function ensurePatientAccount(admin: SupabaseClient, session: BookingSession) {
@@ -386,6 +445,65 @@ async function sendPaymentInstructions(admin: SupabaseClient, session: BookingSe
 
 async function handleIdentityStep(admin: SupabaseClient, session: BookingSession, persisted: PersistedInbound, message: IncomingWhatsAppMessage) {
   const value = message.text?.trim() ?? "";
+  if (session.identity_step === "patient_choice") {
+    const choice = message.interactiveId === "booking-patient:same"
+      ? "same"
+      : message.interactiveId === "booking-patient:other"
+        ? "other"
+        : normalize(value);
+    if (choice === "same" || choice === "para esta persona") {
+      const patient = await loadRegisteredContactPatient(admin, session.contact_id);
+      if (!patient) {
+        await admin.from("crm_booking_sessions").update({
+          patient_id: null, user_id: null, full_name: null, document_number: null, email: null,
+          identity_step: "full_name", state_data: { booking_for_other: false },
+        }).eq("id", session.id);
+        await sendBookingMessage(admin, session.conversation_id, persisted.contact.wa_id, "No pude recuperar la ficha anterior. Envíame el nombre y apellido completos del paciente para continuar.");
+        return true;
+      }
+      const missingStep = firstMissingIdentityStep(patient, session.city);
+      const sessionUpdate: Record<string, unknown> = {
+        user_id: patient.profile_id,
+        patient_id: patient.id,
+        full_name: patient.full_name,
+        document_number: patient.document_number,
+        email: patient.email,
+        city: patient.city ?? session.city,
+        identity_step: missingStep,
+        state_data: { booking_for_other: false },
+      };
+      if (!missingStep) sessionUpdate.status = "choosing_date";
+      const updated = await admin.from("crm_booking_sessions").update(sessionUpdate).eq("id", session.id).select("*").single();
+      if (updated.error) throw updated.error;
+      await admin.from("crm_contacts").update({ patient_id: patient.id, lead_stage: "cita" }).eq("id", session.contact_id);
+      if (missingStep) {
+        await sendBookingMessage(admin, session.conversation_id, persisted.contact.wa_id, identityPrompt(missingStep));
+      } else {
+        await showAvailableDates(admin, updated.data as BookingSession, persisted.contact.wa_id, `Reservaremos a nombre de ${patient.full_name}.`);
+      }
+      return true;
+    }
+    if (choice === "other" || choice === "para otra persona") {
+      const updated = await admin.from("crm_booking_sessions").update({
+        user_id: null, patient_id: null, full_name: null, document_number: null, email: null,
+        identity_step: "full_name", state_data: { booking_for_other: true },
+      }).eq("id", session.id);
+      if (updated.error) throw updated.error;
+      await sendBookingMessage(admin, session.conversation_id, persisted.contact.wa_id,
+        "De acuerdo. La cita quedará a nombre del paciente que indiques. Envíame su nombre y apellido completos.");
+      return true;
+    }
+    const name = session.full_name?.trim() || "el paciente registrado";
+    const body = `¿La cita será para ${name} o para otra persona?`;
+    await sendBookingMessage(admin, session.conversation_id, persisted.contact.wa_id, body, {
+      type: "interactive",
+      interactive: { type: "button", body: { text: body }, action: { buttons: [
+        { type: "reply", reply: { id: "booking-patient:same", title: "Para esta persona" } },
+        { type: "reply", reply: { id: "booking-patient:other", title: "Para otra persona" } },
+      ] } },
+    });
+    return true;
+  }
   if (!value) return true;
   const updates: Record<string, unknown> = {};
   let prompt = "";
