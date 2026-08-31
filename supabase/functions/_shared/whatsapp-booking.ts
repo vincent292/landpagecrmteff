@@ -507,19 +507,39 @@ async function showAvailableTimes(admin: SupabaseClient, session: BookingSession
   });
 }
 
+function resolvePublicQrUrl(value: unknown) {
+  const qr = typeof value === "string" ? value.trim() : "";
+  if (!qr) return null;
+  if (/^https?:\/\//i.test(qr)) return qr;
+
+  const publicBaseUrl = Deno.env.get("R2_PUBLIC_BASE_URL")?.trim() || Deno.env.get("VITE_R2_PUBLIC_BASE_URL")?.trim();
+  if (!publicBaseUrl) return null;
+  return `${publicBaseUrl.replace(/\/+$/g, "")}/${qr.replace(/^\/+/, "")}`;
+}
+
 async function sendPaymentInstructions(admin: SupabaseClient, session: BookingSession, to: string) {
   const settings = await admin.from("site_settings").select("payment_qr_image,appointment_qr_payment_image").limit(1);
   if (settings.error) throw settings.error;
   const paymentSettings = settings.data?.[0] ?? null;
-  const qr = paymentSettings?.payment_qr_image || paymentSettings?.appointment_qr_payment_image;
+  const qr = resolvePublicQrUrl(paymentSettings?.payment_qr_image || paymentSettings?.appointment_qr_payment_image);
   const expires = session.hold_expires_at ? new Intl.DateTimeFormat("es-BO", { timeStyle: "short", timeZone: "America/La_Paz" }).format(new Date(session.hold_expires_at)) : "30 minutos";
   const body = `Retuve tu horario hasta ${expires}. Realiza el pago de ${Number(session.amount_due ?? 0).toFixed(2)} Bs y envía aquí una foto o PDF legible del comprobante.`;
-  if (qr) await sendBookingMessage(admin, session.conversation_id, to, body, { type: "image", image: { link: qr, caption: body } });
-  else {
-    await admin.from("crm_booking_sessions").update({ status: "needs_human" }).eq("id", session.id);
-    await admin.from("crm_conversations").update({ needs_human: true }).eq("id", session.conversation_id);
-    await sendBookingMessage(admin, session.conversation_id, to, "El horario fue retenido, pero el QR no está disponible. Administración continuará contigo.");
+  if (qr) {
+    try {
+      await sendBookingMessage(admin, session.conversation_id, to, body, { type: "image", image: { link: qr, caption: body } });
+      return;
+    } catch (error) {
+      const detail = error instanceof Error ? error.message.slice(0, 500) : "No se pudo enviar el QR";
+      console.error("[whatsapp] Payment QR delivery failed", detail);
+      await admin.from("crm_booking_sessions")
+        .update({ state_data: { ...session.state_data, payment_qr_error: detail, payment_qr_error_at: new Date().toISOString() } })
+        .eq("id", session.id);
+    }
   }
+
+  await admin.from("crm_booking_sessions").update({ status: "needs_human" }).eq("id", session.id);
+  await admin.from("crm_conversations").update({ needs_human: true }).eq("id", session.conversation_id);
+  await sendBookingMessage(admin, session.conversation_id, to, "El horario fue retenido, pero no pude enviarte el QR de pago. Administración continuará contigo para enviártelo.");
 }
 
 async function handleIdentityStep(admin: SupabaseClient, session: BookingSession, persisted: PersistedInbound, message: IncomingWhatsAppMessage) {
