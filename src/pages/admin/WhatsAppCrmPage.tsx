@@ -10,9 +10,11 @@ import {
   RefreshCw,
   Search,
   Send,
+  Settings,
   UserRoundCheck,
+  X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { buildCanonicalUrl } from "../../lib/siteUrl";
 import {
@@ -88,7 +90,9 @@ export function WhatsAppCrmPage() {
   const [paymentQrUrl, setPaymentQrUrl] = useState<string | null>(null);
   const [booking, setBooking] = useState<CrmBookingSession | null>(null);
   const [automationSettings, setAutomationSettings] = useState<CrmSettings | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [clock, setClock] = useState(() => Date.now());
+  const messageScrollerRef = useRef<HTMLDivElement>(null);
 
   const selected = useMemo(
     () => conversations.find((conversation) => conversation.id === selectedId) ?? null,
@@ -152,6 +156,11 @@ export function WhatsAppCrmPage() {
     }
     void getReservationReceiptUrl(path).then(setReceiptUrl).catch(() => setReceiptUrl(null));
   }, [selected?.appointment_reservations?.payment_receipt_path]);
+
+  useEffect(() => {
+    const scroller = messageScrollerRef.current;
+    if (scroller) scroller.scrollTo({ top: scroller.scrollHeight, behavior: "auto" });
+  }, [messages, selectedId]);
 
   const visibleConversations = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -293,8 +302,8 @@ export function WhatsAppCrmPage() {
 
       <MetaAdsPanel />
 
-      <section className="grid min-h-[680px] overflow-hidden rounded-[30px] border border-[var(--color-border)] bg-white/65 shadow-[0_22px_70px_rgba(62,42,31,0.08)] xl:grid-cols-[320px_minmax(0,1fr)_330px]">
-        <aside className="border-b border-[var(--color-border)] bg-[#fbf7f2]/75 xl:border-b-0 xl:border-r">
+      <section className="grid min-h-[680px] overflow-hidden rounded-[30px] border border-[var(--color-border)] bg-white/65 shadow-[0_22px_70px_rgba(62,42,31,0.08)] xl:h-[calc(100dvh-11rem)] xl:max-h-[900px] xl:grid-cols-[320px_minmax(0,1fr)_330px]">
+        <aside className="flex min-h-0 flex-col border-b border-[var(--color-border)] bg-[#fbf7f2]/75 xl:border-b-0 xl:border-r">
           <div className="border-b border-[var(--color-border)] p-4">
             <label className="flex items-center gap-2 rounded-2xl border border-[var(--color-border)] bg-white/80 px-3 py-2">
               <Search className="h-4 w-4 text-[var(--color-copy)]" />
@@ -306,7 +315,7 @@ export function WhatsAppCrmPage() {
               ))}
             </div>
           </div>
-          <div className="max-h-[640px] overflow-y-auto p-2">
+          <div className="min-h-0 flex-1 overflow-y-auto p-2">
             {loading ? <p className="p-4 text-sm text-[var(--color-copy)]">Cargando conversaciones…</p> : null}
             {!loading && visibleConversations.length === 0 ? <p className="p-5 text-center text-sm text-[var(--color-copy)]">Aún no hay conversaciones para este filtro.</p> : null}
             {visibleConversations.map((conversation) => (
@@ -327,7 +336,7 @@ export function WhatsAppCrmPage() {
           </div>
         </aside>
 
-        <div className="flex min-h-[680px] min-w-0 flex-col border-b border-[var(--color-border)] xl:border-b-0 xl:border-r">
+        <div className="flex min-h-[680px] min-w-0 flex-col border-b border-[var(--color-border)] xl:min-h-0 xl:border-b-0 xl:border-r">
           {selected ? (
             <>
               <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] bg-white/60 p-4">
@@ -336,6 +345,9 @@ export function WhatsAppCrmPage() {
                   <p className="text-xs text-[var(--color-copy)]">+{selected.crm_contacts.phone} · {windowOpen ? "ventana de 24 h activa" : "requiere plantilla aprobada"}</p>
                 </div>
                 <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => setSettingsOpen(true)} className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-white px-3 py-2 text-xs font-semibold" title="Configuración del CRM">
+                    <Settings className="h-4 w-4" /> Configuración
+                  </button>
                   <button type="button" onClick={() => void patchConversation(selected.ai_enabled ? { ai_enabled: false } : { ai_enabled: true, needs_human: false })} className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold ${selected.ai_enabled && !selected.needs_human ? "bg-violet-100 text-violet-800" : "bg-stone-100 text-stone-600"}`}>
                     <Bot className="h-4 w-4" /> {selected.ai_enabled && !selected.needs_human ? "IA responde" : "IA pausada"}
                   </button>
@@ -345,7 +357,7 @@ export function WhatsAppCrmPage() {
                 </div>
               </header>
 
-              <div className="flex-1 space-y-3 overflow-y-auto bg-[linear-gradient(180deg,#f8f3ed,#fffaf5)] p-4 sm:p-6">
+              <div ref={messageScrollerRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-[linear-gradient(180deg,#f8f3ed,#fffaf5)] p-4 sm:p-6">
                 {messages.map((message) => (
                   <div key={message.id} className={`flex ${message.direction === "outbound" ? "justify-end" : "justify-start"}`}>
                     <div className={`max-w-[82%] rounded-[22px] px-4 py-3 text-sm shadow-sm ${message.direction === "outbound" ? "rounded-br-md bg-[var(--color-mocha)] text-white" : "rounded-bl-md border border-[var(--color-border)] bg-white text-[var(--color-ink)]"}`}>
@@ -380,7 +392,7 @@ export function WhatsAppCrmPage() {
           ) : <div className="grid flex-1 place-items-center p-8 text-center text-[var(--color-copy)]"><div><MessageCircle className="mx-auto h-10 w-10" /><p className="mt-3">Selecciona una conversación.</p></div></div>}
         </div>
 
-        <aside className="bg-white/50 p-5">
+        <aside className="min-h-0 overflow-y-auto bg-white/50 p-5">
           {selected ? (
             <div className="grid gap-5">
               <div>
@@ -430,9 +442,15 @@ export function WhatsAppCrmPage() {
                 <textarea key={`${selected.crm_contacts.id}-notes`} defaultValue={selected.crm_contacts.notes ?? ""} onBlur={(event) => void patchContact({ notes: event.target.value.trim() || null })} rows={5} placeholder="Seguimiento, preferencias o contexto comercial…" className="mt-3 w-full resize-none rounded-2xl border border-[var(--color-border)] bg-white px-3 py-2 text-sm" />
               </div>
 
-              {automationSettings ? (
-                <div className="border-t border-[var(--color-border)] pt-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-accent-strong)]">Automatización Meta</p>
+              {automationSettings && settingsOpen ? (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                  <button type="button" aria-label="Cerrar configuración" onClick={() => setSettingsOpen(false)} className="absolute inset-0 cursor-default bg-[rgba(35,23,16,0.46)]" />
+                  <div role="dialog" aria-modal="true" aria-label="Configuración del CRM" className="relative z-10 max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-[28px] border border-[var(--color-border)] bg-[#fffdf9] p-5 shadow-2xl">
+                    <div className="flex items-start justify-between gap-4 border-b border-[var(--color-border)] pb-4">
+                      <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-accent-strong)]">Configuración del CRM</p><p className="mt-1 text-sm text-[var(--color-copy)]">Automatización, plantillas, avisos y conocimiento de WhatsApp.</p></div>
+                      <button type="button" onClick={() => setSettingsOpen(false)} className="rounded-full border border-[var(--color-border)] bg-white p-2" aria-label="Cerrar"><X className="h-4 w-4" /></button>
+                    </div>
+                    <div className="pt-4">
                   <label className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs font-semibold">
                     <span>IA global</span>
                     <input type="checkbox" checked={automationSettings.ai_enabled} onChange={(event) => void patchAutomationSettings({ ai_enabled: event.target.checked })} />
@@ -471,6 +489,8 @@ export function WhatsAppCrmPage() {
                     placeholder="Tono, politicas internas o mensajes que la IA debe respetar."
                     className="mt-1 w-full resize-none rounded-2xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs"
                   />
+                    </div>
+                  </div>
                 </div>
               ) : null}
 
