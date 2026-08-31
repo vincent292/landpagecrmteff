@@ -15,7 +15,7 @@ import {
   sendMetaMessage,
   verifyMetaSignature,
 } from "../_shared/whatsapp-crm.ts";
-import { handleBookingConversation } from "../_shared/whatsapp-booking.ts";
+import { handleBookingConversation, handleTreatmentCatalogConversation } from "../_shared/whatsapp-booking.ts";
 
 declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
 
@@ -113,6 +113,8 @@ Deno.serve(async (request) => {
     }
     try {
       if (persisted.duplicate) continue;
+      const catalogHandled = await handleTreatmentCatalogConversation(admin, persisted, message);
+      if (catalogHandled) continue;
       let bookingHandled = false;
       try {
         bookingHandled = await handleBookingConversation(admin, persisted, message);

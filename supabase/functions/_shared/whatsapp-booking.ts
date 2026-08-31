@@ -40,6 +40,7 @@ type PersistedInbound = {
 const activeStatuses = ["collecting_identity", "choosing_date", "choosing_time", "awaiting_payment", "payment_review", "needs_human"];
 const bookingPattern = /\b(reserv(?:ar|a|o)|agend(?:ar|a|o)|sacar\s+(?:una\s+)?cita|quiero\s+(?:una\s+)?cita|tomar\s+(?:una\s+)?cita)\b/i;
 const cancelPattern = /\b(cancelar|salir|detener|ya\s+no)\b/i;
+const treatmentCatalogPattern = /\b(que|cuales|cu[aá]les|ver|mu[eé]strame|informaci[oó]n|saber).{0,45}\b(trat[a]?m?ientos?|servicios?)\b|\b(trat[a]?m?ientos?|servicios?).{0,45}\b(disponibles?|tienen|ofrecen|hay)\b/i;
 
 function normalize(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -93,6 +94,79 @@ async function getBookableTreatments(admin: SupabaseClient) {
     Number(row.treatment_price ?? row.direct_booking_price ?? row.assessment_price ?? 0) > 0
     && !/\b(prueba|test|interna)\b/i.test(String(row.title ?? ""))
   );
+}
+
+async function getInformationalTreatments(admin: SupabaseClient) {
+  const { data, error } = await admin
+    .from("treatments")
+    .select("id,title,short_description,description,public_info,requires_assessment,allows_direct_booking,treatment_price,direct_booking_price,assessment_price,assessment_price_presencial")
+    .eq("is_active", true)
+    .is("deleted_at", null)
+    .order("title")
+    .limit(40);
+  if (error) throw error;
+  return (data ?? []).filter((row) => !/\b(prueba|test|interna)\b/i.test(String(row.title ?? "")));
+}
+
+function displayPrice(treatment: Record<string, unknown>) {
+  const price = Number(treatment.requires_assessment
+    ? treatment.assessment_price_presencial ?? treatment.assessment_price
+    : treatment.treatment_price ?? treatment.direct_booking_price ?? treatment.assessment_price ?? 0);
+  return price > 0 ? `${price.toFixed(2)} Bs` : null;
+}
+
+async function showTreatmentInformationChoices(admin: SupabaseClient, persisted: PersistedInbound) {
+  const treatments = await getInformationalTreatments(admin);
+  if (!treatments.length) return false;
+  const rows = treatments.slice(0, 10).map((treatment) => ({
+    id: `treatment-info:${treatment.id}`,
+    title: String(treatment.title).slice(0, 24),
+    description: treatment.requires_assessment
+      ? `Evaluación previa${displayPrice(treatment) ? ` · ${displayPrice(treatment)}` : ""}`.slice(0, 72)
+      : `${displayPrice(treatment) ?? "Consultar precio"}`.slice(0, 72),
+  }));
+  await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, "Elige un tratamiento para ver su información, precio y cómo agendar:", {
+    type: "interactive",
+    interactive: { type: "list", body: { text: "Elige un tratamiento para ver su información, precio y cómo agendar:" }, action: { button: "Ver tratamientos", sections: [{ title: "Tratamientos", rows }] } },
+  });
+  return true;
+}
+
+export async function handleTreatmentCatalogConversation(admin: SupabaseClient, persisted: PersistedInbound, message: IncomingWhatsAppMessage) {
+  if (message.interactiveId === "treatment-catalog") return await showTreatmentInformationChoices(admin, persisted);
+  if (treatmentCatalogPattern.test(message.text ?? "")) return await showTreatmentInformationChoices(admin, persisted);
+  const infoId = message.interactiveId?.startsWith("treatment-info:") ? message.interactiveId.slice("treatment-info:".length) : null;
+  const bookId = message.interactiveId?.startsWith("treatment-book:") ? message.interactiveId.slice("treatment-book:".length) : null;
+  if (bookId) {
+    const treatments = await getInformationalTreatments(admin);
+    const treatment = treatments.find((item) => item.id === bookId);
+    if (!treatment) return false;
+    if (!treatment.allows_direct_booking) {
+      await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, "Este tratamiento requiere una evaluación previa. Una administradora te orientará para coordinarla.");
+      await admin.from("crm_conversations").update({ needs_human: true, intent: "solicitar_evaluacion" }).eq("id", persisted.conversation.id);
+      return true;
+    }
+    await beginIdentityCollection(admin, persisted, treatment);
+    return true;
+  }
+  if (!infoId) return false;
+  const treatments = await getInformationalTreatments(admin);
+  const treatment = treatments.find((item) => item.id === infoId);
+  if (!treatment) return false;
+  const info = String(treatment.public_info || treatment.short_description || treatment.description || "La información detallada se brinda luego de una valoración profesional.").trim().slice(0, 2800);
+  const price = displayPrice(treatment);
+  const priceLine = treatment.requires_assessment
+    ? `Requiere evaluación previa${price ? `. Valor de la evaluación: ${price}` : "."}`
+    : price ? `Precio: ${price}.` : "Precio: consulta con administración.";
+  const body = `*${treatment.title}*\n\n${info}\n\n${priceLine}`;
+  await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, body, {
+    type: "interactive",
+    interactive: { type: "button", body: { text: body.slice(0, 1024) }, action: { buttons: [
+      { type: "reply", reply: { id: `treatment-book:${treatment.id}`, title: treatment.requires_assessment ? "Pedir evaluación" : "Reservar cita" } },
+      { type: "reply", reply: { id: "treatment-catalog", title: "Ver otros" } },
+    ] } },
+  });
+  return true;
 }
 
 async function showTreatmentChoices(admin: SupabaseClient, persisted: PersistedInbound) {
