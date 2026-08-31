@@ -104,10 +104,22 @@ Deno.serve(async (request) => {
 
   let repliesQueued = 0;
   for (const message of incoming) {
+    let persisted: Awaited<ReturnType<typeof persistInboundMessage>>;
     try {
-      const persisted = await persistInboundMessage(admin, message);
+      persisted = await persistInboundMessage(admin, message);
+    } catch (error) {
+      console.error("[whatsapp] persistInboundMessage failed", error);
+      continue;
+    }
+    try {
       if (persisted.duplicate) continue;
-      const bookingHandled = await handleBookingConversation(admin, persisted, message);
+      let bookingHandled = false;
+      try {
+        bookingHandled = await handleBookingConversation(admin, persisted, message);
+      } catch (error) {
+        // Booking state must not prevent general information replies.
+        console.error("[whatsapp] Booking flow skipped", error);
+      }
       if (bookingHandled || !message.text) continue;
       if (isHumanRequest(message.text)) {
         const handoff = /\b(emergencia|urgencia)\b/i.test(message.text)
@@ -118,16 +130,23 @@ Deno.serve(async (request) => {
         continue;
       }
       if (!persisted.conversation.ai_enabled || persisted.conversation.needs_human) continue;
-      const metaAdReply = await getMetaAdEntryReply(admin, persisted.conversation.id, message.text);
-      if (metaAdReply) {
-        const meta = await sendMetaMessage(message.from, { type: "text", text: { preview_url: false, body: metaAdReply } });
-        await persistOutboundMessage(admin, { conversationId: persisted.conversation.id, metaMessageId: meta?.messages?.[0]?.id ?? null, body: metaAdReply, senderType: "ai" });
-        continue;
-      }
       const fastReply = await getFastCrmReply(admin, message.text);
       if (fastReply) {
         const meta = await sendMetaMessage(message.from, { type: "text", text: { preview_url: false, body: fastReply } });
         await persistOutboundMessage(admin, { conversationId: persisted.conversation.id, metaMessageId: meta?.messages?.[0]?.id ?? null, body: fastReply, senderType: "ai" });
+        continue;
+      }
+      // Attribution enriches a response but must never silence a patient if
+      // the optional ad record is absent or temporarily inconsistent.
+      let metaAdReply: string | null = null;
+      try {
+        metaAdReply = await getMetaAdEntryReply(admin, persisted.conversation.id, message.text);
+      } catch (error) {
+        console.error("[whatsapp] Meta ad context skipped", error);
+      }
+      if (metaAdReply) {
+        const meta = await sendMetaMessage(message.from, { type: "text", text: { preview_url: false, body: metaAdReply } });
+        await persistOutboundMessage(admin, { conversationId: persisted.conversation.id, metaMessageId: meta?.messages?.[0]?.id ?? null, body: metaAdReply, senderType: "ai" });
         continue;
       }
       EdgeRuntime.waitUntil(answerWithAi({
@@ -137,7 +156,7 @@ Deno.serve(async (request) => {
       }).catch((error) => console.error("[whatsapp] Deferred Gemini reply failed", error)));
       repliesQueued += 1;
     } catch (error) {
-      console.error("[whatsapp] Inbound persistence failed", error);
+      console.error("[whatsapp] Reply orchestration failed", error);
     }
   }
 

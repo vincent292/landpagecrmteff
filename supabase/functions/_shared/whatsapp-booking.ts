@@ -74,10 +74,9 @@ async function loadActiveSession(admin: SupabaseClient, conversationId: string) 
     .eq("conversation_id", conversationId)
     .in("status", activeStatuses)
     .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(1);
   if (error) throw error;
-  return data as BookingSession | null;
+  return (data?.[0] ?? null) as BookingSession | null;
 }
 
 async function getBookableTreatments(admin: SupabaseClient) {
@@ -420,7 +419,7 @@ export async function handleBookingConversation(
   if (expiry.error) throw expiry.error;
   let session = await loadActiveSession(admin, persisted.conversation.id);
   if (!session && !bookingPattern.test(message.text ?? "")) {
-    const { data: recentlyExpired, error: expiredError } = await admin
+    const { data: recentlyExpiredRows, error: expiredError } = await admin
       .from("crm_booking_sessions")
       .select("id")
       .eq("conversation_id", persisted.conversation.id)
@@ -428,9 +427,9 @@ export async function handleBookingConversation(
       .contains("state_data", { expired_reason: "inactivity" })
       .gte("updated_at", new Date(Date.now() - 2 * 60_000).toISOString())
       .order("updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(1);
     if (expiredError) throw expiredError;
+    const recentlyExpired = recentlyExpiredRows?.[0] ?? null;
     if (recentlyExpired) {
       await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, "El proceso de reserva se cerró por 20 minutos de inactividad. Para empezar nuevamente, escribe “quiero reservar una cita”.");
       return true;
@@ -487,7 +486,8 @@ export async function handleBookingConversation(
     return true;
   }
 
-  const conversationIntent = await admin.from("crm_conversations").select("intent").eq("id", persisted.conversation.id).single();
+  const conversationIntent = await admin.from("crm_conversations").select("intent").eq("id", persisted.conversation.id).maybeSingle();
+  if (conversationIntent.error) throw conversationIntent.error;
   if (conversationIntent.data?.intent === "select_treatment" || message.interactiveId?.startsWith("treatment:")) {
     const treatment = await resolveTreatmentSelection(admin, persisted.conversation.id, message);
     if (treatment) {

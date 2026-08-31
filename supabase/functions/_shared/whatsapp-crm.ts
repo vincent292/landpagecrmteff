@@ -332,7 +332,7 @@ export async function persistInboundMessage(admin: SupabaseClient, message: Inco
   });
 
   const handoff = /\b(humano|persona|administradora|reclamo|emergencia)\b/i.test(message.text ?? "");
-  const { data: updatedConversation, error: updateError } = await admin
+  const { error: updateError } = await admin
     .from("crm_conversations")
     .update({
       status: "abierta",
@@ -343,11 +343,32 @@ export async function persistInboundMessage(admin: SupabaseClient, message: Inco
       unread_count: Number(conversation.unread_count ?? 0) + 1,
       needs_human: handoff || conversation.needs_human,
     })
-    .eq("id", conversation.id)
-    .select("*")
-    .single();
+    .eq("id", conversation.id);
   if (updateError) throw updateError;
-  return { duplicate: false, contact, conversation: updatedConversation as CrmConversation, messageId: insertedMessage.id as string };
+  // Do not let a PostgREST representation race stop the webhook after the
+  // inbound message is already persisted. A fresh lookup is best-effort;
+  // the known conversation remains sufficient to answer the customer.
+  const refreshedConversation = await admin
+    .from("crm_conversations")
+    .select("*")
+    .eq("id", conversation.id)
+    .maybeSingle();
+  if (refreshedConversation.error) throw refreshedConversation.error;
+  return {
+    duplicate: false,
+    contact,
+    conversation: (refreshedConversation.data ?? {
+      ...conversation,
+      status: "abierta",
+      last_message_preview: (message.text || `[${message.type}]`).slice(0, 180),
+      last_message_at: occurredAt,
+      last_inbound_at: occurredAt,
+      customer_service_window_expires_at: new Date(new Date(occurredAt).getTime() + 86_400_000).toISOString(),
+      unread_count: Number(conversation.unread_count ?? 0) + 1,
+      needs_human: handoff || conversation.needs_human,
+    }) as CrmConversation,
+    messageId: insertedMessage.id as string,
+  };
 }
 
 export async function applyWhatsAppStatus(admin: SupabaseClient, event: WhatsAppStatusEvent) {
@@ -375,12 +396,13 @@ type MetaAdContext = {
 };
 
 export async function getMetaAdContext(admin: SupabaseClient, conversationId: string): Promise<MetaAdContext | null> {
-  const { data, error } = await admin
+  const { data: rows, error } = await admin
     .from("crm_conversations")
     .select("meta_ctwa_ad_id,meta_ctwa_ads(id,status,headline,body,source_url,welcome_message,treatments(title,public_info,description),promotions(title,public_info,description))")
     .eq("id", conversationId)
-    .maybeSingle();
+    .limit(1);
   if (error) throw error;
+  const data = rows?.[0] ?? null;
   const ad = data?.meta_ctwa_ads as {
     id?: string; status?: "pending" | "configured"; headline?: string | null; body?: string | null; source_url?: string | null; welcome_message?: string | null;
     treatments?: { title?: string | null; public_info?: string | null; description?: string | null } | null;
