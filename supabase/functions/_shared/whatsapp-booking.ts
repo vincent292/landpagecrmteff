@@ -429,6 +429,14 @@ async function showAvailableTimes(admin: SupabaseClient, session: BookingSession
       })) }] },
     },
   });
+  await sendBookingMessage(admin, session.conversation_id, to, "¿No te sirve este día?", {
+    type: "interactive",
+    interactive: {
+      type: "button",
+      body: { text: "¿No te sirve este día?" },
+      action: { buttons: [{ type: "reply", reply: { id: "booking-back:dates", title: "Elegir otra fecha" } }] },
+    },
+  });
 }
 
 async function sendPaymentInstructions(admin: SupabaseClient, session: BookingSession, to: string) {
@@ -662,6 +670,16 @@ export async function handleBookingConversation(
     return true;
   }
   if (session?.status === "choosing_time") {
+    const wantsOtherDate = message.interactiveId === "booking-back:dates"
+      || /^(volver|volver a fechas|elegir otra fecha)$/i.test(normalize(message.text ?? ""));
+    if (wantsOtherDate) {
+      const reset = await admin.from("crm_booking_sessions")
+        .update({ status: "choosing_date", appointment_date: null, last_options: [] })
+        .eq("id", session.id);
+      if (reset.error) throw reset.error;
+      await showAvailableDates(admin, session, persisted.contact.wa_id, "De acuerdo, elige otra fecha con cupo:");
+      return true;
+    }
     const option = selectedOption(session, message, "slot") as { rule_id?: string; date?: string; start_time?: string; end_time?: string } | null;
     if (!option?.rule_id || !option.date || !option.start_time || !option.end_time) {
       await sendBookingMessage(admin, session.conversation_id, persisted.contact.wa_id, "Selecciona uno de los horarios de la lista.");
