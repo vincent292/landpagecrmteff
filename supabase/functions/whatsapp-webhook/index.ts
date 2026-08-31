@@ -121,6 +121,11 @@ Deno.serve(async (request) => {
       } catch (error) {
         // Booking state must not prevent general information replies.
         console.error("[whatsapp] Booking flow skipped", error);
+        const detail = error instanceof Error ? error.message.slice(0, 500) : "unknown booking error";
+        await admin.from("crm_booking_sessions")
+          .update({ state_data: { booking_error: detail, booking_error_at: new Date().toISOString() } })
+          .eq("conversation_id", persisted.conversation.id)
+          .in("status", ["collecting_identity", "choosing_date", "choosing_time", "awaiting_payment"]);
       }
       // A button title such as "Para esta persona" is not a request for a
       // human. Interactive replies are handled only by their stable IDs.

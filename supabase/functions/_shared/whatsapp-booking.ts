@@ -429,20 +429,21 @@ async function showAvailableTimes(admin: SupabaseClient, session: BookingSession
       })) }] },
     },
   });
-  await sendBookingMessage(admin, session.conversation_id, to, "¿No te sirve este día?", {
+  await sendBookingMessage(admin, session.conversation_id, to, "¿Quieres cambiar de fecha?", {
     type: "interactive",
     interactive: {
       type: "button",
-      body: { text: "¿No te sirve este día?" },
+      body: { text: "¿Quieres cambiar de fecha?" },
       action: { buttons: [{ type: "reply", reply: { id: "booking-back:dates", title: "Elegir otra fecha" } }] },
     },
   });
 }
 
 async function sendPaymentInstructions(admin: SupabaseClient, session: BookingSession, to: string) {
-  const settings = await admin.from("site_settings").select("payment_qr_image,appointment_qr_payment_image").limit(1).maybeSingle();
+  const settings = await admin.from("site_settings").select("payment_qr_image,appointment_qr_payment_image").limit(1);
   if (settings.error) throw settings.error;
-  const qr = settings.data?.payment_qr_image || settings.data?.appointment_qr_payment_image;
+  const paymentSettings = settings.data?.[0] ?? null;
+  const qr = paymentSettings?.payment_qr_image || paymentSettings?.appointment_qr_payment_image;
   const expires = session.hold_expires_at ? new Intl.DateTimeFormat("es-BO", { timeStyle: "short", timeZone: "America/La_Paz" }).format(new Date(session.hold_expires_at)) : "30 minutos";
   const body = `Retuve tu horario hasta ${expires}. Realiza el pago de ${Number(session.amount_due ?? 0).toFixed(2)} Bs y envía aquí una foto o PDF legible del comprobante.`;
   if (qr) await sendBookingMessage(admin, session.conversation_id, to, body, { type: "image", image: { link: qr, caption: body } });
@@ -616,12 +617,14 @@ export async function handleBookingConversation(
   persisted: PersistedInbound,
   message: IncomingWhatsAppMessage,
 ) {
-  if (persisted.conversation.needs_human) return false;
   // Expirar retenciones es mantenimiento. Una falla temporal en esa limpieza
   // nunca debe impedir que el paciente continúe una reserva válida.
   const expiry = await admin.rpc("crm_expire_booking_holds");
   if (expiry.error) console.error("[whatsapp] Could not expire old booking holds", expiry.error);
   let session = await loadActiveSession(admin, persisted.conversation.id);
+  // Una conversación tomada por una administradora no debe bloquear una
+  // reserva activa: el paciente aún debe poder pagar o subir su comprobante.
+  if (persisted.conversation.needs_human && !session) return false;
   if (!session && !bookingPattern.test(message.text ?? "")) {
     const { data: recentlyExpiredRows, error: expiredError } = await admin
       .from("crm_booking_sessions")
@@ -652,6 +655,10 @@ export async function handleBookingConversation(
     return true;
   }
   if (session?.status === "awaiting_payment" && message.mediaId) return await receivePaymentReceipt(admin, session, persisted, message);
+  if (session?.status === "awaiting_payment") {
+    await sendPaymentInstructions(admin, session, persisted.contact.wa_id);
+    return true;
+  }
   if (session?.status === "payment_review") {
     if (message.mediaId) await sendBookingMessage(admin, session.conversation_id, persisted.contact.wa_id, "Ya recibimos un comprobante y está en revisión. Si necesitas reemplazarlo, una administradora te ayudará.");
     else await sendBookingMessage(admin, session.conversation_id, persisted.contact.wa_id, "Tu comprobante sigue en revisión. Te enviaremos la confirmación apenas sea aprobado.");
