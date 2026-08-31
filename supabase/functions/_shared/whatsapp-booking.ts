@@ -165,6 +165,20 @@ async function showTreatmentInformationChoices(admin: SupabaseClient, persisted:
 }
 
 export async function handleTreatmentCatalogConversation(admin: SupabaseClient, persisted: PersistedInbound, message: IncomingWhatsAppMessage) {
+  if (message.interactiveId === "booking-help") {
+    await admin.from("crm_conversations")
+      .update({ needs_human: true, intent: "solicitar_ayuda_reserva" })
+      .eq("id", persisted.conversation.id);
+    await sendBookingMessage(
+      admin,
+      persisted.conversation.id,
+      persisted.contact.wa_id,
+      "De acuerdo. Una administradora revisará tu solicitud y te ayudará a encontrar una opción disponible.",
+    );
+    return true;
+  }
+  const changeCity = message.interactiveId?.match(/^catalog-change-city:(info|booking)$/);
+  if (changeCity) return await showCityChoices(admin, persisted, changeCity[1] as "info" | "booking");
   const cityChoice = message.interactiveId?.match(/^catalog-city:(info|booking):(\d+)$/);
   if (cityChoice) {
     const city = boliviaCities[Number(cityChoice[2])];
@@ -172,7 +186,12 @@ export async function handleTreatmentCatalogConversation(admin: SupabaseClient, 
     await rememberCityInterest(admin, persisted.contact.id, city);
     if (cityChoice[1] === "booking") return await showTreatmentChoices(admin, persisted, city);
     const shown = await showTreatmentInformationChoices(admin, persisted, city);
-    if (!shown) await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, `Aún no tenemos tratamientos publicados en ${city}. Puedes elegir otra ciudad o pedir que administración te contacte.`);
+    if (!shown) await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, `Aún no tenemos tratamientos publicados en ${city}. Puedes elegir otra ciudad:`, {
+      type: "interactive",
+      interactive: { type: "button", body: { text: `Aún no tenemos tratamientos publicados en ${city}. Puedes elegir otra ciudad:` }, action: { buttons: [
+        { type: "reply", reply: { id: "catalog-change-city:info", title: "Elegir otra ciudad" } },
+      ] } },
+    });
     return true;
   }
   if (message.interactiveId === "treatment-catalog") return await showCityChoices(admin, persisted, "info");
@@ -215,8 +234,14 @@ async function showTreatmentChoices(admin: SupabaseClient, persisted: PersistedI
   if (!city) return await showCityChoices(admin, persisted, "booking");
   const treatments = await getBookableTreatments(admin, city);
   if (!treatments.length) {
-    await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, "En este momento no hay tratamientos habilitados para reserva y pago directo. Te comunicaré con administración para coordinarlo.");
-    await admin.from("crm_conversations").update({ needs_human: true, intent: "reservar_cita" }).eq("id", persisted.conversation.id);
+    const body = `Aún no hay tratamientos habilitados para reserva directa en ${city}. Puedes elegir otra ciudad o pedir ayuda a administración.`;
+    await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, body, {
+      type: "interactive",
+      interactive: { type: "button", body: { text: body }, action: { buttons: [
+        { type: "reply", reply: { id: "catalog-change-city:booking", title: "Elegir otra ciudad" } },
+        { type: "reply", reply: { id: "booking-help", title: "Hablar con administración" } },
+      ] } },
+    });
     return true;
   }
   const rows = treatments.slice(0, 10).map((treatment, index) => ({
