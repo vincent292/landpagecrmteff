@@ -19,6 +19,10 @@ import { handleBookingConversation, handleTreatmentCatalogConversation } from ".
 
 declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
 
+function isUnsafeAiReply(reply: string) {
+  return /\b(without inventing|direct response|system instruction|prompt injection|contexto del negocio|estado real de reserva|redacta unicamente|ignore previous)\b/i.test(reply);
+}
+
 async function answerWithAi(input: {
   conversationId: string;
   contactName: string | null;
@@ -39,6 +43,10 @@ async function answerWithAi(input: {
       customSystemPrompt: context.settings.ai_system_prompt,
       allowExternalGrounding: context.settings.allow_external_grounding !== false,
     });
+    if (isUnsafeAiReply(reply)) {
+      console.error("[whatsapp] Blocked unsafe Gemini output");
+      reply = "Puedo ayudarte con información de tratamientos, precios publicados y reservas. ¿Qué deseas consultar?";
+    }
   } catch (error) {
     console.error("[whatsapp] Gemini reply failed; sending fallback", error);
     reply = "Estoy teniendo una demora para consultar la información completa. Puedo ayudarte con información general de tratamientos o, si deseas reservar, escribe: quiero reservar una cita.";

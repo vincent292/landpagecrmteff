@@ -32,7 +32,7 @@ type BookingSession = {
 };
 
 type PersistedInbound = {
-  contact: { id: string; full_name: string | null; phone: string; wa_id: string };
+  contact: { id: string; full_name: string | null; phone: string; wa_id: string; city?: string | null };
   conversation: { id: string; ai_enabled: boolean; needs_human: boolean };
   messageId?: string | null;
 };
@@ -40,6 +40,7 @@ type PersistedInbound = {
 const activeStatuses = ["collecting_identity", "choosing_date", "choosing_time", "awaiting_payment", "payment_review", "needs_human"];
 const bookingPattern = /\b(reserv(?:ar|a|o)|agend(?:ar|a|o)|sacar\s+(?:una\s+)?cita|quiero\s+(?:una\s+)?cita|tomar\s+(?:una\s+)?cita)\b/i;
 const cancelPattern = /\b(cancelar|salir|detener|ya\s+no)\b/i;
+const boliviaCities = ["Cochabamba", "La Paz", "Santa Cruz", "Sucre", "Oruro", "Potosi", "Tarija", "Beni", "Pando"];
 const treatmentCatalogPattern = /\b(que|cuales|cu[aá]les|ver|mu[eé]strame|informaci[oó]n|saber).{0,45}\b(trat[a]?m?ientos?|servicios?)\b|\b(trat[a]?m?ientos?|servicios?).{0,45}\b(disponibles?|tienen|ofrecen|hay)\b/i;
 
 function normalize(value: string) {
@@ -80,8 +81,8 @@ async function loadActiveSession(admin: SupabaseClient, conversationId: string) 
   return (data?.[0] ?? null) as BookingSession | null;
 }
 
-async function getBookableTreatments(admin: SupabaseClient) {
-  const { data, error } = await admin
+async function getBookableTreatments(admin: SupabaseClient, city?: string | null) {
+  let query = admin
     .from("treatments")
     .select("id,title,slug,city,doctor_id,appointment_type,agenda_tag,treatment_price,direct_booking_price,assessment_price")
     .eq("is_active", true)
@@ -89,6 +90,8 @@ async function getBookableTreatments(admin: SupabaseClient) {
     .is("deleted_at", null)
     .order("title")
     .limit(40);
+  if (city) query = query.eq("city", city);
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []).filter((row) =>
     Number(row.treatment_price ?? row.direct_booking_price ?? row.assessment_price ?? 0) > 0
@@ -96,14 +99,16 @@ async function getBookableTreatments(admin: SupabaseClient) {
   );
 }
 
-async function getInformationalTreatments(admin: SupabaseClient) {
-  const { data, error } = await admin
+async function getInformationalTreatments(admin: SupabaseClient, city?: string | null) {
+  let query = admin
     .from("treatments")
     .select("id,title,short_description,description,public_info,requires_assessment,allows_direct_booking,treatment_price,direct_booking_price,assessment_price,assessment_price_presencial")
     .eq("is_active", true)
     .is("deleted_at", null)
     .order("title")
     .limit(40);
+  if (city) query = query.eq("city", city);
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []).filter((row) => !/\b(prueba|test|interna)\b/i.test(String(row.title ?? "")));
 }
@@ -115,8 +120,35 @@ function displayPrice(treatment: Record<string, unknown>) {
   return price > 0 ? `${price.toFixed(2)} Bs` : null;
 }
 
-async function showTreatmentInformationChoices(admin: SupabaseClient, persisted: PersistedInbound) {
-  const treatments = await getInformationalTreatments(admin);
+async function rememberCityInterest(admin: SupabaseClient, contactId: string, city: string) {
+  const now = new Date().toISOString();
+  const interest = await admin.from("crm_contact_city_interests").upsert({
+    contact_id: contactId, city, source: "whatsapp_catalog", last_selected_at: now,
+  }, { onConflict: "contact_id,city" });
+  if (interest.error) throw interest.error;
+  const contact = await admin.from("crm_contacts").update({ city }).eq("id", contactId);
+  if (contact.error) throw contact.error;
+}
+
+async function showCityChoices(admin: SupabaseClient, persisted: PersistedInbound, purpose: "info" | "booking") {
+  const body = purpose === "booking"
+    ? "Antes de mostrar horarios, elige la ciudad donde deseas atenderte:"
+    : "Elige tu ciudad para mostrarte solamente los tratamientos disponibles allí:";
+  await admin.from("crm_conversations").update({ intent: purpose === "booking" ? "select_treatment_city" : "catalog_city" }).eq("id", persisted.conversation.id);
+  await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, body, {
+    type: "interactive",
+    interactive: {
+      type: "list", body: { text: body },
+      action: { button: "Elegir ciudad", sections: [{ title: "Ciudades", rows: boliviaCities.map((city, index) => ({
+        id: `catalog-city:${purpose}:${index}`, title: city, description: "Ver tratamientos disponibles",
+      })) }] },
+    },
+  });
+  return true;
+}
+
+async function showTreatmentInformationChoices(admin: SupabaseClient, persisted: PersistedInbound, city: string) {
+  const treatments = await getInformationalTreatments(admin, city);
   if (!treatments.length) return false;
   const rows = treatments.slice(0, 10).map((treatment) => ({
     id: `treatment-info:${treatment.id}`,
@@ -133,8 +165,18 @@ async function showTreatmentInformationChoices(admin: SupabaseClient, persisted:
 }
 
 export async function handleTreatmentCatalogConversation(admin: SupabaseClient, persisted: PersistedInbound, message: IncomingWhatsAppMessage) {
-  if (message.interactiveId === "treatment-catalog") return await showTreatmentInformationChoices(admin, persisted);
-  if (treatmentCatalogPattern.test(message.text ?? "")) return await showTreatmentInformationChoices(admin, persisted);
+  const cityChoice = message.interactiveId?.match(/^catalog-city:(info|booking):(\d+)$/);
+  if (cityChoice) {
+    const city = boliviaCities[Number(cityChoice[2])];
+    if (!city) return true;
+    await rememberCityInterest(admin, persisted.contact.id, city);
+    if (cityChoice[1] === "booking") return await showTreatmentChoices(admin, persisted, city);
+    const shown = await showTreatmentInformationChoices(admin, persisted, city);
+    if (!shown) await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, `Aún no tenemos tratamientos publicados en ${city}. Puedes elegir otra ciudad o pedir que administración te contacte.`);
+    return true;
+  }
+  if (message.interactiveId === "treatment-catalog") return await showCityChoices(admin, persisted, "info");
+  if (treatmentCatalogPattern.test(message.text ?? "")) return await showCityChoices(admin, persisted, "info");
   const infoId = message.interactiveId?.startsWith("treatment-info:") ? message.interactiveId.slice("treatment-info:".length) : null;
   const bookId = message.interactiveId?.startsWith("treatment-book:") ? message.interactiveId.slice("treatment-book:".length) : null;
   if (bookId) {
@@ -169,8 +211,9 @@ export async function handleTreatmentCatalogConversation(admin: SupabaseClient, 
   return true;
 }
 
-async function showTreatmentChoices(admin: SupabaseClient, persisted: PersistedInbound) {
-  const treatments = await getBookableTreatments(admin);
+async function showTreatmentChoices(admin: SupabaseClient, persisted: PersistedInbound, city?: string | null) {
+  if (!city) return await showCityChoices(admin, persisted, "booking");
+  const treatments = await getBookableTreatments(admin, city);
   if (!treatments.length) {
     await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, "En este momento no hay tratamientos habilitados para reserva y pago directo. Te comunicaré con administración para coordinarlo.");
     await admin.from("crm_conversations").update({ needs_human: true, intent: "reservar_cita" }).eq("id", persisted.conversation.id);
@@ -182,15 +225,15 @@ async function showTreatmentChoices(admin: SupabaseClient, persisted: PersistedI
     description: `${Number(treatment.treatment_price ?? treatment.direct_booking_price ?? treatment.assessment_price).toFixed(2)} Bs`.slice(0, 72),
   }));
   await admin.from("crm_conversations").update({ intent: "select_treatment" }).eq("id", persisted.conversation.id);
-  await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, "Elige el tratamiento que deseas reservar:", {
+  await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, `Elige el tratamiento que deseas reservar en ${city}:`, {
     type: "interactive",
-    interactive: { type: "list", body: { text: "Elige el tratamiento que deseas reservar:" }, action: { button: "Ver tratamientos", sections: [{ title: "Tratamientos", rows }] } },
+    interactive: { type: "list", body: { text: `Elige el tratamiento que deseas reservar en ${city}:` }, action: { button: "Ver tratamientos", sections: [{ title: "Tratamientos", rows }] } },
   });
   return true;
 }
 
-async function resolveTreatmentSelection(admin: SupabaseClient, conversationId: string, message: IncomingWhatsAppMessage) {
-  const treatments = await getBookableTreatments(admin);
+async function resolveTreatmentSelection(admin: SupabaseClient, conversationId: string, message: IncomingWhatsAppMessage, city?: string | null) {
+  const treatments = await getBookableTreatments(admin, city);
   const interactiveIndex = message.interactiveId?.startsWith("treatment:") ? Number(message.interactiveId.split(":")[1]) : Number.NaN;
   if (Number.isInteger(interactiveIndex) && treatments[interactiveIndex]) return treatments[interactiveIndex];
   const text = normalize(message.text ?? "");
@@ -258,7 +301,7 @@ async function beginIdentityCollection(admin: SupabaseClient, persisted: Persist
     full_name: registeredPatient?.full_name ?? persisted.contact.full_name,
     document_number: registeredPatient?.document_number ?? null,
     email: registeredPatient?.email ?? null,
-    city: registeredPatient?.city ?? treatment.city ?? null,
+    city: treatment.city ?? registeredPatient?.city ?? null,
     care_mode: "presencial",
     state_data: { booking_for_other: false },
   });
@@ -710,15 +753,15 @@ export async function handleBookingConversation(
   const conversationIntent = await admin.from("crm_conversations").select("intent").eq("id", persisted.conversation.id).maybeSingle();
   if (conversationIntent.error) throw conversationIntent.error;
   if (conversationIntent.data?.intent === "select_treatment" || message.interactiveId?.startsWith("treatment:")) {
-    const treatment = await resolveTreatmentSelection(admin, persisted.conversation.id, message);
+    const treatment = await resolveTreatmentSelection(admin, persisted.conversation.id, message, persisted.contact.city);
     if (treatment) {
       await beginIdentityCollection(admin, persisted, treatment);
       return true;
     }
   }
   if (!bookingPattern.test(message.text ?? "")) return false;
-  const treatment = await resolveTreatmentSelection(admin, persisted.conversation.id, message);
+  const treatment = await resolveTreatmentSelection(admin, persisted.conversation.id, message, persisted.contact.city);
   if (treatment) await beginIdentityCollection(admin, persisted, treatment);
-  else await showTreatmentChoices(admin, persisted);
+  else await showTreatmentChoices(admin, persisted, persisted.contact.city);
   return true;
 }

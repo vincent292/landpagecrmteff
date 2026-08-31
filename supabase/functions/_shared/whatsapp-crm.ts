@@ -280,7 +280,7 @@ export async function persistInboundMessage(admin: SupabaseClient, message: Inco
   const { data: contact, error: contactError } = await admin
     .from("crm_contacts")
     .upsert(contactPayload, { onConflict: "wa_id" })
-    .select("id,wa_id,full_name,phone")
+    .select("id,wa_id,full_name,phone,city")
     .single();
   if (contactError || !contact) throw contactError ?? new Error("No se pudo guardar el contacto.");
 
