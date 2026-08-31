@@ -147,7 +147,7 @@ async function beginIdentityCollection(admin: SupabaseClient, persisted: Persist
   if (error) throw error;
   await admin.from("crm_conversations").update({ intent: "reservar_cita" }).eq("id", persisted.conversation.id);
   await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id,
-    `Perfecto, iniciaremos la reserva de ${String(treatment.title)}. Para crear o vincular tu cuenta, envíame tu nombre completo.`);
+    `Perfecto, iniciaremos la reserva de ${String(treatment.title)}. Para darte seguimiento y completar la cita, registraremos tus datos en la plataforma. Empecemos con tu nombre completo.`);
 }
 
 async function ensurePatientAccount(admin: SupabaseClient, session: BookingSession) {
@@ -324,7 +324,7 @@ async function handleIdentityStep(admin: SupabaseClient, session: BookingSession
     case "document_number": {
       const document = value.replace(/[^0-9A-Za-z]/g, "").toUpperCase();
       if (document.length < 4) prompt = "El número de carnet parece incompleto. Escríbelo nuevamente.";
-      else { updates.document_number = document; updates.identity_step = "email"; prompt = "¿Cuál es tu correo electrónico? Lo usaremos para crear o vincular tu cuenta."; }
+      else { updates.document_number = document; updates.identity_step = "email"; prompt = "¿Cuál es tu correo electrónico? Lo usaremos para registrar tu reserva y darte acceso a su seguimiento."; }
       break;
     }
     case "email":
@@ -346,8 +346,8 @@ async function handleIdentityStep(admin: SupabaseClient, session: BookingSession
     try {
       const account = await ensurePatientAccount(admin, updatedSession);
       const accountMessage = account.accountCreated
-        ? `Tu cuenta fue creada correctamente.${account.setupUrl ? ` Configura tu contraseña aquí: ${account.setupUrl}` : " Puedes recuperar tu contraseña desde la plataforma."}`
-        : "Encontré y vinculé tu cuenta existente.";
+        ? `Te registramos correctamente para darte seguimiento.${account.setupUrl ? ` Configura tu contraseña aquí: ${account.setupUrl}` : " Puedes recuperar tu contraseña desde la plataforma."}`
+        : "Tus datos ya estaban registrados; los vinculamos a esta reserva.";
       const ready = await loadActiveSession(admin, session.conversation_id);
       if (!ready) throw new Error("No se pudo recuperar la sesión de reserva.");
       await showAvailableDates(admin, ready, persisted.contact.wa_id, accountMessage);
@@ -416,7 +416,31 @@ export async function handleBookingConversation(
   message: IncomingWhatsAppMessage,
 ) {
   if (persisted.conversation.needs_human) return false;
+  const expiry = await admin.rpc("crm_expire_booking_holds");
+  if (expiry.error) throw expiry.error;
   let session = await loadActiveSession(admin, persisted.conversation.id);
+  if (!session && !bookingPattern.test(message.text ?? "")) {
+    const { data: recentlyExpired, error: expiredError } = await admin
+      .from("crm_booking_sessions")
+      .select("id")
+      .eq("conversation_id", persisted.conversation.id)
+      .eq("status", "expired")
+      .contains("state_data", { expired_reason: "inactivity" })
+      .gte("updated_at", new Date(Date.now() - 2 * 60_000).toISOString())
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (expiredError) throw expiredError;
+    if (recentlyExpired) {
+      await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, "El proceso de reserva se cerró por 20 minutos de inactividad. Para empezar nuevamente, escribe “quiero reservar una cita”.");
+      return true;
+    }
+  }
+  if (session && ["collecting_identity", "choosing_date", "choosing_time", "awaiting_payment"].includes(session.status)) {
+    const activity = await admin.from("crm_booking_sessions").update({ updated_at: new Date().toISOString() }).eq("id", session.id).select("*").single();
+    if (activity.error) throw activity.error;
+    session = activity.data as BookingSession;
+  }
   if (session && cancelPattern.test(message.text ?? "") && session.status !== "payment_review") {
     await admin.from("crm_booking_sessions").update({ status: "cancelled" }).eq("id", session.id);
     if (session.appointment_reservation_id) await admin.from("appointment_reservations").update({ status: "Cancelada" }).eq("id", session.appointment_reservation_id).eq("status", "Pendiente");
