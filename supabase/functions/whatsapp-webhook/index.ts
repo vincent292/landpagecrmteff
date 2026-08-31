@@ -122,7 +122,9 @@ Deno.serve(async (request) => {
         // Booking state must not prevent general information replies.
         console.error("[whatsapp] Booking flow skipped", error);
       }
-      if (bookingHandled || !message.text) continue;
+      // A button title such as "Para esta persona" is not a request for a
+      // human. Interactive replies are handled only by their stable IDs.
+      if (bookingHandled || message.interactiveId || !message.text) continue;
       if (isHumanRequest(message.text)) {
         const handoff = /\b(emergencia|urgencia)\b/i.test(message.text)
           ? "Si presentas una urgencia médica, acude de inmediato al servicio de emergencias más cercano. También avisamos a administración para que pueda orientarte."

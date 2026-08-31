@@ -473,13 +473,13 @@ async function handleIdentityStep(admin: SupabaseClient, session: BookingSession
         state_data: { booking_for_other: false },
       };
       if (!missingStep) sessionUpdate.status = "choosing_date";
-      const updated = await admin.from("crm_booking_sessions").update(sessionUpdate).eq("id", session.id).select("*").single();
-      if (updated.error) throw updated.error;
+      const updated = await admin.from("crm_booking_sessions").update(sessionUpdate).eq("id", session.id).select("*").limit(1);
+      if (updated.error || !updated.data?.[0]) throw updated.error ?? new Error("No se pudo actualizar la reserva.");
       await admin.from("crm_contacts").update({ patient_id: patient.id, lead_stage: "cita" }).eq("id", session.contact_id);
       if (missingStep) {
         await sendBookingMessage(admin, session.conversation_id, persisted.contact.wa_id, identityPrompt(missingStep));
       } else {
-        await showAvailableDates(admin, updated.data as BookingSession, persisted.contact.wa_id, `Reservaremos a nombre de ${patient.full_name}.`);
+        await showAvailableDates(admin, updated.data[0] as BookingSession, persisted.contact.wa_id, `Reservaremos a nombre de ${patient.full_name}.`);
       }
       return true;
     }
@@ -530,9 +530,9 @@ async function handleIdentityStep(admin: SupabaseClient, session: BookingSession
       updates.identity_step = "full_name";
       prompt = "Envíame tu nombre completo para continuar.";
   }
-  const updated = await admin.from("crm_booking_sessions").update(updates).eq("id", session.id).select("*").single();
-  if (updated.error) throw updated.error;
-  const updatedSession = updated.data as BookingSession;
+  const updated = await admin.from("crm_booking_sessions").update(updates).eq("id", session.id).select("*").limit(1);
+  if (updated.error || !updated.data?.[0]) throw updated.error ?? new Error("No se pudo actualizar la reserva.");
+  const updatedSession = updated.data[0] as BookingSession;
   if (session.identity_step === "city" && updates.city) {
     try {
       const account = await ensurePatientAccount(admin, updatedSession);
@@ -628,9 +628,9 @@ export async function handleBookingConversation(
     }
   }
   if (session && ["collecting_identity", "choosing_date", "choosing_time", "awaiting_payment"].includes(session.status)) {
-    const activity = await admin.from("crm_booking_sessions").update({ updated_at: new Date().toISOString() }).eq("id", session.id).select("*").single();
-    if (activity.error) throw activity.error;
-    session = activity.data as BookingSession;
+    const activity = await admin.from("crm_booking_sessions").update({ updated_at: new Date().toISOString() }).eq("id", session.id).select("*").limit(1);
+    if (activity.error || !activity.data?.[0]) throw activity.error ?? new Error("No se pudo actualizar la actividad de la reserva.");
+    session = activity.data[0] as BookingSession;
   }
   if (session && cancelPattern.test(message.text ?? "") && session.status !== "payment_review") {
     await admin.from("crm_booking_sessions").update({ status: "cancelled" }).eq("id", session.id);
