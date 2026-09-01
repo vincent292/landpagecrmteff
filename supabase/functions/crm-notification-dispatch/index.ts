@@ -16,19 +16,35 @@ type OutboxRow = {
   template_name: string | null;
   template_language: string;
   template_parameters: unknown;
+  attachment_url: string | null;
+  attachment_filename: string | null;
   attempt_count: number;
 };
 
 function templatePayload(row: OutboxRow) {
   const parameters = Array.isArray(row.template_parameters) ? row.template_parameters : [];
+  const components: Array<Record<string, unknown>> = [];
+  if (row.attachment_url) {
+    components.push({
+      type: "header",
+      parameters: [{
+        type: "document",
+        document: {
+          link: row.attachment_url,
+          filename: row.attachment_filename || "cita.ics",
+        },
+      }],
+    });
+  }
+  if (parameters.length) {
+    components.push({ type: "body", parameters: parameters.map((value) => ({ type: "text", text: String(value ?? "") })) });
+  }
   return {
     type: "template",
     template: {
       name: row.template_name,
       language: { code: row.template_language || "es" },
-      ...(parameters.length ? {
-        components: [{ type: "body", parameters: parameters.map((value) => ({ type: "text", text: String(value ?? "") })) }],
-      } : {}),
+      ...(components.length ? { components } : {}),
     },
   };
 }
@@ -98,7 +114,16 @@ Deno.serve(async (request) => {
         }
 
         const payload = windowOpen
-          ? { type: "text", text: { preview_url: false, body: item.body } }
+          ? item.attachment_url
+            ? {
+              type: "document",
+              document: {
+                link: item.attachment_url,
+                filename: item.attachment_filename || "cita.ics",
+                caption: item.body,
+              },
+            }
+            : { type: "text", text: { preview_url: false, body: item.body } }
           : templatePayload(item);
         const meta = await sendMetaMessage(item.recipient_wa_id, payload);
         const metaMessageId = meta?.messages?.[0]?.id ?? null;
@@ -108,7 +133,7 @@ Deno.serve(async (request) => {
             metaMessageId,
             body: item.body,
             senderType: "system",
-            messageType: windowOpen ? "text" : "template",
+            messageType: windowOpen ? (item.attachment_url ? "document" : "text") : "template",
           });
         }
         await admin.from("crm_notification_outbox").update({
