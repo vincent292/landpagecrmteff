@@ -449,10 +449,62 @@ export async function getMetaAdEntryReply(admin: SupabaseClient, conversationId:
     : "¡Hola! 😊 Para orientarte bien, ¿qué tratamiento o promoción del anuncio te interesa?";
 }
 
+function crmText(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim().replace(/\s+/g, " ") : null;
+}
+
+function crmNumber(value: unknown) {
+  const numeric = Number(value ?? 0);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function treatmentPriceForKnowledge(row: Record<string, unknown>) {
+  if (row.requires_assessment) {
+    const mode = String(row.assessment_mode ?? "presencial");
+    const presencial = crmNumber(row.assessment_price_presencial ?? row.assessment_price);
+    const virtual = crmNumber(row.assessment_price_virtual ?? row.assessment_price);
+    const prices = [
+      mode !== "virtual" && presencial > 0 ? `valoracion presencial ${presencial.toFixed(2)} Bs` : null,
+      mode !== "presencial" && virtual > 0 ? `valoracion virtual ${virtual.toFixed(2)} Bs` : null,
+    ].filter(Boolean);
+    return prices.length ? prices.join("; ") : "requiere valoracion previa, precio no publicado";
+  }
+  const price = crmNumber(row.treatment_price ?? row.direct_booking_price ?? row.assessment_price);
+  return price > 0 ? `${price.toFixed(2)} Bs` : "precio no publicado";
+}
+
+function treatmentToKnowledgeText(row: Record<string, unknown>) {
+  const doctor = row.doctor_profiles as { full_name?: string | null; specialty?: string | null } | null | undefined;
+  const totalSlots = crmNumber(row.available_slots);
+  const remainingSlots = totalSlots > 0 ? Math.max(totalSlots - crmNumber(row.approved_slots), 0) : null;
+  return [
+    `Titulo: ${crmText(row.title) ?? "Sin titulo"}.`,
+    crmText(row.city) ? `Ciudad/sede: ${crmText(row.city)}.` : null,
+    doctor?.full_name ? `Doctora: ${doctor.full_name}${doctor.specialty ? ` (${doctor.specialty})` : ""}.` : null,
+    crmText(row.duration) ? `Duracion: ${crmText(row.duration)}.` : null,
+    `Precio: ${treatmentPriceForKnowledge(row)}.`,
+    remainingSlots == null ? "Cupos: segun disponibilidad de agenda." : `Cupos restantes publicados: ${remainingSlots}.`,
+    row.requires_assessment ? `Requiere valoracion previa. Modalidad: ${String(row.assessment_mode ?? "presencial")}.` : null,
+    row.allows_direct_booking ? "Permite reserva directa desde WhatsApp cuando hay agenda disponible." : "No tiene reserva directa habilitada; derivar a administracion o valoracion.",
+    crmText(row.public_info) ? `Informacion visible: ${crmText(row.public_info)}.` : null,
+    crmText(row.short_description) ? `Descripcion corta: ${crmText(row.short_description)}.` : null,
+    crmText(row.description) ? `Descripcion: ${crmText(row.description)}.` : null,
+    crmText(row.benefits) ? `Beneficios: ${crmText(row.benefits)}.` : null,
+    crmText(row.care_instructions) ? `Cuidados: ${crmText(row.care_instructions)}.` : null,
+    crmText(row.expected_results) ? `Resultados esperados: ${crmText(row.expected_results)}.` : null,
+  ].filter(Boolean).join("\n").slice(0, 3500);
+}
+
 export async function getAiContext(admin: SupabaseClient, conversationId: string) {
-  const [settingsResult, sourcesResult, messagesResult, bookingResult, metaAd] = await Promise.all([
+  const [settingsResult, sourcesResult, treatmentSourcesResult, messagesResult, bookingResult, metaAd] = await Promise.all([
     admin.from("crm_settings").select("ai_enabled,ai_system_prompt,booking_url,allow_external_grounding").eq("id", true).maybeSingle(),
     admin.from("crm_knowledge_sources").select("title,content").eq("is_active", true).order("updated_at", { ascending: false }).limit(20),
+    admin.from("treatments")
+      .select("title,short_description,description,public_info,benefits,duration,care_instructions,expected_results,city,requires_assessment,allows_direct_booking,treatment_price,direct_booking_price,assessment_price,assessment_price_presencial,assessment_price_virtual,available_slots,approved_slots,doctor_profiles(full_name,specialty)")
+      .eq("is_active", true)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(50),
     admin.from("crm_messages").select("direction,sender_type,body").eq("conversation_id", conversationId).order("occurred_at", { ascending: false }).limit(12),
     admin.from("crm_booking_sessions")
       .select("status,identity_step,appointment_date,start_time,end_time,treatments(title)")
@@ -465,12 +517,19 @@ export async function getAiContext(admin: SupabaseClient, conversationId: string
   ]);
   if (settingsResult.error) throw settingsResult.error;
   if (sourcesResult.error) throw sourcesResult.error;
+  if (treatmentSourcesResult.error) throw treatmentSourcesResult.error;
   if (messagesResult.error) throw messagesResult.error;
   if (bookingResult.error) throw bookingResult.error;
   const booking = bookingResult.data as { status?: string; identity_step?: string | null; appointment_date?: string | null; start_time?: string | null; end_time?: string | null; treatments?: { title?: string | null } | null } | null;
+  const treatmentSources = (treatmentSourcesResult.data ?? [])
+    .filter((row) => !/\b(prueba|test|interna)\b/i.test(String(row.title ?? "")))
+    .map((row) => ({ title: `Tratamiento: ${String(row.title ?? "Sin titulo")}`, content: treatmentToKnowledgeText(row as Record<string, unknown>) }));
   return {
-    settings: settingsResult.data ?? { ai_enabled: true, ai_system_prompt: null, booking_url: "/reservar-cita", allow_external_grounding: true },
-    knowledgeSources: (sourcesResult.data ?? []).map((source) => ({ title: String(source.title), content: String(source.content ?? "") })),
+    settings: settingsResult.data ?? { ai_enabled: true, ai_system_prompt: null, booking_url: "/reservar-cita", allow_external_grounding: false },
+    knowledgeSources: [
+      ...treatmentSources,
+      ...(sourcesResult.data ?? []).map((source) => ({ title: String(source.title), content: String(source.content ?? "") })),
+    ],
     messages: (messagesResult.data ?? []).reverse(),
     metaAdContext: metaAd
       ? [

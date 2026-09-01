@@ -110,7 +110,7 @@ async function getBookableTreatments(admin: SupabaseClient, city?: string | null
 async function getInformationalTreatments(admin: SupabaseClient, city?: string | null) {
   let query = admin
     .from("treatments")
-    .select("id,title,short_description,description,public_info,city,doctor_id,appointment_type,agenda_tag,requires_assessment,allows_direct_booking,assessment_mode,treatment_price,direct_booking_price,assessment_price,assessment_price_presencial,assessment_price_virtual")
+    .select("id,title,short_description,description,public_info,benefits,duration,care_instructions,expected_results,city,doctor_id,appointment_type,agenda_tag,requires_assessment,allows_direct_booking,assessment_mode,treatment_price,direct_booking_price,assessment_price,assessment_price_presencial,assessment_price_virtual,available_slots,approved_slots,doctor_profiles(full_name,specialty)")
     .eq("is_active", true)
     .is("deleted_at", null)
     .order("title")
@@ -126,6 +126,136 @@ function displayPrice(treatment: Record<string, unknown>) {
     ? treatment.assessment_price_presencial ?? treatment.assessment_price
     : treatment.treatment_price ?? treatment.direct_booking_price ?? treatment.assessment_price ?? 0);
   return price > 0 ? `${price.toFixed(2)} Bs` : null;
+}
+
+function textValue(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function compactText(value: unknown, maxLength: number) {
+  const text = textValue(value)?.replace(/\s+/g, " ");
+  if (!text) return null;
+  return text.length > maxLength ? `${text.slice(0, Math.max(0, maxLength - 1)).trim()}...` : text;
+}
+
+function treatmentDoctorName(treatment: Record<string, unknown>) {
+  const doctor = treatment.doctor_profiles as { full_name?: string | null; specialty?: string | null } | null | undefined;
+  if (!doctor?.full_name) return null;
+  return doctor.specialty ? `${doctor.full_name} (${doctor.specialty})` : doctor.full_name;
+}
+
+function remainingTreatmentSlots(treatment: Record<string, unknown>) {
+  const total = Number(treatment.available_slots ?? 0);
+  if (!Number.isFinite(total) || total <= 0) return null;
+  const approved = Number(treatment.approved_slots ?? 0);
+  return Math.max(total - (Number.isFinite(approved) ? approved : 0), 0);
+}
+
+function formatTreatmentPriceLine(treatment: Record<string, unknown>) {
+  if (treatment.requires_assessment) {
+    const mode = String(treatment.assessment_mode ?? "presencial");
+    const presencial = Number(treatment.assessment_price_presencial ?? treatment.assessment_price ?? 0);
+    const virtual = Number(treatment.assessment_price_virtual ?? treatment.assessment_price ?? 0);
+    const parts = [
+      mode !== "virtual" && presencial > 0 ? `presencial ${presencial.toFixed(2)} Bs` : null,
+      mode !== "presencial" && virtual > 0 ? `virtual ${virtual.toFixed(2)} Bs` : null,
+    ].filter(Boolean);
+    return parts.length
+      ? `Valoracion previa: ${parts.join(" / ")}.`
+      : "Requiere valoracion previa. El costo se confirma con administracion.";
+  }
+  const price = displayPrice(treatment);
+  return price ? `Precio: ${price}.` : "Precio: consulta con administracion.";
+}
+
+function formatTreatmentSlotsLine(treatment: Record<string, unknown>) {
+  const remaining = remainingTreatmentSlots(treatment);
+  if (remaining == null) return treatment.allows_direct_booking ? "Cupos: segun agenda disponible." : null;
+  return remaining > 0 ? `Cupos disponibles: ${remaining}.` : "Cupos disponibles: agotados por ahora.";
+}
+
+function formatTreatmentOverview(treatment: Record<string, unknown>) {
+  const lines = [`*${String(treatment.title ?? "Tratamiento")}*`];
+  const facts = [
+    textValue(treatment.city) ? `Ciudad: ${textValue(treatment.city)}` : null,
+    treatmentDoctorName(treatment) ? `Doctora: ${treatmentDoctorName(treatment)}` : null,
+    textValue(treatment.duration) ? `Duracion: ${textValue(treatment.duration)}` : null,
+    formatTreatmentPriceLine(treatment),
+    formatTreatmentSlotsLine(treatment),
+  ].filter(Boolean);
+  if (facts.length) lines.push(facts.join("\n"));
+
+  const info = compactText(treatment.public_info ?? treatment.short_description ?? treatment.description, 420);
+  if (info) lines.push(info);
+
+  const benefits = compactText(treatment.benefits, 170);
+  if (benefits) lines.push(`Beneficios: ${benefits}`);
+  const care = compactText(treatment.care_instructions, 150);
+  if (care) lines.push(`Cuidados: ${care}`);
+  const results = compactText(treatment.expected_results, 150);
+  if (results) lines.push(`Resultados esperados: ${results}`);
+
+  lines.push("Puedes preguntarme: beneficios, duracion, cuidados, resultados, precio o cupos.");
+  return lines.join("\n\n").slice(0, 1024);
+}
+
+function isTreatmentFollowUpQuestion(text?: string | null) {
+  const normalized = normalize(text ?? "");
+  return /\b(beneficios?|cuidados?|duracion|dura|resultados?|precio|costo|cuanto|cupos?|disponibilidad|doctora|doctor|quien|ciudad|sede|para que|sirve|consiste|como es)\b/i.test(normalized);
+}
+
+function formatTreatmentFollowUpAnswer(treatment: Record<string, unknown>, text?: string | null) {
+  const normalized = normalize(text ?? "");
+  const title = String(treatment.title ?? "Tratamiento");
+  if (/\b(precio|costo|cuanto)\b/i.test(normalized)) return `*${title}*\n${formatTreatmentPriceLine(treatment)}`;
+  if (/\b(cupos?|disponibilidad)\b/i.test(normalized)) return `*${title}*\n${formatTreatmentSlotsLine(treatment) ?? "Los cupos dependen de la agenda disponible."}`;
+  if (/\b(duracion|dura)\b/i.test(normalized)) return `*${title}*\nDuracion: ${textValue(treatment.duration) ?? "se confirma durante la valoracion o con administracion."}`;
+  if (/\b(cuidados?)\b/i.test(normalized)) return `*${title}*\nCuidados: ${compactText(treatment.care_instructions, 850) ?? "los cuidados especificos se indican segun la valoracion profesional."}`;
+  if (/\b(beneficios?)\b/i.test(normalized)) return `*${title}*\nBeneficios: ${compactText(treatment.benefits, 850) ?? compactText(treatment.public_info ?? treatment.description, 850) ?? "la informacion se confirma en valoracion profesional."}`;
+  if (/\b(resultados?)\b/i.test(normalized)) return `*${title}*\nResultados esperados: ${compactText(treatment.expected_results, 850) ?? "los resultados pueden variar segun cada persona y se explican en valoracion."}`;
+  if (/\b(doctora|doctor|quien)\b/i.test(normalized)) return `*${title}*\nDoctora: ${treatmentDoctorName(treatment) ?? "se asigna segun disponibilidad de agenda."}`;
+  if (/\b(ciudad|sede)\b/i.test(normalized)) return `*${title}*\nCiudad: ${textValue(treatment.city) ?? "se confirma segun disponibilidad."}`;
+  return formatTreatmentOverview(treatment);
+}
+
+async function loadInformationalTreatment(admin: SupabaseClient, treatmentId: string) {
+  const treatments = await getInformationalTreatments(admin);
+  return treatments.find((item) => item.id === treatmentId) ?? null;
+}
+
+async function findInformationalTreatmentByText(admin: SupabaseClient, text: string, city?: string | null) {
+  const normalizedText = normalize(text);
+  if (normalizedText.length < 4) return null;
+  const treatments = await getInformationalTreatments(admin, city || undefined);
+  const localMatch = treatments.find((item) => {
+    const title = normalize(String(item.title ?? ""));
+    return title && (normalizedText.includes(title) || title.includes(normalizedText));
+  });
+  if (localMatch) return localMatch;
+  if (city) {
+    const allTreatments = await getInformationalTreatments(admin);
+    return allTreatments.find((item) => {
+      const title = normalize(String(item.title ?? ""));
+      return title && (normalizedText.includes(title) || title.includes(normalizedText));
+    }) ?? null;
+  }
+  return null;
+}
+
+async function showTreatmentDetails(admin: SupabaseClient, persisted: PersistedInbound, treatment: Record<string, unknown>) {
+  const body = formatTreatmentOverview(treatment);
+  await admin.from("crm_conversations")
+    .update({ intent: `treatment_info:${treatment.id}` })
+    .eq("id", persisted.conversation.id);
+  const city = textValue(treatment.city);
+  if (city) await rememberCityInterest(admin, persisted.contact.id, city);
+  await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, body, {
+    type: "interactive",
+    interactive: { type: "button", body: { text: body }, action: { buttons: [
+      { type: "reply", reply: { id: `treatment-book:${treatment.id}`, title: treatment.requires_assessment ? "Pedir valoracion" : "Reservar cita" } },
+      { type: "reply", reply: { id: "treatment-catalog", title: "Ver otros" } },
+    ] } },
+  });
 }
 
 function isAssessmentBooking(session: BookingSession) {
@@ -215,12 +345,40 @@ export async function handleTreatmentCatalogConversation(admin: SupabaseClient, 
     return true;
   }
   if (message.interactiveId === "treatment-catalog") return await showCityChoices(admin, persisted, "info");
+  const currentIntent = await admin.from("crm_conversations").select("intent").eq("id", persisted.conversation.id).maybeSingle();
+  if (currentIntent.error) throw currentIntent.error;
+  const currentTreatmentInfoId = currentIntent.data?.intent?.match(/^treatment_info:([0-9a-f-]{36})$/i)?.[1] ?? null;
+  if (!message.interactiveId && currentTreatmentInfoId && message.text) {
+    const treatment = await loadInformationalTreatment(admin, currentTreatmentInfoId);
+    if (treatment && bookingPattern.test(message.text)) {
+      await beginIdentityCollection(admin, persisted, treatment);
+      return true;
+    }
+    if (treatment && isTreatmentFollowUpQuestion(message.text)) {
+      const body = formatTreatmentFollowUpAnswer(treatment, message.text);
+      await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, body, {
+        type: "interactive",
+        interactive: { type: "button", body: { text: body.slice(0, 1024) }, action: { buttons: [
+          { type: "reply", reply: { id: `treatment-book:${treatment.id}`, title: treatment.requires_assessment ? "Pedir valoracion" : "Reservar cita" } },
+          { type: "reply", reply: { id: "treatment-catalog", title: "Ver otros" } },
+        ] } },
+      });
+      return true;
+    }
+  }
+  const namedTreatment = !message.interactiveId && message.text
+    ? await findInformationalTreatmentByText(admin, message.text, persisted.contact.city)
+    : null;
+  if (namedTreatment) {
+    if (bookingPattern.test(message.text ?? "")) await beginIdentityCollection(admin, persisted, namedTreatment);
+    else await showTreatmentDetails(admin, persisted, namedTreatment);
+    return true;
+  }
   if (treatmentCatalogPattern.test(message.text ?? "")) return await showCityChoices(admin, persisted, "info");
   const infoId = message.interactiveId?.startsWith("treatment-info:") ? message.interactiveId.slice("treatment-info:".length) : null;
   const bookId = message.interactiveId?.startsWith("treatment-book:") ? message.interactiveId.slice("treatment-book:".length) : null;
   if (bookId) {
-    const treatments = await getInformationalTreatments(admin);
-    const treatment = treatments.find((item) => item.id === bookId);
+    const treatment = await loadInformationalTreatment(admin, bookId);
     if (!treatment) return false;
     if (treatment.requires_assessment) {
       await beginIdentityCollection(admin, persisted, treatment);
@@ -235,22 +393,9 @@ export async function handleTreatmentCatalogConversation(admin: SupabaseClient, 
     return true;
   }
   if (!infoId) return false;
-  const treatments = await getInformationalTreatments(admin);
-  const treatment = treatments.find((item) => item.id === infoId);
+  const treatment = await loadInformationalTreatment(admin, infoId);
   if (!treatment) return false;
-  const info = String(treatment.public_info || treatment.short_description || treatment.description || "La información detallada se brinda luego de una valoración profesional.").trim().slice(0, 2800);
-  const price = displayPrice(treatment);
-  const priceLine = treatment.requires_assessment
-    ? `Requiere evaluación previa${price ? `. Valor de la evaluación: ${price}` : "."}`
-    : price ? `Precio: ${price}.` : "Precio: consulta con administración.";
-  const body = `*${treatment.title}*\n\n${info}\n\n${priceLine}`;
-  await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, body, {
-    type: "interactive",
-    interactive: { type: "button", body: { text: body.slice(0, 1024) }, action: { buttons: [
-      { type: "reply", reply: { id: `treatment-book:${treatment.id}`, title: treatment.requires_assessment ? "Pedir evaluación" : "Reservar cita" } },
-      { type: "reply", reply: { id: "treatment-catalog", title: "Ver otros" } },
-    ] } },
-  });
+  await showTreatmentDetails(admin, persisted, treatment);
   return true;
 }
 
