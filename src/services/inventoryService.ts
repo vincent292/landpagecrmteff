@@ -99,6 +99,9 @@ export type InventoryAdjustmentRow = DeletionMetadata & {
   difference_stock: number;
   reason: string | null;
   location_name_snapshot: string | null;
+  unit_id_snapshot?: string | null;
+  unit_label_snapshot?: string | null;
+  unit_snapshot_status?: InventoryUnitSnapshotStatus;
   counted_at: string;
   created_by: string | null;
   created_at: string;
@@ -143,6 +146,9 @@ export type InventoryMovementRow = DeletionMetadata & {
   from_location_snapshot: string | null;
   to_location_snapshot: string | null;
   supplier_name_snapshot: string | null;
+  unit_id_snapshot?: string | null;
+  unit_label_snapshot?: string | null;
+  unit_snapshot_status?: InventoryUnitSnapshotStatus;
   created_by: string | null;
   created_by_profile?: InventoryCountActor | null;
   created_at: string;
@@ -179,6 +185,9 @@ export type InventoryCountLineRow = {
   counted_stock: number;
   difference_stock: number;
   notes: string | null;
+  unit_id_snapshot?: string | null;
+  unit_label_snapshot?: string | null;
+  unit_snapshot_status?: InventoryUnitSnapshotStatus;
   counted_by: string | null;
   counted_by_profile?: InventoryCountActor | null;
   created_at: string;
@@ -201,6 +210,9 @@ export type InventoryClinicalUsageRow = DeletionMetadata & {
   inventory_movement_id: string | null;
   quantity: number;
   unit_label: string | null;
+  unit_id_snapshot?: string | null;
+  unit_label_snapshot?: string | null;
+  unit_snapshot_status?: InventoryUnitSnapshotStatus;
   notes: string | null;
   created_by: string | null;
   created_by_profile?: InventoryCountActor | null;
@@ -210,6 +222,8 @@ export type InventoryClinicalUsageRow = DeletionMetadata & {
   inventory_items?: { name: string | null; unit: string | null; sku: string | null } | null;
   inventory_lots?: { lot_number: string | null; expiration_date: string | null } | null;
 };
+
+export type InventoryUnitSnapshotStatus = "pending" | "confirmed";
 
 export async function getInventoryItems(includeDeleted = false) {
   let query = supabase.from("inventory_items").select("*").order("created_at", { ascending: false });

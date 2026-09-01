@@ -345,11 +345,17 @@ export function InventoryAdminPage() {
   const expiringLots = lots.filter((lot) => !lot.is_deleted && isExpiringSoon(lot.expiration_date, itemMap.get(lot.item_id)?.alert_days_before_expiration ?? 30));
   const expiredLots = lots.filter((lot) => !lot.is_deleted && lot.expiration_date && new Date(lot.expiration_date) < startOfToday());
   const inventoryValue = activeItems.reduce((sum, item) => sum + Number(item.current_stock ?? 0) * Number(item.reference_cost ?? 0), 0);
+  const pendingUnitItemIds = new Set([
+    ...movements.filter((movement) => !hasConfirmedHistoricalUnit(movement)).map((movement) => movement.item_id),
+    ...clinicalUsages.filter((usage) => !hasConfirmedHistoricalUnit(usage)).map((usage) => usage.item_id),
+    ...countLines.filter((line) => !hasConfirmedHistoricalUnit(line)).map((line) => line.item_id),
+  ]);
   const alertRows = [
     ...lowStock.map((item) => ({ title: item.name, detail: `Stock bajo: ${item.current_stock} / minimo ${item.minimum_stock}` })),
     ...expiredLots.map((lot) => ({ title: itemMap.get(lot.item_id)?.name ?? lot.lot_number, detail: `Lote vencido: ${lot.lot_number}` })),
     ...expiringLots.map((lot) => ({ title: itemMap.get(lot.item_id)?.name ?? lot.lot_number, detail: `Lote por vencer: ${lot.lot_number}` })),
     ...activeItems.filter((item) => item.reference_cost == null).map((item) => ({ title: item.name, detail: "Sin costo unitario configurado." })),
+    ...activeItems.filter((item) => pendingUnitItemIds.has(item.id)).map((item) => ({ title: item.name, detail: "Unidad historica pendiente de conciliacion." })),
   ];
 
   const filteredItems = useMemo(() => {
@@ -397,6 +403,7 @@ export function InventoryAdminPage() {
         movement.item_name_snapshot,
         movement.movement_type,
         movement.quantity,
+        movement.unit_label_snapshot,
         movement.lot_number_snapshot,
         movement.supplier_name_snapshot,
         movement.from_location_snapshot,
@@ -435,11 +442,10 @@ export function InventoryAdminPage() {
         movements,
         itemMap,
         categoryMap,
-        unitMap,
         usageMovementIds,
         range: reportRange,
       }),
-    [categoryMap, clinicalUsages, itemMap, movements, reportRange, unitMap, usageMovementIds]
+    [categoryMap, clinicalUsages, itemMap, movements, reportRange, usageMovementIds]
   );
   const reportUsageSummaryRows = useMemo(() => buildInventoryUsageSummaryRows(reportUsageRows), [reportUsageRows]);
   const reportCountRows = useMemo(
@@ -449,10 +455,9 @@ export function InventoryAdminPage() {
         countLines,
         countMap,
         itemMap,
-        unitMap,
         range: reportRange,
       }),
-    [countLines, countMap, counts, itemMap, reportRange, unitMap]
+    [countLines, countMap, counts, itemMap, reportRange]
   );
   const reportResponsibleRows = useMemo(
     () => buildInventoryResponsibleReportRows(reportUsageRows, reportCountRows),
@@ -959,7 +964,11 @@ export function InventoryAdminPage() {
             </Panel>
             <Panel eyebrow="Kardex" title="Movimientos recientes" action={<button onClick={() => setActiveTab("movimientos")} className="rounded-full bg-[var(--color-mocha)] px-4 py-2 text-sm font-bold text-white">Ver kardex</button>}>
               <RowsEmpty rows={movements.slice(0, 5)} empty="Sin movimientos recientes." render={(movement) => (
-                <AlertRow key={movement.id} title={`${movement.item_name_snapshot} · ${movement.movement_type}`} detail={`${movement.quantity} · ${new Date(movement.movement_date).toLocaleString("es-BO")}`} />
+                <AlertRow
+                  key={movement.id}
+                  title={`${movement.item_name_snapshot} · ${movement.movement_type}`}
+                  detail={`${formatInventoryNumber(movement.quantity)} ${getHistoricalUnitLabel(movement)} · ${new Date(movement.movement_date).toLocaleString("es-BO")}`}
+                />
               )} />
             </Panel>
           </div>
@@ -980,6 +989,7 @@ export function InventoryAdminPage() {
                   ? `${unitMap.get(item.presentation_unit_id ?? "")?.abbreviation} x ${formatInventoryNumber(item.units_per_presentation)}`
                   : "",
                 locationMap.get(item.location_id ?? "")?.name ?? "Sin lugar",
+                pendingUnitItemIds.has(item.id) ? "Unidad historica pendiente" : "",
               ]}
               detail={`Stock ${formatStockSummary(item.current_stock, getUnitLabel(item.unit_id, item.unit, unitMap), item.presentation_unit_id, item.units_per_presentation, unitMap)} · minimo ${formatStockSummary(item.minimum_stock, getUnitLabel(item.unit_id, item.unit, unitMap), item.presentation_unit_id, item.units_per_presentation, unitMap)} · costo ${formatMoney(item.reference_cost)}`}
               deletedRow={item}
@@ -1081,7 +1091,7 @@ export function InventoryAdminPage() {
             />
           ) : null}
           <RowsEmpty rows={filteredMovements} empty="Sin movimientos con esa busqueda." render={(movement) => (
-            <RowCard key={movement.id} title={`${movement.item_name_snapshot} · ${movement.movement_type}`} tags={[movement.lot_number_snapshot ?? "Sin lote", movement.supplier_name_snapshot ?? "Sin proveedor"]} detail={`${movement.quantity} · ${movement.reason ?? "Sin motivo"} · ${new Date(movement.movement_date).toLocaleString("es-BO")}`} deletedRow={movement} actions={<CrudActions role={role} row={movement} table="inventory_movements" allowStaffSoftDelete onEdit={undefined} onArchive={() => void archive("inventory_movements", movement.id)} onRestore={() => void restoreRecord("inventory_movements", movement.id).then(load)} onHardDelete={() => void hardDeleteRecord("inventory_movements", movement.id).then(load)} />} />
+            <RowCard key={movement.id} title={`${movement.item_name_snapshot} · ${movement.movement_type}`} tags={[movement.lot_number_snapshot ?? "Sin lote", movement.supplier_name_snapshot ?? "Sin proveedor", getHistoricalUnitStatusLabel(movement)]} detail={`${formatInventoryNumber(movement.quantity)} ${getHistoricalUnitLabel(movement)} · ${movement.reason ?? "Sin motivo"} · ${new Date(movement.movement_date).toLocaleString("es-BO")}`} deletedRow={movement} actions={<CrudActions role={role} row={movement} table="inventory_movements" allowStaffSoftDelete onEdit={undefined} onArchive={() => void archive("inventory_movements", movement.id)} onRestore={() => void restoreRecord("inventory_movements", movement.id).then(load)} onHardDelete={() => void hardDeleteRecord("inventory_movements", movement.id).then(load)} />} />
           )} />
         </Panel>
       ) : null}
@@ -1295,6 +1305,18 @@ export function InventoryAdminPage() {
             canManageInventoryCorrections,
             canEditInventoryItemSettings,
             isCreatingItem: modal === "item" && !editing,
+            itemUnitLocked:
+              modal === "item" &&
+              Boolean(
+                (editing as InventoryItemRow | null)?.id &&
+                (
+                  Number((editing as InventoryItemRow).current_stock ?? 0) !== 0 ||
+                  movements.some((movement) => movement.item_id === (editing as InventoryItemRow).id) ||
+                  clinicalUsages.some((usage) => usage.item_id === (editing as InventoryItemRow).id) ||
+                  countLines.some((line) => line.item_id === (editing as InventoryItemRow).id) ||
+                  lots.some((lot) => lot.item_id === (editing as InventoryItemRow).id)
+                )
+              ),
           })}
           {saveStatus ? (
             <div className="mt-6 rounded-[22px] border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
@@ -1650,11 +1672,14 @@ function InventoryItemTracePanel({
   const currentStock = Number(item.current_stock ?? 0);
   const lotStock = lots.reduce((sum, lot) => sum + Number(lot.current_quantity ?? 0), 0);
   const stockWithoutLot = currentStock - lotStock;
-  const patientUsageTotal = usages.reduce((sum, usage) => sum + Number(usage.quantity ?? 0), 0);
-  const manualDiscountTotal = movements
+  const confirmedUsages = usages.filter(hasConfirmedHistoricalUnit);
+  const confirmedMovements = movements.filter(hasConfirmedHistoricalUnit);
+  const hasPendingUnitHistory = confirmedUsages.length !== usages.length || confirmedMovements.length !== movements.length;
+  const patientUsageTotal = confirmedUsages.reduce((sum, usage) => sum + Number(usage.quantity ?? 0), 0);
+  const manualDiscountTotal = confirmedMovements
     .filter((movement) => ["salida", "merma"].includes(movement.movement_type) && !usageMovementIds.has(movement.id))
     .reduce((sum, movement) => sum + Number(movement.quantity ?? 0), 0);
-  const entryTotal = movements
+  const entryTotal = confirmedMovements
     .filter((movement) => movement.movement_type === "entrada")
     .reduce((sum, movement) => sum + Number(movement.quantity ?? 0), 0);
   const countDifferenceTotal = countLines.reduce((sum, line) => sum + Number(line.difference_stock ?? 0), 0);
@@ -1697,11 +1722,16 @@ function InventoryItemTracePanel({
           Stock general sin lote activo: {formatInventoryNumber(stockWithoutLot)} {unitLabel}. Para trazabilidad, las nuevas entradas deben ir ligadas a lote cuando aplique.
         </p>
       ) : null}
+      {hasPendingUnitHistory ? (
+        <p className="mt-3 rounded-[18px] border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-6 text-amber-900">
+          Este item tiene movimientos anteriores cuya unidad no fue confirmada. Los totales historicos muestran solo registros con unidad verificada; concilia los anteriores antes de usarlos en reportes.
+        </p>
+      ) : null}
 
       <div className="mt-4 grid gap-3 md:grid-cols-3">
-        <MetricBox label="Ingresos registrados" value={`${formatInventoryNumber(entryTotal)} ${unitLabel}`} />
-        <MetricBox label="Uso en pacientes" value={`${formatInventoryNumber(patientUsageTotal)} ${unitLabel}`} />
-        <MetricBox label="Salidas y mermas manuales" value={`${formatInventoryNumber(manualDiscountTotal)} ${unitLabel}`} />
+        <MetricBox label="Ingresos con unidad confirmada" value={`${formatInventoryNumber(entryTotal)} ${unitLabel}`} />
+        <MetricBox label="Uso confirmado en pacientes" value={`${formatInventoryNumber(patientUsageTotal)} ${unitLabel}`} />
+        <MetricBox label="Salidas confirmadas" value={`${formatInventoryNumber(manualDiscountTotal)} ${unitLabel}`} />
       </div>
 
       <div className="mt-5 grid gap-4 xl:grid-cols-3">
@@ -1711,7 +1741,7 @@ function InventoryItemTracePanel({
             return (
               <TraceRow
                 key={movement.id}
-                title={`${movementTypeLabel(movement.movement_type)} - ${formatInventoryNumber(movement.quantity)} ${unitLabel}`}
+                title={`${movementTypeLabel(movement.movement_type)} - ${formatInventoryNumber(movement.quantity)} ${getHistoricalUnitLabel(movement)}`}
                 detail={[
                   formatDateTime(movement.movement_date),
                   formatActorLabel(movement.created_by_profile, movement.created_by),
@@ -1727,7 +1757,7 @@ function InventoryItemTracePanel({
           {usages.slice(0, 6).map((usage) => (
             <TraceRow
               key={usage.id}
-              title={`${usage.patients?.full_name ?? "Paciente"} - ${formatInventoryNumber(usage.quantity)} ${unitLabel}`}
+              title={`${usage.patients?.full_name ?? "Paciente"} - ${formatInventoryNumber(usage.quantity)} ${getHistoricalUnitLabel(usage, usage.unit_label)}`}
               detail={[
                 formatDateTime(usage.created_at),
                 formatActorLabel(usage.created_by_profile, usage.created_by),
@@ -1745,7 +1775,7 @@ function InventoryItemTracePanel({
             return (
               <TraceRow
                 key={line.id}
-                title={`${count?.shift_name || "Turno"} - dif. ${formatInventoryNumber(line.difference_stock)} ${unitLabel}`}
+                title={`${count?.shift_name || "Turno"} - dif. ${formatInventoryNumber(line.difference_stock)} ${getHistoricalUnitLabel(line)}`}
                 detail={[
                   count ? formatDate(count.count_date) : null,
                   `Esperado ${formatInventoryNumber(line.expected_stock)} / contado ${formatInventoryNumber(line.counted_stock)}`,
@@ -2088,6 +2118,7 @@ function renderModalFields(props: {
   canManageInventoryCorrections: boolean;
   canEditInventoryItemSettings: boolean;
   isCreatingItem: boolean;
+  itemUnitLocked: boolean;
 }) {
   if (props.modal === "item") {
     const f = props.itemForm;
@@ -2109,7 +2140,7 @@ function renderModalFields(props: {
         <SelectField label="Categoria" value={f.category_id} onChange={(category_id) => set({ ...f, category_id })} options={props.categories.map((c) => ({ value: c.id, label: c.name }))} />
         <TextField label="SKU" value={f.sku} onChange={(sku) => set({ ...f, sku })} />
         <TextField label="Codigo de barras" value={f.barcode} onChange={(barcode) => set({ ...f, barcode })} />
-        <SelectField label="Unidad que se usa en consulta" value={f.unit_id} onChange={(unit_id) => set({ ...f, unit_id })} options={props.units.map((u) => ({ value: u.id, label: `${u.name} (${u.abbreviation})` }))} />
+        <SelectField label="Unidad que se usa en consulta" value={f.unit_id} onChange={(unit_id) => set({ ...f, unit_id })} options={props.units.map((u) => ({ value: u.id, label: `${u.name} (${u.abbreviation})` }))} disabled={props.itemUnitLocked} />
         <SelectField label="Se compra en" value={f.presentation_unit_id} onChange={(presentation_unit_id) => set({ ...f, presentation_unit_id })} options={props.units.map((u) => ({ value: u.id, label: `${u.name} (${u.abbreviation})` }))} />
         <NumberField label="Cuantas unidades de uso trae cada presentacion" value={f.units_per_presentation} onChange={(units_per_presentation) => set({ ...f, units_per_presentation })} />
         <InlineHint
@@ -2119,6 +2150,9 @@ function renderModalFields(props: {
               : "Usa estos campos solo si el insumo se compra por caja, frasco o ampolla, pero en consulta se descuenta por unidades internas."
           }
         />
+        {props.itemUnitLocked ? (
+          <InlineHint text="La unidad base esta bloqueada porque el item ya tiene stock o historial. No la cambies desde la ficha: primero se debe conciliar la unidad historica y el saldo actual." />
+        ) : null}
         <CityField label="Ciudad" value={f.city} onChange={(city) => set({ ...f, city })} />
         <SelectField label="Ubicacion" value={f.location_id} onChange={(location_id) => set({ ...f, location_id })} options={props.locations.map((l) => ({ value: l.id, label: l.name }))} />
         <SelectField label="Proveedor principal" value={f.supplier_id} onChange={(supplier_id) => set({ ...f, supplier_id })} options={props.suppliers.map((s) => ({ value: s.id, label: s.name }))} />
@@ -2380,10 +2414,10 @@ function TextareaField({ label, value, onChange }: { label: string; value: strin
   return <Field label={label} className="md:col-span-2"><textarea value={value} onChange={(event) => onChange(event.target.value)} className="premium-input min-h-28" /></Field>;
 }
 
-function SelectField({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: { value: string; label: string }[] }) {
+function SelectField({ label, value, onChange, options, disabled = false }: { label: string; value: string; onChange: (value: string) => void; options: { value: string; label: string }[]; disabled?: boolean }) {
   return (
     <Field label={label}>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="premium-input">
+      <select value={value} onChange={(event) => onChange(event.target.value)} disabled={disabled} className="premium-input disabled:cursor-not-allowed disabled:opacity-60">
         <option value="">Seleccionar</option>
         {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
@@ -2717,6 +2751,32 @@ function getItemUnitLabel(item: InventoryItemRow | undefined, unitMap: Map<strin
   return getUnitLabel(item?.unit_id ?? null, item?.unit ?? "u", unitMap);
 }
 
+function hasConfirmedHistoricalUnit(row: {
+  unit_label_snapshot?: string | null;
+  unit_snapshot_status?: "pending" | "confirmed";
+}) {
+  return row.unit_snapshot_status === "confirmed" && Boolean(row.unit_label_snapshot?.trim());
+}
+
+function getHistoricalUnitLabel(
+  row: {
+    unit_label_snapshot?: string | null;
+    unit_snapshot_status?: "pending" | "confirmed";
+  },
+  legacyLabel?: string | null
+) {
+  if (hasConfirmedHistoricalUnit(row)) return row.unit_label_snapshot!.trim();
+  const pendingLabel = row.unit_label_snapshot?.trim() || legacyLabel?.trim();
+  return pendingLabel ? `${pendingLabel} (por revisar)` : "unidad por revisar";
+}
+
+function getHistoricalUnitStatusLabel(row: {
+  unit_label_snapshot?: string | null;
+  unit_snapshot_status?: "pending" | "confirmed";
+}) {
+  return hasConfirmedHistoricalUnit(row) ? "Unidad confirmada" : "Unidad pendiente";
+}
+
 function createInternalUsageDraft(itemId: string): InternalUsageDraft {
   return {
     id: `${itemId}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -2836,7 +2896,6 @@ function buildInventoryUsageReportRows({
   movements,
   itemMap,
   categoryMap,
-  unitMap,
   usageMovementIds,
   range,
 }: {
@@ -2844,7 +2903,6 @@ function buildInventoryUsageReportRows({
   movements: InventoryMovementRow[];
   itemMap: Map<string, InventoryItemRow>;
   categoryMap: Map<string, InventoryCategoryRow>;
-  unitMap: Map<string, InventoryUnitRow>;
   usageMovementIds: Set<string>;
   range: ReportRange;
 }) {
@@ -2861,7 +2919,7 @@ function buildInventoryUsageReportRows({
         category: categoryMap.get(item?.category_id ?? "")?.name ?? item?.category ?? "",
         reportType: "Uso paciente" as const,
         quantity,
-        unitLabel: item ? getItemUnitLabel(item, unitMap) : usage.unit_label ?? "u",
+        unitLabel: getHistoricalUnitLabel(usage, usage.unit_label),
         lotLabel: usage.inventory_lots?.lot_number ?? "",
         responsible: formatActorLabel(usage.created_by_profile, usage.created_by),
         patient: usage.patients?.full_name ?? "",
@@ -2884,7 +2942,7 @@ function buildInventoryUsageReportRows({
         category: categoryMap.get(item?.category_id ?? "")?.name ?? item?.category ?? "",
         reportType: movementReportType(movement.movement_type),
         quantity,
-        unitLabel: getItemUnitLabel(item, unitMap),
+        unitLabel: getHistoricalUnitLabel(movement),
         lotLabel: movement.lot_number_snapshot ?? "",
         responsible: formatActorLabel(movement.created_by_profile, movement.created_by),
         patient: "",
@@ -2928,14 +2986,12 @@ function buildInventoryCountReportRows({
   countLines,
   countMap,
   itemMap,
-  unitMap,
   range,
 }: {
   counts: InventoryCountRow[];
   countLines: InventoryCountLineRow[];
   countMap: Map<string, InventoryCountRow>;
   itemMap: Map<string, InventoryItemRow>;
-  unitMap: Map<string, InventoryUnitRow>;
   range: ReportRange;
 }) {
   return countLines
@@ -2952,7 +3008,7 @@ function buildInventoryCountReportRows({
         expectedStock: Number(line.expected_stock ?? 0),
         countedStock: Number(line.counted_stock ?? 0),
         differenceStock: Number(line.difference_stock ?? 0),
-        unitLabel: getItemUnitLabel(item, unitMap),
+        unitLabel: getHistoricalUnitLabel(line),
         countedBy: formatActorLabel(line.counted_by_profile, line.counted_by, "Sin responsable"),
         openedBy: count ? formatInventoryShiftActor(count.opened_by_profile, count.opened_by ?? count.created_by) : "Sin responsable",
         closedBy: count?.closed_by ? formatInventoryShiftActor(count.closed_by_profile, count.closed_by) : "",
@@ -3145,6 +3201,10 @@ function getInventorySubmitErrorMessage(error: unknown) {
 
   if (detail.includes("ya esta cerrado")) {
     return "Este turno de inventario ya esta cerrado.";
+  }
+
+  if (detail.includes("unidad base") && detail.includes("conciliacion")) {
+    return "La unidad base no se puede cambiar desde la ficha porque el item ya tiene stock o historial. Primero realiza una conciliacion controlada de unidades.";
   }
 
   if (message) return message;
