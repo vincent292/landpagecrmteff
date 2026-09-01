@@ -84,6 +84,7 @@ export type CrmSettings = {
   booking_url: string;
   patient_confirmation_template: string | null;
   doctor_booking_template: string | null;
+  doctor_booking_template_document_header: boolean;
   payment_rejected_template: string | null;
   template_language: string;
   booking_hold_minutes: number;
@@ -154,7 +155,7 @@ export async function getCrmBookingSession(conversationId: string) {
 export async function getCrmSettings() {
   const { data, error } = await supabase
     .from("crm_settings")
-    .select("ai_enabled,ai_system_prompt,welcome_message,booking_url,patient_confirmation_template,doctor_booking_template,payment_rejected_template,template_language,booking_hold_minutes,allow_external_grounding,site_url,admin_notification_whatsapps,admin_receipt_review_template,patient_reschedule_template,admin_doctor_unavailable_template")
+    .select("ai_enabled,ai_system_prompt,welcome_message,booking_url,patient_confirmation_template,doctor_booking_template,doctor_booking_template_document_header,payment_rejected_template,template_language,booking_hold_minutes,allow_external_grounding,site_url,admin_notification_whatsapps,admin_receipt_review_template,patient_reschedule_template,admin_doctor_unavailable_template")
     .eq("id", true)
     .single();
   if (error) throw error;
@@ -191,7 +192,7 @@ export async function updateMetaCtwaAd(id: string, values: Partial<Pick<MetaCtwa
 }
 
 export async function updateCrmSettings(values: Partial<CrmSettings>) {
-  const { data, error } = await supabase.from("crm_settings").update(values).eq("id", true).select("ai_enabled,ai_system_prompt,welcome_message,booking_url,patient_confirmation_template,doctor_booking_template,payment_rejected_template,template_language,booking_hold_minutes,allow_external_grounding,site_url,admin_notification_whatsapps,admin_receipt_review_template,patient_reschedule_template,admin_doctor_unavailable_template").single();
+  const { data, error } = await supabase.from("crm_settings").update(values).eq("id", true).select("ai_enabled,ai_system_prompt,welcome_message,booking_url,patient_confirmation_template,doctor_booking_template,doctor_booking_template_document_header,payment_rejected_template,template_language,booking_hold_minutes,allow_external_grounding,site_url,admin_notification_whatsapps,admin_receipt_review_template,patient_reschedule_template,admin_doctor_unavailable_template").single();
   if (error) throw error;
   return data as CrmSettings;
 }

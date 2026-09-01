@@ -18,13 +18,14 @@ type OutboxRow = {
   template_parameters: unknown;
   attachment_url: string | null;
   attachment_filename: string | null;
+  attachment_template_header: boolean | null;
   attempt_count: number;
 };
 
 function templatePayload(row: OutboxRow) {
   const parameters = Array.isArray(row.template_parameters) ? row.template_parameters : [];
   const components: Array<Record<string, unknown>> = [];
-  if (row.attachment_url) {
+  if (row.attachment_url && row.attachment_template_header) {
     components.push({
       type: "header",
       parameters: [{
