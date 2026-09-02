@@ -60,6 +60,7 @@ import { formatDate } from "../../utils/text";
 type TabKey = "turno" | "inventario" | "pedidos" | "reportes";
 type MovementMode = "entrada" | "salida" | "paciente" | "merma";
 type ReportPeriod = "day" | "week" | "month";
+type InventoryFilter = "all" | "low" | "expired" | "duplicates";
 
 type ItemForm = {
   id: string | null;
@@ -143,6 +144,7 @@ export function InventorySimpleAdminPage() {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [query, setQuery] = useState("");
+  const [inventoryFilter, setInventoryFilter] = useState<InventoryFilter>("all");
   const [showItemModal, setShowItemModal] = useState(false);
   const [showMovementModal, setShowMovementModal] = useState(false);
   const [showShiftModal, setShowShiftModal] = useState(false);
@@ -203,15 +205,31 @@ export function InventorySimpleAdminPage() {
   const expiredItems = items.filter((row) => row.expiration_date && row.expiration_date < localDateValue());
   const expiredLots = lots.filter((row) => row.expiration_date && row.expiration_date < localDateValue() && Number(row.current_quantity) > 0);
   const duplicateNames = useMemo(() => findDuplicateNames(items), [items]);
+  const duplicateNameKeys = useMemo(() => {
+    const countsByName = new Map<string, number>();
+    items.forEach((item) => countsByName.set(normalizeName(item.name), (countsByName.get(normalizeName(item.name)) ?? 0) + 1));
+    return new Set(Array.from(countsByName.entries()).filter(([, count]) => count > 1).map(([name]) => name));
+  }, [items]);
+  const expiredItemIds = useMemo(() => new Set([
+    ...expiredItems.map((item) => item.id),
+    ...expiredLots.map((lot) => lot.item_id),
+  ]), [expiredItems, expiredLots]);
+  const expiredInventoryItems = items.filter((item) => expiredItemIds.has(item.id));
   const clinicalMovementIds = useMemo(
     () => new Set(clinicalUsages.map((row) => row.inventory_movement_id).filter((id): id is string => Boolean(id))),
     [clinicalUsages]
   );
   const filteredItems = useMemo(() => {
     const normalized = normalizeName(query);
-    if (!normalized) return items;
-    return items.filter((row) => normalizeName(`${row.name} ${row.sku ?? ""}`).includes(normalized));
-  }, [items, query]);
+    return items.filter((row) => {
+      const matchesMetric = inventoryFilter === "all"
+        || (inventoryFilter === "low" && Number(row.current_stock) <= Number(row.minimum_stock))
+        || (inventoryFilter === "expired" && expiredItemIds.has(row.id))
+        || (inventoryFilter === "duplicates" && duplicateNameKeys.has(normalizeName(row.name)));
+      const matchesQuery = !normalized || normalizeName(`${row.name} ${row.sku ?? ""}`).includes(normalized);
+      return matchesMetric && matchesQuery;
+    });
+  }, [duplicateNameKeys, expiredItemIds, inventoryFilter, items, query]);
   const itemNameSuggestions = useMemo(() => {
     const normalized = normalizeName(itemForm.name);
     if (normalized.length < 2 || itemForm.id) return [];
@@ -521,10 +539,10 @@ export function InventorySimpleAdminPage() {
       {activeTab === "inventario" ? (
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Metric label="Productos" value={String(items.length)} />
-            <Metric label="Stock bajo" value={String(lowStockItems.length)} warning={lowStockItems.length > 0} />
-            <Metric label="Vencidos" value={String(expiredItems.length + expiredLots.length)} danger={expiredItems.length + expiredLots.length > 0} />
-            <Metric label="Duplicados" value={String(duplicateNames.length)} warning={duplicateNames.length > 0} />
+            <Metric label="Productos" value={String(items.length)} active={inventoryFilter === "all"} onClick={() => { setInventoryFilter("all"); setQuery(""); }} />
+            <Metric label="Stock bajo" value={String(lowStockItems.length)} warning={lowStockItems.length > 0} active={inventoryFilter === "low"} onClick={() => { setInventoryFilter("low"); setQuery(""); }} />
+            <Metric label="Vencidos" value={String(expiredInventoryItems.length)} danger={expiredInventoryItems.length > 0} active={inventoryFilter === "expired"} onClick={() => { setInventoryFilter("expired"); setQuery(""); }} />
+            <Metric label="Duplicados" value={String(duplicateNames.length)} warning={duplicateNames.length > 0} active={inventoryFilter === "duplicates"} onClick={() => { setInventoryFilter("duplicates"); setQuery(""); }} />
           </div>
 
           {(expiredItems.length > 0 || duplicateNames.length > 0) ? (
@@ -541,6 +559,12 @@ export function InventorySimpleAdminPage() {
           ) : null}
 
           <SimplePanel title="Productos" action={<button onClick={() => openItemModal()} className="inline-flex items-center justify-center gap-2 rounded-full bg-[var(--color-mocha)] px-4 py-2 text-sm font-semibold text-white"><Plus className="h-4 w-4" /> Nuevo</button>}>
+            {inventoryFilter !== "all" ? (
+              <div className="mb-3 flex items-center justify-between gap-3 rounded-[16px] bg-[#efe5da] px-4 py-2.5 text-sm text-[var(--color-ink)]">
+                <span>Mostrando: <strong>{inventoryFilter === "low" ? "stock bajo" : inventoryFilter === "expired" ? "productos vencidos" : "nombres duplicados"}</strong></span>
+                <button type="button" onClick={() => { setInventoryFilter("all"); setQuery(""); }} className="shrink-0 font-semibold underline underline-offset-2">Ver todos</button>
+              </div>
+            ) : null}
             <label className="flex items-center gap-3 rounded-[16px] border border-[var(--color-border)] bg-white px-4 py-3">
               <Search className="h-4 w-4 text-[var(--color-copy)]" />
               <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por nombre" className="w-full bg-transparent text-sm outline-none" />
@@ -946,8 +970,9 @@ function SimplePanel({ title, action, children }: { title: string; action?: Reac
   return <section className="rounded-[24px] border border-[var(--color-border)] bg-white/80 p-5 shadow-[0_12px_35px_rgba(62,42,31,0.05)]"><div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><h2 className="font-display text-2xl font-semibold text-[var(--color-ink)]">{title}</h2>{action}</div>{children}</section>;
 }
 
-function Metric({ label, value, warning = false, danger = false }: { label: string; value: string; warning?: boolean; danger?: boolean }) {
-  return <div className={`rounded-[18px] border p-4 ${danger ? "border-red-200 bg-red-50" : warning ? "border-amber-200 bg-amber-50" : "border-[var(--color-border)] bg-white/80"}`}><p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-copy)]">{label}</p><p className="mt-2 text-2xl font-semibold text-[var(--color-ink)]">{value}</p></div>;
+function Metric({ label, value, warning = false, danger = false, active = false, onClick }: { label: string; value: string; warning?: boolean; danger?: boolean; active?: boolean; onClick?: () => void }) {
+  const tone = danger ? "border-red-200 bg-red-50" : warning ? "border-amber-200 bg-amber-50" : "border-[var(--color-border)] bg-white";
+  return <button type="button" onClick={onClick} aria-pressed={active} className={`rounded-[18px] border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-mocha)] ${tone} ${active ? "ring-2 ring-[var(--color-mocha)] ring-offset-2" : ""}`}><p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-copy)]">{label}</p><p className="mt-2 text-2xl font-semibold text-[var(--color-ink)]">{value}</p><p className="mt-1 text-[11px] font-semibold text-[var(--color-copy)]">Ver productos</p></button>;
 }
 
 function SmallTag({ text, tone = "normal" }: { text: string; tone?: "normal" | "warning" | "danger" }) {
@@ -956,7 +981,7 @@ function SmallTag({ text, tone = "normal" }: { text: string; tone?: "normal" | "
 }
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
-  return <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-5" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-t-[28px] bg-[var(--color-cream)] p-5 shadow-2xl sm:rounded-[28px] sm:p-6"><div className="mb-5 flex items-center justify-between gap-3"><h2 className="font-display text-2xl font-semibold text-[var(--color-ink)]">{title}</h2><button type="button" onClick={onClose} className="rounded-full border border-[var(--color-border)] bg-white p-2" aria-label="Cerrar"><X className="h-5 w-5" /></button></div>{children}</section></div>;
+  return <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-5" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="isolate max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-t-[28px] border border-[#dfd2c5] bg-[#f8f3ed] p-5 shadow-[0_28px_80px_rgba(28,18,12,0.38)] sm:rounded-[28px] sm:p-6"><div className="mb-5 flex items-center justify-between gap-3"><h2 className="font-display text-2xl font-semibold text-[var(--color-ink)]">{title}</h2><button type="button" onClick={onClose} className="rounded-full border border-[var(--color-border)] bg-white p-2" aria-label="Cerrar"><X className="h-5 w-5" /></button></div>{children}</section></div>;
 }
 
 function ModalActions({ saving, onSave, onCancel, saveLabel = "Guardar" }: { saving: boolean; onSave: () => void; onCancel: () => void; saveLabel?: string }) {

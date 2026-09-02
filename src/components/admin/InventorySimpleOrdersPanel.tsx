@@ -206,7 +206,7 @@ export function InventorySimpleOrdersPanel({ actorId, suppliers, items, location
 
       {showModal ? (
         <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/45 sm:items-center sm:p-5" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowModal(false); }}>
-          <section className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-t-[28px] bg-[var(--color-cream)] p-5 sm:rounded-[28px] sm:p-6">
+          <section className="isolate max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-t-[28px] border border-[#dfd2c5] bg-[#f8f3ed] p-5 shadow-[0_28px_80px_rgba(28,18,12,0.38)] sm:rounded-[28px] sm:p-6">
             <div className="flex items-center justify-between gap-3"><h2 className="font-display text-2xl font-semibold">Nuevo pedido</h2><button onClick={() => setShowModal(false)} className="rounded-full border border-[var(--color-border)] bg-white p-2"><X className="h-5 w-5" /></button></div>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <Field label="Proveedor"><select value={supplierId} onChange={(event) => { const id = event.target.value; setSupplierId(id); const supplier = suppliers.find((row) => row.id === id); if (supplier?.allows_consignment) setKind("consignacion"); }} className="premium-input">{suppliers.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></Field>
