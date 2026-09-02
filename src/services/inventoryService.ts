@@ -165,6 +165,8 @@ export type InventoryCountRow = DeletionMetadata & {
   opened_by: string | null;
   opened_by_profile?: InventoryCountActor | null;
   opened_at: string | null;
+  opening_count_completed_at?: string | null;
+  opening_count_completed_by?: string | null;
   closed_by: string | null;
   closed_by_profile?: InventoryCountActor | null;
   closed_at: string | null;
@@ -181,9 +183,21 @@ export type InventoryCountLineRow = {
   count_id: string;
   item_id: string;
   opening_stock: number;
+  opening_counted_stock?: number | null;
+  opening_difference_stock?: number;
+  opening_notes?: string | null;
+  opening_counted_by?: string | null;
+  opening_counted_at?: string | null;
+  opening_full_presentations?: number | null;
+  opening_loose_units?: number | null;
   expected_stock: number;
   counted_stock: number;
   difference_stock: number;
+  closing_full_presentations?: number | null;
+  closing_loose_units?: number | null;
+  presentation_unit_id_snapshot?: string | null;
+  presentation_label_snapshot?: string | null;
+  units_per_presentation_snapshot?: number;
   notes: string | null;
   unit_id_snapshot?: string | null;
   unit_label_snapshot?: string | null;
@@ -357,7 +371,7 @@ export async function getInventoryCounts(includeDeleted = false) {
   const actorIds = Array.from(
     new Set(
       rows
-        .flatMap((row) => [row.opened_by, row.created_by, row.closed_by, row.last_reopened_by])
+        .flatMap((row) => [row.opened_by, row.opening_count_completed_by, row.created_by, row.closed_by, row.last_reopened_by])
         .filter((id): id is string => Boolean(id))
     )
   );
@@ -547,6 +561,54 @@ export async function reopenInventoryShift(data: { countId: string; notes?: stri
   const { data: row, error } = await supabase.rpc("reopen_inventory_shift", {
     p_count_id: data.countId,
     p_notes: data.notes ?? null,
+  });
+  if (error) throw error;
+  return row as InventoryCountRow;
+}
+
+export async function updateInventoryShiftOpeningLine(data: {
+  countId: string;
+  itemId: string;
+  countedStock: number;
+  fullPresentations?: number | null;
+  looseUnits?: number | null;
+  notes?: string | null;
+}) {
+  const { data: row, error } = await supabase.rpc("update_inventory_shift_opening_line", {
+    p_count_id: data.countId,
+    p_item_id: data.itemId,
+    p_counted_stock: data.countedStock,
+    p_full_presentations: data.fullPresentations ?? null,
+    p_loose_units: data.looseUnits ?? null,
+    p_notes: data.notes ?? null,
+  });
+  if (error) throw error;
+  return row as InventoryCountLineRow;
+}
+
+export async function updateInventoryShiftClosingLine(data: {
+  countId: string;
+  itemId: string;
+  countedStock: number;
+  fullPresentations?: number | null;
+  looseUnits?: number | null;
+  notes?: string | null;
+}) {
+  const { data: row, error } = await supabase.rpc("update_inventory_shift_closing_line", {
+    p_count_id: data.countId,
+    p_item_id: data.itemId,
+    p_counted_stock: data.countedStock,
+    p_full_presentations: data.fullPresentations ?? null,
+    p_loose_units: data.looseUnits ?? null,
+    p_notes: data.notes ?? null,
+  });
+  if (error) throw error;
+  return row as InventoryCountLineRow;
+}
+
+export async function confirmInventoryShiftOpening(data: { countId: string }) {
+  const { data: row, error } = await supabase.rpc("confirm_inventory_shift_opening", {
+    p_count_id: data.countId,
   });
   if (error) throw error;
   return row as InventoryCountRow;
