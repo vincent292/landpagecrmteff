@@ -47,7 +47,7 @@ const DoctorProfileAdminPage = lazyPage(() => import("./pages/admin/DoctorProfil
 const DoctorsAdminPage = lazyPage(() => import("./pages/admin/DoctorsAdminPage"), "DoctorsAdminPage");
 const BookTokensAdminPage = lazyPage(() => import("./pages/admin/BookTokensAdminPage"), "BookTokensAdminPage");
 const BooksAdminPage = lazyPage(() => import("./pages/admin/BooksAdminPage"), "BooksAdminPage");
-const InventoryAdminPage = lazyPage(() => import("./pages/admin/InventoryAdminPage"), "InventoryAdminPage");
+const InventoryAdminPage = lazyPage(() => import("./pages/admin/InventorySimpleAdminPage"), "InventorySimpleAdminPage");
 const CashAdminPage = lazyPage(() => import("./pages/admin/CashAdminPage"), "CashAdminPage");
 const PaymentsAndReservationsAdminPage = lazyPage(() => import("./pages/admin/PaymentsAndReservationsAdminPage"), "PaymentsAndReservationsAdminPage");
 const OperationalReportsAdminPage = lazyPage(() => import("./pages/admin/OperationalReportsAdminPage"), "OperationalReportsAdminPage");

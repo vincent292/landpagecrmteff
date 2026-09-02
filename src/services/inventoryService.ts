@@ -158,7 +158,7 @@ export type InventoryCountRow = DeletionMetadata & {
   id: string;
   count_date: string;
   location_id: string | null;
-  status: "abierto" | "cerrado";
+  status: "abierto" | "cerrado" | "cancelado";
   shift_name: string | null;
   notes: string | null;
   created_by: string | null;
@@ -545,6 +545,15 @@ export async function closeInventoryShift(data: { countId: string; notes?: strin
 
 export async function reopenInventoryShift(data: { countId: string; notes?: string | null }) {
   const { data: row, error } = await supabase.rpc("reopen_inventory_shift", {
+    p_count_id: data.countId,
+    p_notes: data.notes ?? null,
+  });
+  if (error) throw error;
+  return row as InventoryCountRow;
+}
+
+export async function cancelInventoryShift(data: { countId: string; notes?: string | null }) {
+  const { data: row, error } = await supabase.rpc("cancel_inventory_shift", {
     p_count_id: data.countId,
     p_notes: data.notes ?? null,
   });
