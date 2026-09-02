@@ -88,6 +88,7 @@ const PublicServiceFeedbackPage = lazyPage(() => import("./pages/public/PublicSe
 const PublicManualReservationPaymentPage = lazyPage(() => import("./pages/public/PublicManualReservationPaymentPage"), "PublicManualReservationPaymentPage");
 const AgendaPage = lazyPage(() => import("./pages/platform/AgendaPage"), "AgendaPage");
 const ForgotPasswordPage = lazyPage(loadAuthPages, "ForgotPasswordPage");
+const AuthCallbackPage = lazyPage(loadAuthPages, "AuthCallbackPage");
 const LoginPage = lazyPage(loadAuthPages, "LoginPage");
 const RegisterPage = lazyPage(loadAuthPages, "RegisterPage");
 const ResetPasswordPage = lazyPage(loadAuthPages, "ResetPasswordPage");
@@ -135,6 +136,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/agendar" element={<Navigate to="/reservar-cita" replace />} />
+        <Route path="/auth/callback" element={<AuthCallbackPage />} />
 
       <Route element={<PublicLayout />}>
         <Route path="/tratamientos" element={<TreatmentsPage />} />

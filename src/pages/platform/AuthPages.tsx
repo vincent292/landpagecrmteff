@@ -6,6 +6,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { z } from "zod";
 
 import { BrandSignature } from "../../components/common/BrandSignature";
+import { LoadingState } from "../../components/common/AsyncState";
 import { boliviaCities } from "../../data/cities";
 import { useAuth } from "../../hooks/useAuth";
 import { supabase } from "../../lib/supabaseClient";
@@ -42,6 +43,8 @@ type LoginValues = z.infer<typeof loginSchema>;
 type RegisterValues = z.infer<typeof registerSchema>;
 type ForgotPasswordValues = z.infer<typeof forgotPasswordSchema>;
 type ResetPasswordValues = z.infer<typeof resetPasswordSchema>;
+
+const oauthNextStorageKey = "dra_estefany_oauth_next";
 
 export function LoginPage() {
   return <AuthForm mode="login" />;
@@ -309,6 +312,83 @@ export function ResetPasswordPage() {
   );
 }
 
+export function AuthCallbackPage() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { refreshProfile } = useAuth();
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    const finishOAuth = async () => {
+      try {
+        const searchParams = new URLSearchParams(location.search);
+        const hashParams = new URLSearchParams(location.hash.replace(/^#/, ""));
+        const providerError = searchParams.get("error_description") || hashParams.get("error_description") || searchParams.get("error") || hashParams.get("error");
+        if (providerError) throw new Error(providerError);
+
+        const code = searchParams.get("code");
+        if (code) {
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+          if (exchangeError) throw exchangeError;
+        }
+
+        const { data, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) throw sessionError;
+        if (!data.session?.user.id) throw new Error("No pudimos completar el ingreso con Google.");
+
+        const requestedPath = takeOAuthNextPath();
+        const role = await getRoleWithRetry(data.session.user.id);
+        await refreshProfile();
+
+        if (!active) return;
+        navigate(getSafeRedirectPath(role, requestedPath), { replace: true });
+      } catch (callbackError) {
+        if (!active) return;
+        const message = callbackError instanceof Error ? callbackError.message : "";
+        setError(getAuthErrorMessage(message));
+      }
+    };
+
+    void finishOAuth();
+
+    return () => {
+      active = false;
+    };
+  }, [location.hash, location.search, navigate, refreshProfile]);
+
+  if (error) {
+    return (
+      <AuthShell
+        eyebrow="Acceso con Google"
+        title="No pudimos completar el ingreso"
+        description="Google devolvio una respuesta, pero el acceso no quedo activo. Puedes volver a intentarlo o entrar con tu correo y contrasena."
+        icon={<Mail className="h-4 w-4" />}
+        sideTitle="Acceso protegido"
+        sideCopy="El portal mantiene el mismo control de roles: pacientes entran a su panel y el equipo autorizado entra al panel administrativo."
+        footer={
+          <p className="mt-5 text-center text-sm text-[var(--color-copy)]">
+            <Link to="/login" className="font-semibold text-[var(--color-mocha)]">
+              Volver al inicio de sesion
+            </Link>
+          </p>
+        }
+      >
+        <div className="w-full rounded-[36px] border border-[var(--color-border)] bg-[rgba(255,249,244,0.88)] p-6 shadow-[0_28px_90px_rgba(62,42,31,0.12)] backdrop-blur-2xl md:p-8">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-accent-strong)]">Google</p>
+          <h2 className="font-display mt-3 text-4xl font-semibold text-[var(--color-ink)] md:text-5xl">
+            Revisa la configuracion
+          </h2>
+          <p className="mt-5 rounded-2xl bg-red-50 p-4 text-sm leading-6 text-red-700">{error}</p>
+        </div>
+      </AuthShell>
+    );
+  }
+
+  return <LoadingState label="Completando ingreso con Google..." />;
+}
+
 function AuthForm({ mode }: { mode: "login" | "register" }) {
   const { signIn, signUp } = useAuth();
   const navigate = useNavigate();
@@ -316,6 +396,7 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const isLogin = mode === "login";
   const {
     register,
@@ -327,15 +408,27 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
 
   const from = (location.state as { from?: string } | null)?.from;
 
-  const getDashboardPath = (role: ReturnType<typeof normalizeRole>) => (isStaffRole(role) ? "/panel" : "/mi-panel");
-
-  const getSafeRedirectPath = (role: ReturnType<typeof normalizeRole>) => {
-    const dashboardPath = getDashboardPath(role);
-    if (!from) return dashboardPath;
-    if (from.startsWith("/panel") && isStaffRole(role)) return from;
-    if (from.startsWith("/mi-panel") && isPortalRole(role)) return from;
-    if (!from.startsWith("/panel") && !from.startsWith("/mi-panel")) return from;
-    return dashboardPath;
+  const onGoogleSignIn = async () => {
+    setError("");
+    setMessage("");
+    setGoogleLoading(true);
+    try {
+      saveOAuthNextPath(from);
+      const { error: googleError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            prompt: "select_account",
+          },
+        },
+      });
+      if (googleError) throw googleError;
+    } catch (submitError) {
+      const errorMessage = submitError instanceof Error ? submitError.message : "";
+      setError(getAuthErrorMessage(errorMessage));
+      setGoogleLoading(false);
+    }
   };
 
   const onSubmit = async (values: LoginValues | RegisterValues) => {
@@ -353,7 +446,7 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
           .eq("is_deleted", false)
           .maybeSingle();
         const role = normalizeRole(profile?.role);
-        navigate(getSafeRedirectPath(role), { replace: true });
+        navigate(getSafeRedirectPath(role, from), { replace: true });
       } else {
         const registerValues = values as RegisterValues;
         const result = await signUp(registerValues.email, registerValues.password, registerValues.fullName, {
@@ -381,7 +474,7 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
           .eq("is_deleted", false)
           .maybeSingle();
         const role = normalizeRole(createdProfile?.role);
-        navigate(getSafeRedirectPath(role), { replace: true });
+        navigate(getSafeRedirectPath(role, from), { replace: true });
       }
     } catch (submitError) {
       const errorMessage = submitError instanceof Error ? submitError.message : "";
@@ -435,8 +528,21 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
           {isLogin ? "Ingresa a tu portal" : "Completa tus datos"}
         </h2>
 
+        <GoogleAuthButton
+          label={isLogin ? "Continuar con Google" : "Registrarme con Google"}
+          loading={googleLoading}
+          disabled={isSubmitting}
+          onClick={() => void onGoogleSignIn()}
+        />
+
+        <div className="my-6 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-copy)]">
+          <span className="h-px flex-1 bg-[var(--color-border)]" />
+          <span>{isLogin ? "o ingresa con email" : "o crea tu cuenta con email"}</span>
+          <span className="h-px flex-1 bg-[var(--color-border)]" />
+        </div>
+
         {!isLogin ? (
-          <div className="mt-8 grid gap-5 md:grid-cols-2">
+          <div className="grid gap-5 md:grid-cols-2">
             <label className="block md:col-span-2">
               <span className="text-sm font-semibold text-[var(--color-ink)]">Nombre completo</span>
               <input {...register("fullName" as never)} className="premium-input mt-2" />
@@ -596,6 +702,93 @@ function InfoPill({ icon, text }: { icon: ReactNode; text: string }) {
   );
 }
 
+function GoogleAuthButton({
+  label,
+  loading,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  loading: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled || loading}
+      className="mt-7 inline-flex w-full items-center justify-center gap-3 rounded-full border border-[var(--color-border)] bg-white px-6 py-3.5 text-sm font-semibold text-[var(--color-ink)] shadow-[0_12px_28px_rgba(62,42,31,0.08)] transition hover:border-[var(--color-mocha)] hover:bg-[#fffaf5] disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      <span className="grid h-5 w-5 place-items-center rounded-full bg-white text-base font-bold leading-none text-[#4285f4] shadow-sm">G</span>
+      {loading ? "Conectando con Google..." : label}
+    </button>
+  );
+}
+
+function getDashboardPath(role: ReturnType<typeof normalizeRole>) {
+  return isStaffRole(role) ? "/panel" : "/mi-panel";
+}
+
+function getSafeRedirectPath(role: ReturnType<typeof normalizeRole>, requestedPath?: string | null) {
+  const dashboardPath = getDashboardPath(role);
+  if (!isSafeRelativePath(requestedPath)) return dashboardPath;
+  if (requestedPath.startsWith("/panel") && isStaffRole(role)) return requestedPath;
+  if (requestedPath.startsWith("/mi-panel") && isPortalRole(role)) return requestedPath;
+  if (!requestedPath.startsWith("/panel") && !requestedPath.startsWith("/mi-panel")) return requestedPath;
+  return dashboardPath;
+}
+
+function isSafeRelativePath(value?: string | null): value is string {
+  return Boolean(value && value.startsWith("/") && !value.startsWith("//"));
+}
+
+function saveOAuthNextPath(value?: string | null) {
+  if (typeof window === "undefined") return;
+  try {
+    if (isSafeRelativePath(value)) {
+      window.sessionStorage.setItem(oauthNextStorageKey, value);
+    } else {
+      window.sessionStorage.removeItem(oauthNextStorageKey);
+    }
+  } catch {
+    // Storage can be disabled in private browsing modes.
+  }
+}
+
+function takeOAuthNextPath() {
+  if (typeof window === "undefined") return null;
+  try {
+    const value = window.sessionStorage.getItem(oauthNextStorageKey);
+    window.sessionStorage.removeItem(oauthNextStorageKey);
+    return isSafeRelativePath(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+async function getRoleWithRetry(userId: string) {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", userId)
+      .eq("is_deleted", false)
+      .maybeSingle();
+
+    if (data?.role) return normalizeRole(data.role);
+    if (error) lastError = error;
+    await new Promise((resolve) => window.setTimeout(resolve, 250));
+  }
+
+  if (lastError) throw lastError;
+
+  await supabase.auth.signOut({ scope: "local" });
+  throw new Error("Cuenta desactivada. Solicita a un superusuario que la restablezca.");
+}
+
 function getAuthErrorMessage(message: string) {
   const normalized = message.toLowerCase();
 
@@ -605,6 +798,14 @@ function getAuthErrorMessage(message: string) {
 
   if (normalized.includes("invalid login credentials")) {
     return "Correo o contraseña incorrectos.";
+  }
+
+  if (normalized.includes("provider is not enabled") || normalized.includes("unsupported provider") || normalized.includes("oauth provider")) {
+    return "Google todavia no esta activo en Supabase Auth. Activa el proveedor Google y guarda el Client ID y Client Secret.";
+  }
+
+  if (normalized.includes("redirect_uri_mismatch")) {
+    return "La URL de retorno de Google no coincide. Agrega el callback de Supabase en Google Cloud.";
   }
 
   if (normalized.includes("user already registered") || normalized.includes("already registered")) {
