@@ -394,12 +394,23 @@ export async function getInventoryCounts(includeDeleted = false) {
 }
 
 export async function getInventoryCountLines() {
-  const { data, error } = await supabase
-    .from("inventory_count_lines")
-    .select("*")
-    .order("created_at", { ascending: true });
-  if (error) throw error;
-  const rows = (data ?? []) as InventoryCountLineRow[];
+  const pageSize = 1000;
+  const rows: InventoryCountLineRow[] = [];
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("inventory_count_lines")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+
+    const page = (data ?? []) as InventoryCountLineRow[];
+    rows.push(...page);
+    if (page.length < pageSize) break;
+  }
+
+  rows.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
   return withActorProfiles(rows, "counted_by", "counted_by_profile");
 }
 

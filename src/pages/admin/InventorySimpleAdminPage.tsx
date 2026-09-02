@@ -18,9 +18,11 @@ import {
   X,
 } from "lucide-react";
 
+import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteActions";
 import { InventorySimpleOrdersPanel } from "../../components/admin/InventorySimpleOrdersPanel";
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { useAuth } from "../../hooks/useAuth";
+import { canSoftDelete, hardDeleteRecord, isSoftDeleted, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
 import { recordClinicalInventoryUsage } from "../../services/clinicalHistoryService";
 import {
   cancelInventoryShift,
@@ -62,7 +64,7 @@ import { formatDate } from "../../utils/text";
 type TabKey = "turno" | "inventario" | "pedidos" | "reportes";
 type MovementMode = "entrada" | "salida" | "paciente" | "merma";
 type ReportPeriod = "day" | "week" | "month";
-type InventoryFilter = "all" | "low" | "expired" | "duplicates";
+type InventoryFilter = "all" | "low" | "expired" | "duplicates" | "deleted";
 type QuantityMode = "base" | "presentation";
 type CountDetail = { usePresentation: boolean; full: string; loose: string; note: string };
 
@@ -161,13 +163,16 @@ export function InventorySimpleAdminPage() {
   const [shiftCountDetails, setShiftCountDetails] = useState<Record<string, Record<string, CountDetail>>>({});
   const [shiftSearch, setShiftSearch] = useState<Record<string, string>>({});
   const [reportPeriod, setReportPeriod] = useState<ReportPeriod>("day");
+  const includeDeletedInventory = role === "superadmin";
+  const actorName = profile?.full_name ?? user?.email ?? null;
+  const actorEmail = profile?.email ?? user?.email ?? null;
 
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(false);
     try {
       const [itemRows, categoryRows, unitRows, supplierRows, locationRows, lotRows, movementRows, usageRows, countRows, lineRows, patientRows] = await Promise.all([
-        getInventoryItems(false),
+        getInventoryItems(includeDeletedInventory),
         getInventoryCategories(false),
         getInventoryUnits(false),
         getInventorySuppliers(false),
@@ -196,7 +201,7 @@ export function InventorySimpleAdminPage() {
     } finally {
       setLoading(false);
     }
-  }, [role]);
+  }, [includeDeletedInventory, role]);
 
   useEffect(() => {
     queueMicrotask(() => void load());
@@ -204,22 +209,26 @@ export function InventorySimpleAdminPage() {
 
   const itemMap = useMemo(() => new Map(items.map((row) => [row.id, row])), [items]);
   const unitMap = useMemo(() => new Map(units.map((row) => [row.id, row])), [units]);
-  const openShifts = counts.filter((row) => row.status === "abierto" && !row.is_deleted);
-  const closedShifts = counts.filter((row) => row.status === "cerrado" && !row.is_deleted);
-  const lowStockItems = items.filter((row) => Number(row.current_stock) <= Number(row.minimum_stock));
-  const expiredItems = items.filter((row) => row.expiration_date && row.expiration_date < localDateValue());
+  const activeItems = useMemo(() => items.filter((row) => !isSoftDeleted(row)), [items]);
+  const archivedItems = useMemo(() => items.filter((row) => isSoftDeleted(row)), [items]);
+  const openShifts = counts.filter((row) => row.status === "abierto" && !isSoftDeleted(row));
+  const closedShifts = counts.filter((row) => row.status === "cerrado" && !isSoftDeleted(row));
+  const openShiftIds = useMemo(() => new Set(openShifts.map((shift) => shift.id)), [openShifts]);
+  const itemIdsInOpenShifts = useMemo(() => new Set(countLines.filter((line) => openShiftIds.has(line.count_id)).map((line) => line.item_id)), [countLines, openShiftIds]);
+  const lowStockItems = activeItems.filter((row) => Number(row.current_stock) <= Number(row.minimum_stock));
+  const expiredItems = activeItems.filter((row) => row.expiration_date && row.expiration_date < localDateValue());
   const expiredLots = lots.filter((row) => row.expiration_date && row.expiration_date < localDateValue() && Number(row.current_quantity) > 0);
-  const duplicateNames = useMemo(() => findDuplicateNames(items), [items]);
+  const duplicateNames = useMemo(() => findDuplicateNames(activeItems), [activeItems]);
   const duplicateNameKeys = useMemo(() => {
     const countsByName = new Map<string, number>();
-    items.forEach((item) => countsByName.set(normalizeName(item.name), (countsByName.get(normalizeName(item.name)) ?? 0) + 1));
+    activeItems.forEach((item) => countsByName.set(normalizeName(item.name), (countsByName.get(normalizeName(item.name)) ?? 0) + 1));
     return new Set(Array.from(countsByName.entries()).filter(([, count]) => count > 1).map(([name]) => name));
-  }, [items]);
+  }, [activeItems]);
   const expiredItemIds = useMemo(() => new Set([
     ...expiredItems.map((item) => item.id),
     ...expiredLots.map((lot) => lot.item_id),
   ]), [expiredItems, expiredLots]);
-  const expiredInventoryItems = items.filter((item) => expiredItemIds.has(item.id));
+  const expiredInventoryItems = activeItems.filter((item) => expiredItemIds.has(item.id));
   const clinicalMovementIds = useMemo(
     () => new Set(clinicalUsages.map((row) => row.inventory_movement_id).filter((id): id is string => Boolean(id))),
     [clinicalUsages]
@@ -227,10 +236,14 @@ export function InventorySimpleAdminPage() {
   const filteredItems = useMemo(() => {
     const normalized = normalizeName(query);
     return items.filter((row) => {
+      const deleted = isSoftDeleted(row);
+      if (inventoryFilter === "deleted" && !deleted) return false;
+      if (inventoryFilter !== "deleted" && deleted) return false;
       const matchesMetric = inventoryFilter === "all"
         || (inventoryFilter === "low" && Number(row.current_stock) <= Number(row.minimum_stock))
         || (inventoryFilter === "expired" && expiredItemIds.has(row.id))
-        || (inventoryFilter === "duplicates" && duplicateNameKeys.has(normalizeName(row.name)));
+        || (inventoryFilter === "duplicates" && duplicateNameKeys.has(normalizeName(row.name)))
+        || inventoryFilter === "deleted";
       const matchesQuery = !normalized || normalizeName(`${row.name} ${row.sku ?? ""}`).includes(normalized);
       return matchesMetric && matchesQuery;
     });
@@ -262,6 +275,10 @@ export function InventorySimpleAdminPage() {
     }
     setNotice(null);
     const selectedItem = itemMap.get(itemId);
+    if (selectedItem && isSoftDeleted(selectedItem)) {
+      setNotice({ type: "error", text: "Este producto está archivado. Recupéralo antes de usarlo en movimientos." });
+      return;
+    }
     const usesPresentation = Boolean(selectedItem?.presentation_unit_id) && Number(selectedItem?.units_per_presentation) > 1;
     setMovementForm({ ...emptyMovementForm(mode), item_id: itemId, quantity_mode: mode === "entrada" && usesPresentation ? "presentation" : "base" });
     setShowMovementModal(true);
@@ -538,6 +555,54 @@ export function InventorySimpleAdminPage() {
     }
   };
 
+  const archiveItem = async (item: InventoryItemRow) => {
+    if (itemIdsInOpenShifts.has(item.id)) {
+      setNotice({ type: "error", text: `Cierra o cancela el turno abierto antes de archivar “${item.name}”.` });
+      setActiveTab("turno");
+      return;
+    }
+    if (!window.confirm(`Quitar “${item.name}” de la vista del inventario? No se borra su historial.`)) return;
+    setSaving(true);
+    try {
+      await softDeleteRecord({ table: "inventory_items", id: item.id, actorId, actorRole: role, actorName, actorEmail });
+      setNotice({ type: "success", text: `“${item.name}” fue archivado. El historial queda guardado.` });
+      await load();
+    } catch (error) {
+      setNotice({ type: "error", text: friendlyError(error) });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const restoreItem = async (item: InventoryItemRow) => {
+    setSaving(true);
+    try {
+      await restoreRecord("inventory_items", item.id);
+      setInventoryFilter("all");
+      setQuery(item.name);
+      setNotice({ type: "success", text: `“${item.name}” fue recuperado.` });
+      await load();
+    } catch (error) {
+      setNotice({ type: "error", text: friendlyError(error) });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const hardDeleteItem = async (item: InventoryItemRow) => {
+    if (!window.confirm(`Borrar definitivamente “${item.name}”? Esta acción solo debe usarse si no necesitas conservar este registro.`)) return;
+    setSaving(true);
+    try {
+      await hardDeleteRecord("inventory_items", item.id);
+      setNotice({ type: "success", text: `“${item.name}” fue borrado definitivamente.` });
+      await load();
+    } catch (error) {
+      setNotice({ type: "error", text: friendlyError(error) });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) return <LoadingState label="Preparando inventario..." />;
   if (loadError) return <ErrorState label="No pudimos cargar el inventario." />;
 
@@ -602,10 +667,11 @@ export function InventorySimpleAdminPage() {
       {activeTab === "inventario" ? (
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Metric label="Productos" value={String(items.length)} active={inventoryFilter === "all"} onClick={() => { setInventoryFilter("all"); setQuery(""); }} />
+            <Metric label="Productos" value={String(activeItems.length)} active={inventoryFilter === "all"} onClick={() => { setInventoryFilter("all"); setQuery(""); }} />
             <Metric label="Stock bajo" value={String(lowStockItems.length)} warning={lowStockItems.length > 0} active={inventoryFilter === "low"} onClick={() => { setInventoryFilter("low"); setQuery(""); }} />
             <Metric label="Vencidos" value={String(expiredInventoryItems.length)} danger={expiredInventoryItems.length > 0} active={inventoryFilter === "expired"} onClick={() => { setInventoryFilter("expired"); setQuery(""); }} />
             <Metric label="Duplicados" value={String(duplicateNames.length)} warning={duplicateNames.length > 0} active={inventoryFilter === "duplicates"} onClick={() => { setInventoryFilter("duplicates"); setQuery(""); }} />
+            {role === "superadmin" ? <Metric label="Archivados" value={String(archivedItems.length)} active={inventoryFilter === "deleted"} onClick={() => { setInventoryFilter("deleted"); setQuery(""); }} /> : null}
           </div>
 
           {(expiredItems.length > 0 || duplicateNames.length > 0) ? (
@@ -624,7 +690,7 @@ export function InventorySimpleAdminPage() {
           <SimplePanel title="Productos" action={<button onClick={() => openItemModal()} className="inline-flex items-center justify-center gap-2 rounded-full bg-[var(--color-mocha)] px-4 py-2 text-sm font-semibold text-white"><Plus className="h-4 w-4" /> Nuevo</button>}>
             {inventoryFilter !== "all" ? (
               <div className="mb-3 flex items-center justify-between gap-3 rounded-[16px] bg-[#efe5da] px-4 py-2.5 text-sm text-[var(--color-ink)]">
-                <span>Mostrando: <strong>{inventoryFilter === "low" ? "stock bajo" : inventoryFilter === "expired" ? "productos vencidos" : "nombres duplicados"}</strong></span>
+                <span>Mostrando: <strong>{inventoryFilter === "low" ? "stock bajo" : inventoryFilter === "expired" ? "productos vencidos" : inventoryFilter === "deleted" ? "productos archivados" : "nombres duplicados"}</strong></span>
                 <button type="button" onClick={() => { setInventoryFilter("all"); setQuery(""); }} className="shrink-0 font-semibold underline underline-offset-2">Ver todos</button>
               </div>
             ) : null}
@@ -633,27 +699,43 @@ export function InventorySimpleAdminPage() {
               <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por nombre" className="w-full bg-transparent text-sm outline-none" />
             </label>
             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {filteredItems.map((item) => (
-                <article key={item.id} className="rounded-[20px] border border-[var(--color-border)] bg-[rgba(247,242,236,0.7)] p-4">
+              {filteredItems.map((item) => {
+                const deleted = isSoftDeleted(item);
+                const lockedByOpenShift = itemIdsInOpenShifts.has(item.id);
+                const canDeleteFromSimpleView = !lockedByOpenShift && canSoftDelete(role);
+                return (
+                <article key={item.id} className={`rounded-[20px] border p-4 ${deleted ? "border-amber-200 bg-amber-50/80" : "border-[var(--color-border)] bg-[rgba(247,242,236,0.7)]"}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate font-semibold text-[var(--color-ink)]">{item.name}</p>
                       <p className="mt-1 text-sm text-[var(--color-copy)]">{stockLabel(item, unitMap)}</p>
                     </div>
-                    <button type="button" onClick={() => openItemModal(item)} aria-label={`Editar ${item.name}`} className="rounded-full border border-[var(--color-border)] bg-white p-2"><Pencil className="h-4 w-4" /></button>
+                    {!deleted ? <button type="button" onClick={() => openItemModal(item)} aria-label={`Editar ${item.name}`} className="rounded-full border border-[var(--color-border)] bg-white p-2"><Pencil className="h-4 w-4" /></button> : null}
                   </div>
+                  <DeletedStatusNote row={item} />
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {Number(item.current_stock) <= Number(item.minimum_stock) ? <SmallTag text="Stock bajo" tone="warning" /> : <SmallTag text="Disponible" />}
+                    {deleted ? <SmallTag text="Archivado" tone="warning" /> : Number(item.current_stock) <= Number(item.minimum_stock) ? <SmallTag text="Stock bajo" tone="warning" /> : <SmallTag text="Disponible" />}
+                    {!deleted && lockedByOpenShift ? <SmallTag text="En turno abierto" tone="warning" /> : null}
                     {item.expiration_date ? <SmallTag text={`Vence ${formatDate(item.expiration_date)}`} tone={item.expiration_date < localDateValue() ? "danger" : "normal"} /> : null}
                     {item.presentation_unit_id && Number(item.units_per_presentation) > 1 ? <SmallTag text={`1 ${unitMap.get(item.presentation_unit_id)?.abbreviation ?? "envase"} = ${formatNumber(item.units_per_presentation)} ${unitLabel(item, unitMap)}`} /> : null}
                   </div>
-                  <div className="mt-4 grid grid-cols-3 gap-2">
-                    <MiniButton label="Entrar" onClick={() => openMovement("entrada", item.id)} />
-                    <MiniButton label="Salir" onClick={() => openMovement("salida", item.id)} />
-                    <MiniButton label="Paciente" onClick={() => openMovement("paciente", item.id)} />
-                  </div>
+                  {!deleted ? (
+                    <div className="mt-4 grid grid-cols-3 gap-2">
+                      <MiniButton label="Entrar" onClick={() => openMovement("entrada", item.id)} />
+                      <MiniButton label="Salir" onClick={() => openMovement("salida", item.id)} />
+                      <MiniButton label="Paciente" onClick={() => openMovement("paciente", item.id)} />
+                    </div>
+                  ) : null}
+                  {canDeleteFromSimpleView || deleted ? (
+                    <div className="mt-4 flex justify-end">
+                      <DeleteActions role={role} row={item} compact onSoftDelete={() => void archiveItem(item)} onRestore={() => void restoreItem(item)} onHardDelete={role === "superadmin" ? () => void hardDeleteItem(item) : undefined} />
+                    </div>
+                  ) : lockedByOpenShift ? (
+                    <p className="mt-4 rounded-[14px] bg-white/80 px-3 py-2 text-xs font-semibold text-[var(--color-copy)]">Cierra o cancela el turno para archivar este producto.</p>
+                  ) : null}
                 </article>
-              ))}
+                );
+              })}
               {filteredItems.length === 0 ? <EmptyState label="No encontramos productos con ese nombre." /> : null}
             </div>
           </SimplePanel>
@@ -676,7 +758,7 @@ export function InventorySimpleAdminPage() {
           <InventorySimpleOrdersPanel
             actorId={actorId}
             suppliers={suppliers}
-            items={items}
+            items={activeItems}
             locations={locations}
             units={units}
             onInventoryRefresh={load}
@@ -743,7 +825,7 @@ export function InventorySimpleAdminPage() {
         <MovementModal
           form={movementForm}
           setForm={setMovementForm}
-          items={items}
+          items={activeItems}
           item={itemMap.get(movementForm.item_id) ?? null}
           units={unitMap}
           suppliers={suppliers}
