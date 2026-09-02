@@ -809,6 +809,8 @@ function TurnSection({
   onClose: (shift: InventoryCountRow) => Promise<void>;
   onCancel: (shift: InventoryCountRow) => Promise<void>;
 }) {
+  const [focusedLineByShift, setFocusedLineByShift] = useState<Record<string, string>>({});
+
   return (
     <div className="space-y-5">
       {openShifts.length === 0 ? (
@@ -825,14 +827,34 @@ function TurnSection({
       ) : null}
 
       {openShifts.map((shift) => {
-        const lines = countLines.filter((line) => line.count_id === shift.id && itemMap.has(line.item_id));
+        const lines = countLines
+          .filter((line) => line.count_id === shift.id && itemMap.has(line.item_id))
+          .sort((a, b) => (itemMap.get(a.item_id)?.name ?? "").localeCompare(itemMap.get(b.item_id)?.name ?? ""));
         const draft = drafts[shift.id] ?? {};
         const detailDraft = details[shift.id] ?? {};
         const isOpening = !shift.opening_count_completed_at;
         const completed = lines.filter((line) => draft[line.id] != null && draft[line.id].trim() !== "").length;
         const stale = shift.count_date < localDateValue();
-        const search = normalizeName(searches[shift.id] ?? "");
-        const visibleLines = lines.filter((line) => normalizeName(itemMap.get(line.item_id)?.name ?? "").includes(search));
+        const rawSearch = searches[shift.id] ?? "";
+        const search = normalizeName(rawSearch);
+        const searchMatches = search ? lines.filter((line) => countLineMatchesSearch(line, itemMap, unitMap, search)) : [];
+        const focusedLineId = focusedLineByShift[shift.id];
+        const focusedLine = lines.find((line) => line.id === focusedLineId);
+        const pendingLines = lines.filter((line) => draft[line.id] == null || draft[line.id].trim() === "");
+        const visibleLines = focusedLine
+          ? [focusedLine]
+          : search
+            ? searchMatches
+            : pendingLines.length > 0
+              ? pendingLines
+              : lines;
+        const countedText = focusedLine
+          ? "Producto seleccionado"
+          : search
+            ? `${searchMatches.length} coincidencia${searchMatches.length === 1 ? "" : "s"}`
+            : pendingLines.length > 0
+              ? `${pendingLines.length} pendiente${pendingLines.length === 1 ? "" : "s"} por contar`
+              : "Todos los productos contados";
         return (
           <SimplePanel
             key={shift.id}
@@ -850,6 +872,12 @@ function TurnSection({
                   onClick={() => {
                     setDrafts((current) => ({ ...current, [shift.id]: Object.fromEntries(lines.map((line) => [line.id, String(isOpening ? line.opening_stock : itemMap.get(line.item_id)?.current_stock ?? 0)])) }));
                     setDetails((current) => ({ ...current, [shift.id]: {} }));
+                    setSearches((current) => ({ ...current, [shift.id]: "" }));
+                    setFocusedLineByShift((current) => {
+                      const next = { ...current };
+                      delete next[shift.id];
+                      return next;
+                    });
                   }}
                   className="rounded-full border border-[var(--color-border)] bg-white px-4 py-2 text-sm font-semibold"
                 >
@@ -863,10 +891,94 @@ function TurnSection({
               <div className="mt-4 rounded-[18px] border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">Este turno pertenece a una fecha anterior. Por seguridad no se debe cerrar con valores viejos; cancélalo sin modificar stock y abre uno nuevo.</div>
             ) : (
               <>
-                <label className="mt-4 flex items-center gap-3 rounded-[16px] border border-[var(--color-border)] bg-white px-4 py-3">
-                  <Search className="h-4 w-4" />
-                  <input value={searches[shift.id] ?? ""} onChange={(event) => setSearches((current) => ({ ...current, [shift.id]: event.target.value }))} placeholder="Buscar y filtrar productos" className="w-full bg-transparent text-sm outline-none" />
-                </label>
+                <div className="mt-4 overflow-hidden rounded-[18px] border border-[var(--color-border)] bg-white">
+                  <label className="flex items-center gap-3 px-4 py-3">
+                    <Search className="h-4 w-4 text-[var(--color-copy)]" />
+                    <input
+                      value={rawSearch}
+                      onChange={(event) => {
+                        setSearches((current) => ({ ...current, [shift.id]: event.target.value }));
+                        setFocusedLineByShift((current) => {
+                          const next = { ...current };
+                          delete next[shift.id];
+                          return next;
+                        });
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && searchMatches[0]) {
+                          event.preventDefault();
+                          const first = searchMatches[0];
+                          setFocusedLineByShift((current) => ({ ...current, [shift.id]: first.id }));
+                          setSearches((current) => ({ ...current, [shift.id]: itemMap.get(first.item_id)?.name ?? current[shift.id] ?? "" }));
+                        }
+                      }}
+                      placeholder="Escribe el producto para contar"
+                      className="w-full bg-transparent text-sm outline-none"
+                    />
+                    {rawSearch ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearches((current) => ({ ...current, [shift.id]: "" }));
+                          setFocusedLineByShift((current) => {
+                            const next = { ...current };
+                            delete next[shift.id];
+                            return next;
+                          });
+                        }}
+                        className="rounded-full p-1 text-[var(--color-copy)] hover:bg-[#f3ebe2]"
+                        aria-label="Limpiar búsqueda"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    ) : null}
+                  </label>
+                  {rawSearch.trim() ? (
+                    <div className="max-h-56 overflow-y-auto border-t border-[var(--color-border)] p-2">
+                      {searchMatches.slice(0, 12).map((line) => {
+                        const item = itemMap.get(line.item_id)!;
+                        const isCounted = draft[line.id] != null && draft[line.id].trim() !== "";
+                        return (
+                          <button
+                            key={line.id}
+                            type="button"
+                            onClick={() => {
+                              setFocusedLineByShift((current) => ({ ...current, [shift.id]: line.id }));
+                              setSearches((current) => ({ ...current, [shift.id]: item.name }));
+                            }}
+                            className="flex w-full items-center justify-between gap-3 rounded-[12px] px-3 py-2.5 text-left hover:bg-[#f3ebe2]"
+                          >
+                            <span className="min-w-0">
+                              <span className="block truncate font-semibold text-[var(--color-ink)]">{item.name}</span>
+                              <span className="mt-0.5 block text-xs text-[var(--color-copy)]">Sistema: {formatNumber(isOpening ? line.opening_stock : item.current_stock)} {unitLabel(item, unitMap)}</span>
+                            </span>
+                            <SmallTag text={isCounted ? "Contado" : "Pendiente"} tone={isCounted ? "normal" : "warning"} />
+                          </button>
+                        );
+                      })}
+                      {searchMatches.length === 0 ? <p className="px-3 py-4 text-sm text-[var(--color-copy)]">No encontramos ese producto.</p> : null}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-[var(--color-copy)]">
+                  <span>{countedText}</span>
+                  {focusedLine ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearches((current) => ({ ...current, [shift.id]: "" }));
+                        setFocusedLineByShift((current) => {
+                          const next = { ...current };
+                          delete next[shift.id];
+                          return next;
+                        });
+                      }}
+                      className="rounded-full border border-[var(--color-border)] bg-white px-3 py-1.5 text-[var(--color-ink)]"
+                    >
+                      Buscar otro
+                    </button>
+                  ) : null}
+                </div>
                 <div className="mt-4 grid gap-2">
                   {visibleLines.map((line) => {
                     const item = itemMap.get(line.item_id)!;
@@ -901,6 +1013,7 @@ function TurnSection({
                       </div>
                     );
                   })}
+                  {visibleLines.length === 0 ? <EmptyState label="No encontramos productos con ese nombre." /> : null}
                 </div>
                 <button type="button" onClick={() => void (isOpening ? onConfirmOpening(shift) : onClose(shift))} disabled={saving || completed !== lines.length} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[var(--color-mocha)] px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{saving ? "Guardando..." : isOpening ? `Confirmar apertura (${completed}/${lines.length})` : `Cerrar turno (${completed}/${lines.length})`}</button>
               </>
@@ -1199,6 +1312,21 @@ function normalizeName(value: string) {
 
 function cleanName(value: string) {
   return value.trim().replace(/\s+/g, " ");
+}
+
+function countLineMatchesSearch(line: InventoryCountLineRow, itemMap: Map<string, InventoryItemRow>, unitMap: Map<string, InventoryUnitRow>, normalizedSearch: string) {
+  const item = itemMap.get(line.item_id);
+  if (!item) return false;
+  const searchableText = [
+    item.name,
+    item.sku,
+    item.barcode,
+    item.category,
+    item.notes,
+    unitLabel(item, unitMap),
+    stockLabel(item, unitMap),
+  ].filter(Boolean).join(" ");
+  return normalizeName(searchableText).includes(normalizedSearch);
 }
 
 function findDuplicateNames(items: InventoryItemRow[]) {
