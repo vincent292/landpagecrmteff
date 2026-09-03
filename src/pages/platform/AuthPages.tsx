@@ -317,8 +317,14 @@ export function ResetPasswordPage() {
 export function AuthCallbackPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { refreshProfile } = useAuth();
+  const { loading, refreshProfile, session, user } = useAuth();
   const [error, setError] = useState("");
+  const [timedOut, setTimedOut] = useState(false);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => setTimedOut(true), 8000);
+    return () => window.clearTimeout(timeoutId);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -331,7 +337,7 @@ export function AuthCallbackPage() {
         const searchParams = new URLSearchParams(location.search);
         const hashParams = new URLSearchParams(location.hash.replace(/^#/, ""));
         flowMode = getOAuthFlowMode(searchParams);
-        requestedPath = takeOAuthNextPath();
+        requestedPath = peekOAuthNextPath();
         const providerError = searchParams.get("error_description") || hashParams.get("error_description") || searchParams.get("error") || hashParams.get("error");
         if (providerError) throw new Error(providerError);
 
@@ -341,12 +347,22 @@ export function AuthCallbackPage() {
           if (exchangeError) throw exchangeError;
         }
 
-        const { data, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError) throw sessionError;
-        if (!data.session?.user.id) throw new Error("No pudimos completar el ingreso con Google.");
+        const authUserId = session?.user.id ?? user?.id ?? null;
+        const hasOAuthPayload = Boolean(
+          code ||
+          hashParams.get("access_token") ||
+          hashParams.get("refresh_token") ||
+          hashParams.get("provider_token")
+        );
 
-        const role = await getRoleWithRetry(data.session.user.id);
+        if (!authUserId) {
+          if (!timedOut && (loading || hasOAuthPayload)) return;
+          throw new Error("No pudimos completar el ingreso con Google.");
+        }
+
+        const role = await getRoleWithRetry(authUserId);
         void refreshProfile();
+        clearOAuthState();
 
         if (!active) return;
         const safePath = getSafeRedirectPath(role, requestedPath);
@@ -354,6 +370,7 @@ export function AuthCallbackPage() {
       } catch (callbackError) {
         if (!active) return;
         const message = callbackError instanceof Error ? callbackError.message : "";
+        clearOAuthState();
         if (flowMode === "link") {
           const fallbackPath = isSafeRelativePath(requestedPath) ? requestedPath : "/mi-panel/perfil";
           navigate(appendOAuthResult(fallbackPath, { error: getAuthErrorMessage(message) }), { replace: true });
@@ -368,7 +385,7 @@ export function AuthCallbackPage() {
     return () => {
       active = false;
     };
-  }, [location.hash, location.search, navigate, refreshProfile]);
+  }, [loading, location.hash, location.search, navigate, refreshProfile, session?.user.id, timedOut, user?.id]);
 
   if (error) {
     return (
@@ -771,29 +788,37 @@ function saveOAuthNextPath(value?: string | null, mode: OAuthFlowMode = "signin"
 
 function getOAuthFlowMode(searchParams: URLSearchParams): OAuthFlowMode {
   const queryMode = searchParams.get("mode");
-  const storedMode = takeOAuthMode();
+  const storedMode = peekOAuthMode();
   return queryMode === "link" || storedMode === "link" ? "link" : "signin";
 }
 
-function takeOAuthMode(): OAuthFlowMode | null {
+function peekOAuthMode(): OAuthFlowMode | null {
   if (typeof window === "undefined") return null;
   try {
     const value = window.sessionStorage.getItem(oauthModeStorageKey);
-    window.sessionStorage.removeItem(oauthModeStorageKey);
     return value === "link" || value === "signin" ? value : null;
   } catch {
     return null;
   }
 }
 
-function takeOAuthNextPath() {
+function peekOAuthNextPath() {
   if (typeof window === "undefined") return null;
   try {
     const value = window.sessionStorage.getItem(oauthNextStorageKey);
-    window.sessionStorage.removeItem(oauthNextStorageKey);
     return isSafeRelativePath(value) ? value : null;
   } catch {
     return null;
+  }
+}
+
+function clearOAuthState() {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(oauthModeStorageKey);
+    window.sessionStorage.removeItem(oauthNextStorageKey);
+  } catch {
+    // Storage can be disabled in private browsing modes.
   }
 }
 
