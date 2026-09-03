@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   ClipboardCheck,
   Download,
+  Eye,
   PackageMinus,
   PackagePlus,
   Pencil,
@@ -542,11 +543,11 @@ export function InventorySimpleAdminPage() {
   };
 
   const cancelShift = async (shift: InventoryCountRow) => {
-    if (!window.confirm("¿Cancelar este turno sin modificar el stock? Esta opción es segura para turnos antiguos o abiertos por error.")) return;
+    if (!window.confirm("¿Cancelar este turno y quitarlo de la vista? Si la apertura ya fue confirmada, se revertirán sus diferencias antes de archivarlo.")) return;
     setSaving(true);
     try {
       await cancelInventoryShift({ countId: shift.id, notes: "Cancelado desde inventario simple" });
-      setNotice({ type: "success", text: "Turno cancelado sin modificar el stock." });
+      setNotice({ type: "success", text: "Turno cancelado y archivado. Si tenía apertura confirmada, sus diferencias fueron revertidas." });
       await load();
     } catch (error) {
       setNotice({ type: "error", text: friendlyError(error) });
@@ -899,7 +900,13 @@ function TurnSection({
 }) {
   const [focusedLineByShift, setFocusedLineByShift] = useState<Record<string, string>>({});
   const [showAllByShift, setShowAllByShift] = useState<Record<string, boolean>>({});
+  const [viewingShiftId, setViewingShiftId] = useState<string | null>(null);
   const usageScoreByItem = useMemo(() => buildInventoryUsageScore(movements, clinicalUsages), [movements, clinicalUsages]);
+  const viewingShift = useMemo(() => closedShifts.find((shift) => shift.id === viewingShiftId) ?? null, [closedShifts, viewingShiftId]);
+  const viewingLines = useMemo(
+    () => viewingShift ? countLines.filter((line) => line.count_id === viewingShift.id && itemMap.has(line.item_id)) : [],
+    [countLines, itemMap, viewingShift]
+  );
 
   return (
     <div className="space-y-5">
@@ -913,7 +920,7 @@ function TurnSection({
       ) : null}
 
       {openShifts.length > 1 ? (
-        <div className="rounded-[18px] border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">Hay {openShifts.length} turnos antiguos abiertos. Cancela los que ya no correspondan; cancelar no cambia el stock.</div>
+        <div className="rounded-[18px] border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">Hay {openShifts.length} turnos antiguos abiertos. Cancela los que ya no correspondan; si ya tenían apertura confirmada, se revierte antes de archivarlos.</div>
       ) : null}
 
       {openShifts.map((shift) => {
@@ -1168,13 +1175,35 @@ function TurnSection({
         <div className="grid gap-2">
           {closedShifts.slice(0, 8).map((shift) => (
             <div key={shift.id} className="flex items-center justify-between gap-3 rounded-[16px] border border-[var(--color-border)] bg-white/75 px-4 py-3">
-              <div><p className="font-semibold text-[var(--color-ink)]">{shift.shift_name || "Turno"}</p><p className="mt-1 text-xs text-[var(--color-copy)]">{formatDate(shift.count_date)}</p></div>
-              <SmallTag text="Cerrado" />
+              <div>
+                <p className="font-semibold text-[var(--color-ink)]">{shift.shift_name || "Turno"}</p>
+                <p className="mt-1 text-xs text-[var(--color-copy)]">{formatDate(shift.count_date)} · Solo lectura</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <SmallTag text="Cerrado" />
+                <button
+                  type="button"
+                  onClick={() => setViewingShiftId(shift.id)}
+                  className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-white px-3 py-2 text-xs font-semibold text-[var(--color-ink)]"
+                >
+                  <Eye className="h-4 w-4" /> Ver
+                </button>
+              </div>
             </div>
           ))}
           {closedShifts.length === 0 ? <EmptyState label="Todavía no hay turnos cerrados." /> : null}
         </div>
       </SimplePanel>
+
+      {viewingShift ? (
+        <ShiftReadOnlyModal
+          shift={viewingShift}
+          lines={viewingLines}
+          itemMap={itemMap}
+          unitMap={unitMap}
+          onClose={() => setViewingShiftId(null)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -1234,6 +1263,76 @@ function CountQuantityInput({ item, units, value, detail, onValueChange, onDetai
         <input type="number" min="0" step="0.01" value={value} onChange={(event) => onValueChange(event.target.value)} placeholder={`Cantidad contada en ${base}`} className="premium-input" />
       )}
     </div>
+  );
+}
+
+function ShiftReadOnlyModal({ shift, lines, itemMap, unitMap, onClose }: {
+  shift: InventoryCountRow;
+  lines: InventoryCountLineRow[];
+  itemMap: Map<string, InventoryItemRow>;
+  unitMap: Map<string, InventoryUnitRow>;
+  onClose: () => void;
+}) {
+  const sortedLines = lines
+    .slice()
+    .sort((a, b) => (itemMap.get(a.item_id)?.name ?? "").localeCompare(itemMap.get(b.item_id)?.name ?? ""));
+  const openingDifferences = sortedLines.filter((line) => Number(line.opening_difference_stock ?? 0) !== 0).length;
+  const closingDifferences = sortedLines.filter((line) => Number(line.difference_stock ?? 0) !== 0).length;
+
+  return (
+    <Modal title="Turno cerrado · solo lectura" onClose={onClose}>
+      <div className="space-y-4">
+        <div className="rounded-[18px] border border-[var(--color-border)] bg-white px-4 py-3">
+          <p className="font-semibold text-[var(--color-ink)]">{shift.shift_name || "Turno de inventario"}</p>
+          <p className="mt-1 text-sm text-[var(--color-copy)]">
+            Apertura: {shift.opening_count_completed_at ? formatDate(shift.opening_count_completed_at) : "Sin dato"} · Cierre: {shift.closed_at ? formatDate(shift.closed_at) : "Sin dato"}
+          </p>
+          <p className="mt-1 text-xs text-[var(--color-copy)]">Este registro queda bloqueado: se puede consultar, pero no modificar.</p>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2">
+          <Metric label="Productos" value={String(sortedLines.length)} />
+          <Metric label="Dif. apertura" value={String(openingDifferences)} warning={openingDifferences > 0} />
+          <Metric label="Dif. cierre" value={String(closingDifferences)} warning={closingDifferences > 0} />
+        </div>
+
+        <div className="max-h-[58vh] overflow-y-auto pr-1">
+          <div className="grid gap-2">
+            {sortedLines.map((line) => {
+              const item = itemMap.get(line.item_id);
+              const openingDiff = Number(line.opening_difference_stock ?? 0);
+              const closingDiff = Number(line.difference_stock ?? 0);
+              return (
+                <article key={line.id} className="rounded-[16px] border border-[var(--color-border)] bg-white/80 px-4 py-3">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="font-semibold text-[var(--color-ink)]">{item?.name ?? "Producto"}</p>
+                      <p className="mt-1 text-xs text-[var(--color-copy)]">
+                        Apertura: sistema {formatNumber(line.opening_stock)} · contado {formatNumber(line.opening_counted_stock ?? line.opening_stock)} {unitLabel(item, unitMap)}
+                      </p>
+                      <p className="mt-1 text-xs text-[var(--color-copy)]">
+                        Cierre: sistema {formatNumber(line.expected_stock)} · contado {formatNumber(line.counted_stock)} {unitLabel(item, unitMap)}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <SmallTag text={`Apertura ${openingDiff > 0 ? "+" : ""}${formatNumber(openingDiff)}`} tone={openingDiff === 0 ? "normal" : "warning"} />
+                      <SmallTag text={`Cierre ${closingDiff > 0 ? "+" : ""}${formatNumber(closingDiff)}`} tone={closingDiff === 0 ? "normal" : "warning"} />
+                    </div>
+                  </div>
+                  {line.opening_notes || line.notes ? (
+                    <div className="mt-3 rounded-[12px] bg-[rgba(247,242,236,0.8)] px-3 py-2 text-xs leading-5 text-[var(--color-copy)]">
+                      {line.opening_notes ? <p><span className="font-semibold text-[var(--color-ink)]">Nota apertura:</span> {line.opening_notes}</p> : null}
+                      {line.notes ? <p><span className="font-semibold text-[var(--color-ink)]">Nota cierre:</span> {line.notes}</p> : null}
+                    </div>
+                  ) : null}
+                </article>
+              );
+            })}
+            {sortedLines.length === 0 ? <EmptyState label="Este turno no tiene líneas de conteo." /> : null}
+          </div>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
