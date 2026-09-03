@@ -1199,6 +1199,8 @@ function TurnSection({
         <ShiftReadOnlyModal
           shift={viewingShift}
           lines={viewingLines}
+          movements={movements}
+          clinicalUsages={clinicalUsages}
           itemMap={itemMap}
           unitMap={unitMap}
           onClose={() => setViewingShiftId(null)}
@@ -1266,9 +1268,11 @@ function CountQuantityInput({ item, units, value, detail, onValueChange, onDetai
   );
 }
 
-function ShiftReadOnlyModal({ shift, lines, itemMap, unitMap, onClose }: {
+function ShiftReadOnlyModal({ shift, lines, movements, clinicalUsages, itemMap, unitMap, onClose }: {
   shift: InventoryCountRow;
   lines: InventoryCountLineRow[];
+  movements: InventoryMovementRow[];
+  clinicalUsages: InventoryClinicalUsageRow[];
   itemMap: Map<string, InventoryItemRow>;
   unitMap: Map<string, InventoryUnitRow>;
   onClose: () => void;
@@ -1277,7 +1281,18 @@ function ShiftReadOnlyModal({ shift, lines, itemMap, unitMap, onClose }: {
     .slice()
     .sort((a, b) => (itemMap.get(a.item_id)?.name ?? "").localeCompare(itemMap.get(b.item_id)?.name ?? ""));
   const openingDifferences = sortedLines.filter((line) => Number(line.opening_difference_stock ?? 0) !== 0).length;
-  const closingDifferences = sortedLines.filter((line) => Number(line.difference_stock ?? 0) !== 0).length;
+  const closingDifferences = sortedLines.filter((line) => closingDifferenceForLine(line) !== 0).length;
+  const shiftWindow = getShiftTimeWindow(shift);
+  const movementStats = useMemo(
+    () => buildShiftMovementStats(movements, clinicalUsages, shiftWindow.start, shiftWindow.end),
+    [clinicalUsages, movements, shiftWindow.end, shiftWindow.start]
+  );
+  const totalConsumed = sortedLines.reduce((total, line) => {
+    const opening = Number(line.opening_counted_stock ?? line.opening_stock ?? 0);
+    const closing = closingStockForLine(line);
+    const additions = movementStats.get(line.item_id)?.entries ?? 0;
+    return total + Math.max(opening + additions - closing, 0);
+  }, 0);
 
   return (
     <Modal title="Turno cerrado · solo lectura" onClose={onClose}>
@@ -1292,8 +1307,8 @@ function ShiftReadOnlyModal({ shift, lines, itemMap, unitMap, onClose }: {
 
         <div className="grid grid-cols-3 gap-2">
           <Metric label="Productos" value={String(sortedLines.length)} />
-          <Metric label="Dif. apertura" value={String(openingDifferences)} warning={openingDifferences > 0} />
-          <Metric label="Dif. cierre" value={String(closingDifferences)} warning={closingDifferences > 0} />
+          <Metric label="Consumo físico" value={formatNumber(totalConsumed)} />
+          <Metric label="Diferencias" value={String(openingDifferences + closingDifferences)} warning={openingDifferences + closingDifferences > 0} />
         </div>
 
         <div className="max-h-[58vh] overflow-y-auto pr-1">
@@ -1301,17 +1316,26 @@ function ShiftReadOnlyModal({ shift, lines, itemMap, unitMap, onClose }: {
             {sortedLines.map((line) => {
               const item = itemMap.get(line.item_id);
               const openingDiff = Number(line.opening_difference_stock ?? 0);
-              const closingDiff = Number(line.difference_stock ?? 0);
+              const closingDiff = closingDifferenceForLine(line);
+              const openingStock = Number(line.opening_counted_stock ?? line.opening_stock ?? 0);
+              const closingStock = closingStockForLine(line);
+              const stats = movementStats.get(line.item_id) ?? { entries: 0, outputs: 0, patientUsages: 0 };
+              const consumed = Math.max(openingStock + stats.entries - closingStock, 0);
               return (
                 <article key={line.id} className="rounded-[16px] border border-[var(--color-border)] bg-white/80 px-4 py-3">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <p className="font-semibold text-[var(--color-ink)]">{item?.name ?? "Producto"}</p>
                       <p className="mt-1 text-xs text-[var(--color-copy)]">
-                        Apertura: sistema {formatNumber(line.opening_stock)} · contado {formatNumber(line.opening_counted_stock ?? line.opening_stock)} {unitLabel(item, unitMap)}
+                        Apertura física: {formatNumber(openingStock)} {unitLabel(item, unitMap)}
                       </p>
                       <p className="mt-1 text-xs text-[var(--color-copy)]">
-                        Cierre: sistema {formatNumber(line.expected_stock)} · contado {formatNumber(line.counted_stock)} {unitLabel(item, unitMap)}
+                        Cierre físico: {formatNumber(closingStock)} {unitLabel(item, unitMap)}
+                      </p>
+                      <p className="mt-1 text-xs text-[var(--color-copy)]">
+                        Consumo neto: {formatNumber(consumed)} {unitLabel(item, unitMap)}
+                        {stats.entries > 0 ? ` · entradas durante turno: ${formatNumber(stats.entries)}` : ""}
+                        {stats.outputs + stats.patientUsages > 0 ? ` · salidas/uso registrado: ${formatNumber(stats.outputs + stats.patientUsages)}` : ""}
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -1319,10 +1343,10 @@ function ShiftReadOnlyModal({ shift, lines, itemMap, unitMap, onClose }: {
                       <SmallTag text={`Cierre ${closingDiff > 0 ? "+" : ""}${formatNumber(closingDiff)}`} tone={closingDiff === 0 ? "normal" : "warning"} />
                     </div>
                   </div>
-                  {line.opening_notes || line.notes ? (
+                  {line.opening_notes || line.closing_notes || line.notes ? (
                     <div className="mt-3 rounded-[12px] bg-[rgba(247,242,236,0.8)] px-3 py-2 text-xs leading-5 text-[var(--color-copy)]">
                       {line.opening_notes ? <p><span className="font-semibold text-[var(--color-ink)]">Nota apertura:</span> {line.opening_notes}</p> : null}
-                      {line.notes ? <p><span className="font-semibold text-[var(--color-ink)]">Nota cierre:</span> {line.notes}</p> : null}
+                      {line.closing_notes || line.notes ? <p><span className="font-semibold text-[var(--color-ink)]">Nota cierre:</span> {line.closing_notes ?? line.notes}</p> : null}
                     </div>
                   ) : null}
                 </article>
@@ -1428,12 +1452,12 @@ function ReportSection({ period, onPeriodChange, movements, usages, countLines, 
 }) {
   const entries = movements.filter((row) => row.movement_type === "entrada");
   const outputs = movements.filter((row) => ["salida", "merma"].includes(row.movement_type));
-  const differences = countLines.filter((row) => Number(row.difference_stock) !== 0 || Number(row.opening_difference_stock ?? 0) !== 0);
+  const differences = countLines.filter((row) => closingDifferenceForLine(row) !== 0 || Number(row.opening_difference_stock ?? 0) !== 0);
   const exportRows = [
     ...movements.map((row) => ({ fecha: row.movement_date, tipo: row.movement_type, producto: row.item_name_snapshot, cantidad: row.quantity, unidad: row.unit_label_snapshot ?? itemMap.get(row.item_id)?.unit ?? "u", responsable: row.created_by_profile?.full_name ?? "", detalle: row.reason ?? row.reference ?? "" })),
     ...usages.map((row) => ({ fecha: row.created_at, tipo: "paciente", producto: row.inventory_items?.name ?? itemMap.get(row.item_id)?.name ?? "", cantidad: row.quantity, unidad: row.unit_label_snapshot ?? row.unit_label ?? "u", responsable: row.created_by_profile?.full_name ?? "", detalle: row.patients?.full_name ?? "" })),
     ...countLines.filter((row) => Number(row.opening_difference_stock ?? 0) !== 0).map((row) => ({ fecha: row.opening_counted_at ?? row.created_at, tipo: "diferencia_apertura", producto: itemMap.get(row.item_id)?.name ?? "Producto", cantidad: row.opening_difference_stock ?? 0, unidad: row.unit_label_snapshot ?? itemMap.get(row.item_id)?.unit ?? "u", responsable: "", detalle: row.opening_notes ?? "Sin aclaración" })),
-    ...countLines.filter((row) => Number(row.difference_stock) !== 0).map((row) => ({ fecha: row.updated_at, tipo: "diferencia_cierre", producto: itemMap.get(row.item_id)?.name ?? "Producto", cantidad: row.difference_stock, unidad: row.unit_label_snapshot ?? itemMap.get(row.item_id)?.unit ?? "u", responsable: row.counted_by_profile?.full_name ?? "", detalle: row.notes ?? "Sin aclaración" })),
+    ...countLines.filter((row) => closingDifferenceForLine(row) !== 0).map((row) => ({ fecha: row.closing_counted_at ?? row.updated_at, tipo: "diferencia_cierre", producto: itemMap.get(row.item_id)?.name ?? "Producto", cantidad: closingDifferenceForLine(row), unidad: row.unit_label_snapshot ?? itemMap.get(row.item_id)?.unit ?? "u", responsable: row.counted_by_profile?.full_name ?? "", detalle: row.closing_notes ?? row.notes ?? "Sin aclaración" })),
   ].sort((a, b) => b.fecha.localeCompare(a.fecha));
   return (
     <div className="space-y-5">
@@ -1454,8 +1478,8 @@ function ReportSection({ period, onPeriodChange, movements, usages, countLines, 
           <div className="grid gap-2">
             {differences.map((row) => {
               const openingDifference = Number(row.opening_difference_stock ?? 0);
-              const closingDifference = Number(row.difference_stock);
-              return <div key={row.id} className="rounded-[16px] border border-amber-200 bg-amber-50 px-4 py-3"><p className="font-semibold text-amber-950">{itemMap.get(row.item_id)?.name ?? "Producto"}</p>{openingDifference !== 0 ? <p className="mt-1 text-sm text-amber-900">Apertura: {openingDifference > 0 ? "+" : ""}{formatNumber(openingDifference)} {row.unit_label_snapshot ?? "u"} · {row.opening_notes || "Sin aclaración"}</p> : null}{closingDifference !== 0 ? <p className="mt-1 text-sm text-amber-900">Cierre: {closingDifference > 0 ? "+" : ""}{formatNumber(closingDifference)} {row.unit_label_snapshot ?? "u"} · {row.notes || "Sin aclaración"}</p> : null}</div>;
+              const closingDifference = closingDifferenceForLine(row);
+              return <div key={row.id} className="rounded-[16px] border border-amber-200 bg-amber-50 px-4 py-3"><p className="font-semibold text-amber-950">{itemMap.get(row.item_id)?.name ?? "Producto"}</p>{openingDifference !== 0 ? <p className="mt-1 text-sm text-amber-900">Apertura: {openingDifference > 0 ? "+" : ""}{formatNumber(openingDifference)} {row.unit_label_snapshot ?? "u"} · {row.opening_notes || "Sin aclaración"}</p> : null}{closingDifference !== 0 ? <p className="mt-1 text-sm text-amber-900">Cierre: {closingDifference > 0 ? "+" : ""}{formatNumber(closingDifference)} {row.unit_label_snapshot ?? "u"} · {row.closing_notes || row.notes || "Sin aclaración"}</p> : null}</div>;
             })}
           </div>
         </SimplePanel>
@@ -1586,7 +1610,7 @@ function getCountDraftValue(draft: Record<string, string>, line: InventoryCountL
     return line.opening_counted_stock == null ? "" : String(line.opening_counted_stock);
   }
 
-  return line.counted_by ? String(line.counted_stock ?? "") : "";
+  return line.counted_by || line.closing_counted_by ? String(line.closing_counted_stock ?? line.counted_stock ?? "") : "";
 }
 
 function getPersistedCountDetail(line: InventoryCountLineRow, isOpening: boolean): CountDetail {
@@ -1596,8 +1620,66 @@ function getPersistedCountDetail(line: InventoryCountLineRow, isOpening: boolean
     usePresentation: full != null || loose != null,
     full: full == null ? "" : String(full),
     loose: loose == null ? "" : String(loose),
-    note: isOpening ? line.opening_notes ?? "" : line.notes ?? "",
+    note: isOpening ? line.opening_notes ?? "" : line.closing_notes ?? line.notes ?? "",
   };
+}
+
+function closingStockForLine(line: InventoryCountLineRow) {
+  return Number(line.closing_counted_stock ?? line.counted_stock ?? line.expected_stock ?? 0);
+}
+
+function closingDifferenceForLine(line: InventoryCountLineRow) {
+  return Number(line.closing_difference_stock ?? line.difference_stock ?? 0);
+}
+
+function getShiftTimeWindow(shift: InventoryCountRow) {
+  return {
+    start: new Date(shift.opened_at ?? shift.created_at).getTime(),
+    end: new Date(shift.closed_at ?? shift.updated_at).getTime(),
+  };
+}
+
+function isInsideShiftWindow(value: string | null | undefined, start: number, end: number) {
+  if (!value) return false;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) && time >= start && time <= end;
+}
+
+function buildShiftMovementStats(
+  movements: InventoryMovementRow[],
+  clinicalUsages: InventoryClinicalUsageRow[],
+  start: number,
+  end: number
+) {
+  const stats = new Map<string, { entries: number; outputs: number; patientUsages: number }>();
+  const clinicalMovementIds = new Set(
+    clinicalUsages
+      .filter((usage) => isInsideShiftWindow(usage.created_at, start, end))
+      .map((usage) => usage.inventory_movement_id)
+      .filter((id): id is string => Boolean(id))
+  );
+  const get = (itemId: string) => {
+    const existing = stats.get(itemId);
+    if (existing) return existing;
+    const created = { entries: 0, outputs: 0, patientUsages: 0 };
+    stats.set(itemId, created);
+    return created;
+  };
+
+  movements.forEach((movement) => {
+    if (!isInsideShiftWindow(movement.movement_date, start, end) || movement.movement_type === "conteo") return;
+    if (clinicalMovementIds.has(movement.id)) return;
+    const row = get(movement.item_id);
+    if (movement.movement_type === "entrada") row.entries += Number(movement.quantity ?? 0);
+    if (["salida", "merma"].includes(movement.movement_type)) row.outputs += Number(movement.quantity ?? 0);
+  });
+
+  clinicalUsages.forEach((usage) => {
+    if (!isInsideShiftWindow(usage.created_at, start, end)) return;
+    get(usage.item_id).patientUsages += Number(usage.quantity ?? 0);
+  });
+
+  return stats;
 }
 
 function countLineMatchesSearch(line: InventoryCountLineRow, itemMap: Map<string, InventoryItemRow>, unitMap: Map<string, InventoryUnitRow>, normalizedSearch: string) {

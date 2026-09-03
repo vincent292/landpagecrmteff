@@ -193,6 +193,11 @@ export type InventoryCountLineRow = {
   expected_stock: number;
   counted_stock: number;
   difference_stock: number;
+  closing_counted_stock?: number | null;
+  closing_difference_stock?: number;
+  closing_notes?: string | null;
+  closing_counted_by?: string | null;
+  closing_counted_at?: string | null;
   closing_full_presentations?: number | null;
   closing_loose_units?: number | null;
   presentation_unit_id_snapshot?: string | null;
