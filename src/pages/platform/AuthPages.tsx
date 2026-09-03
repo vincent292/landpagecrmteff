@@ -346,7 +346,7 @@ export function AuthCallbackPage() {
         if (!data.session?.user.id) throw new Error("No pudimos completar el ingreso con Google.");
 
         const role = await getRoleWithRetry(data.session.user.id);
-        await refreshProfile();
+        void refreshProfile();
 
         if (!active) return;
         const safePath = getSafeRedirectPath(role, requestedPath);
