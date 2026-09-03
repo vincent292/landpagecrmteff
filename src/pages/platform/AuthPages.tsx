@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowRight, Eye, EyeOff, KeyRound, LockKeyhole, Mail, ShieldCheck, UserRoundPlus } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -317,9 +317,10 @@ export function ResetPasswordPage() {
 export function AuthCallbackPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { loading, refreshProfile, session, user } = useAuth();
+  const { loading, session, user } = useAuth();
   const [error, setError] = useState("");
   const [timedOut, setTimedOut] = useState(false);
+  const finishedRef = useRef(false);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => setTimedOut(true), 8000);
@@ -330,6 +331,8 @@ export function AuthCallbackPage() {
     let active = true;
 
     const finishOAuth = async () => {
+      if (finishedRef.current) return;
+
       let requestedPath: string | null = null;
       let flowMode: OAuthFlowMode = "signin";
 
@@ -356,8 +359,8 @@ export function AuthCallbackPage() {
           throw new Error("No pudimos completar el ingreso con Google.");
         }
 
+        finishedRef.current = true;
         const role = await getRoleWithRetry(authUserId);
-        void refreshProfile();
         clearOAuthState();
 
         if (!active) return;
@@ -368,10 +371,12 @@ export function AuthCallbackPage() {
         const message = callbackError instanceof Error ? callbackError.message : "";
         clearOAuthState();
         if (flowMode === "link") {
+          finishedRef.current = true;
           const fallbackPath = isSafeRelativePath(requestedPath) ? requestedPath : "/mi-panel/perfil";
           navigate(appendOAuthResult(fallbackPath, { error: getAuthErrorMessage(message) }), { replace: true });
           return;
         }
+        finishedRef.current = true;
         setError(getAuthErrorMessage(message));
       }
     };
@@ -381,7 +386,7 @@ export function AuthCallbackPage() {
     return () => {
       active = false;
     };
-  }, [loading, location.hash, location.search, navigate, refreshProfile, session?.user.id, timedOut, user?.id]);
+  }, [loading, location.hash, location.search, navigate, session?.user.id, timedOut, user?.id]);
 
   if (error) {
     return (
