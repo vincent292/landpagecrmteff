@@ -342,10 +342,6 @@ export function AuthCallbackPage() {
         if (providerError) throw new Error(providerError);
 
         const code = searchParams.get("code");
-        if (code) {
-          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-          if (exchangeError) throw exchangeError;
-        }
 
         const authUserId = session?.user.id ?? user?.id ?? null;
         const hasOAuthPayload = Boolean(
