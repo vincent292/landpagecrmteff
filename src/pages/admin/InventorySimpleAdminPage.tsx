@@ -463,22 +463,19 @@ export function InventorySimpleAdminPage() {
     const draft = shiftDrafts[shift.id] ?? {};
     const details = shiftCountDetails[shift.id] ?? {};
     const valueForLine = (line: InventoryCountLineRow) => getCountDraftValue(draft, line, true);
-    const missing = lines.filter((line) => valueForLine(line).trim() === "");
-    if (missing.length > 0) {
-      setNotice({ type: "error", text: `Falta contar ${missing.length} producto${missing.length === 1 ? "" : "s"} para confirmar la apertura.` });
-      return;
-    }
-    if (lines.some((line) => Number(valueForLine(line)) < 0 || !Number.isFinite(Number(valueForLine(line))))) {
+    const countedLines = lines.filter((line) => valueForLine(line).trim() !== "");
+    if (countedLines.some((line) => Number(valueForLine(line)) < 0 || !Number.isFinite(Number(valueForLine(line))))) {
       setNotice({ type: "error", text: "Revisa las cantidades: no pueden ser negativas." });
       return;
     }
-    const differences = lines.filter((line) => Number(valueForLine(line)) !== Number(line.opening_stock)).length;
-    if (!window.confirm(`Confirmar conteo de apertura${differences ? ` con ${differences} diferencia(s)` : ""}. El stock físico será el nuevo punto de partida.`)) return;
+    const differences = countedLines.filter((line) => Number(valueForLine(line)) !== Number(line.opening_stock)).length;
+    const assumedEquals = lines.length - countedLines.length;
+    if (!window.confirm(`Confirmar apertura con ${countedLines.length} producto(s) contado(s)${differences ? ` y ${differences} diferencia(s)` : ""}. ${assumedEquals > 0 ? `${assumedEquals} producto(s) no contados se tomarán como iguales al sistema.` : "Todo fue contado."}`)) return;
 
     setSaving(true);
     setNotice(null);
     try {
-      await Promise.all(lines.map((line) => {
+      await Promise.all(countedLines.map((line) => {
         const detail = details[line.id] ?? getPersistedCountDetail(line, true);
         return updateInventoryShiftOpeningLine({
           countId: shift.id,
@@ -506,21 +503,22 @@ export function InventorySimpleAdminPage() {
     const draft = shiftDrafts[shift.id] ?? {};
     const details = shiftCountDetails[shift.id] ?? {};
     const valueForLine = (line: InventoryCountLineRow) => getCountDraftValue(draft, line, false);
-    const missing = lines.filter((line) => valueForLine(line).trim() === "");
-    if (missing.length > 0) {
-      setNotice({ type: "error", text: `Falta contar ${missing.length} producto${missing.length === 1 ? "" : "s"}. Usa “Todo coincide” si verificaste el stock y no hay diferencias.` });
-      return;
-    }
-    if (lines.some((line) => Number(valueForLine(line)) < 0 || !Number.isFinite(Number(valueForLine(line))))) {
+    const countedLines = lines.filter((line) => valueForLine(line).trim() !== "");
+    if (countedLines.some((line) => Number(valueForLine(line)) < 0 || !Number.isFinite(Number(valueForLine(line))))) {
       setNotice({ type: "error", text: "Revisa las cantidades: no pueden ser negativas." });
       return;
     }
-    if (!window.confirm("¿Confirmas que terminaste el conteo físico? Al cerrar se actualizará el stock.")) return;
+    const differences = countedLines.filter((line) => {
+      const item = itemMap.get(line.item_id);
+      return item && Number(valueForLine(line)) !== Number(item.current_stock);
+    }).length;
+    const assumedEquals = lines.length - countedLines.length;
+    if (!window.confirm(`Cerrar turno con ${countedLines.length} producto(s) contado(s)${differences ? ` y ${differences} diferencia(s)` : ""}. ${assumedEquals > 0 ? `${assumedEquals} producto(s) no contados se tomarán como iguales al stock actual.` : "Todo fue contado."}`)) return;
 
     setSaving(true);
     setNotice(null);
     try {
-      await Promise.all(lines.map((line) => {
+      await Promise.all(countedLines.map((line) => {
         const detail = details[line.id] ?? getPersistedCountDetail(line, false);
         return updateInventoryShiftClosingLine({
           countId: shift.id,
@@ -956,15 +954,15 @@ function TurnSection({
               : pendingLines.length > 0
                 ? `Mostrando ${visibleLines.length} sugerido${visibleLines.length === 1 ? "" : "s"} de ${pendingLines.length} pendiente${pendingLines.length === 1 ? "" : "s"}`
                 : "Todos los productos contados";
-        const canSubmit = !saving && lines.length > 0 && completed === lines.length;
+        const canSubmit = !saving && lines.length > 0;
         const submitLabel = saving
           ? "Guardando..."
           : isOpening
-            ? missingCount > 0 ? `Faltan ${missingCount} para confirmar` : `Confirmar apertura (${completed}/${lines.length})`
-            : missingCount > 0 ? `Faltan ${missingCount} para cerrar` : `Cerrar turno (${completed}/${lines.length})`;
+            ? completed > 0 ? `Confirmar apertura (${completed} contados)` : "Confirmar apertura sin cambios"
+            : completed > 0 ? `Cerrar turno (${completed} contados)` : "Cerrar turno sin cambios";
         const submitHelp = isOpening
-          ? "La apertura regulariza el punto inicial: si el sistema dice 150 y cuentas 100, registra faltante de 50 con historial."
-          : "El cierre deja el stock final real: lo que falte se descuenta como diferencia de conteo y queda en reportes.";
+          ? "Cuenta solo lo que revisaste. Lo no contado se tomará como igual al sistema; si sistema dice 150 y cuentas 100, registra faltante de 50 con historial."
+          : "Cuenta solo lo que revisaste. Lo no contado se tomará como igual al stock actual; las diferencias se regularizan y quedan en reportes.";
         const markAllMatches = () => {
           setDrafts((current) => ({ ...current, [shift.id]: Object.fromEntries(lines.map((line) => [line.id, String(isOpening ? line.opening_stock : itemMap.get(line.item_id)?.current_stock ?? 0)])) }));
           setDetails((current) => ({ ...current, [shift.id]: {} }));
@@ -985,7 +983,7 @@ function TurnSection({
             <div className="flex flex-col gap-3 rounded-[18px] bg-[rgba(247,242,236,0.78)] p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-semibold text-[var(--color-ink)]">{shift.opened_by_profile?.full_name ?? shift.shift_name ?? "Personal autorizado"}</p>
-                <p className="mt-1 text-sm text-[var(--color-copy)]">{isOpening ? "Conteo de apertura" : "Conteo de cierre"}: {completed} de {lines.length} productos</p>
+                <p className="mt-1 text-sm text-[var(--color-copy)]">{isOpening ? "Conteo de apertura" : "Conteo de cierre"}: {completed} contado{completed === 1 ? "" : "s"} · {missingCount} igual{missingCount === 1 ? "" : "es"} al sistema</p>
                 <p className="mt-1 text-xs leading-5 text-[var(--color-copy)]">{submitHelp}</p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -1111,7 +1109,7 @@ function TurnSection({
                     <div>
                       <p className="text-sm font-semibold text-[var(--color-ink)]">{isOpening ? "Conteo de apertura" : "Conteo de cierre"}</p>
                       <p className="mt-1 text-xs text-[var(--color-copy)]">
-                        {missingCount > 0 ? `Aún faltan ${missingCount} producto${missingCount === 1 ? "" : "s"} por contar.` : "Todo el conteo está completo."}
+                        {missingCount > 0 ? `${missingCount} producto${missingCount === 1 ? "" : "s"} quedarán como iguales si confirmas ahora.` : "Todo el conteo está completo."}
                       </p>
                     </div>
                     <button
