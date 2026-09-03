@@ -462,30 +462,31 @@ export function InventorySimpleAdminPage() {
     const lines = countLines.filter((line) => line.count_id === shift.id && itemMap.has(line.item_id));
     const draft = shiftDrafts[shift.id] ?? {};
     const details = shiftCountDetails[shift.id] ?? {};
-    const missing = lines.filter((line) => draft[line.id] == null || draft[line.id].trim() === "");
+    const valueForLine = (line: InventoryCountLineRow) => getCountDraftValue(draft, line, true);
+    const missing = lines.filter((line) => valueForLine(line).trim() === "");
     if (missing.length > 0) {
       setNotice({ type: "error", text: `Falta contar ${missing.length} producto${missing.length === 1 ? "" : "s"} para confirmar la apertura.` });
       return;
     }
-    if (lines.some((line) => Number(draft[line.id]) < 0 || !Number.isFinite(Number(draft[line.id])))) {
+    if (lines.some((line) => Number(valueForLine(line)) < 0 || !Number.isFinite(Number(valueForLine(line))))) {
       setNotice({ type: "error", text: "Revisa las cantidades: no pueden ser negativas." });
       return;
     }
-    const differences = lines.filter((line) => Number(draft[line.id]) !== Number(line.opening_stock)).length;
+    const differences = lines.filter((line) => Number(valueForLine(line)) !== Number(line.opening_stock)).length;
     if (!window.confirm(`Confirmar conteo de apertura${differences ? ` con ${differences} diferencia(s)` : ""}. El stock físico será el nuevo punto de partida.`)) return;
 
     setSaving(true);
     setNotice(null);
     try {
       await Promise.all(lines.map((line) => {
-        const detail = details[line.id];
+        const detail = details[line.id] ?? getPersistedCountDetail(line, true);
         return updateInventoryShiftOpeningLine({
           countId: shift.id,
           itemId: line.item_id,
-          countedStock: Number(draft[line.id]),
+          countedStock: Number(valueForLine(line)),
           fullPresentations: detail?.usePresentation ? Number(detail.full || 0) : null,
           looseUnits: detail?.usePresentation ? Number(detail.loose || 0) : null,
-          notes: detail?.note.trim() || null,
+          notes: detail?.note.trim() || line.opening_notes || null,
         });
       }));
       await confirmInventoryShiftOpening({ countId: shift.id });
@@ -504,12 +505,13 @@ export function InventorySimpleAdminPage() {
     const lines = countLines.filter((line) => line.count_id === shift.id && itemMap.has(line.item_id));
     const draft = shiftDrafts[shift.id] ?? {};
     const details = shiftCountDetails[shift.id] ?? {};
-    const missing = lines.filter((line) => draft[line.id] == null || draft[line.id].trim() === "");
+    const valueForLine = (line: InventoryCountLineRow) => getCountDraftValue(draft, line, false);
+    const missing = lines.filter((line) => valueForLine(line).trim() === "");
     if (missing.length > 0) {
       setNotice({ type: "error", text: `Falta contar ${missing.length} producto${missing.length === 1 ? "" : "s"}. Usa “Todo coincide” si verificaste el stock y no hay diferencias.` });
       return;
     }
-    if (lines.some((line) => Number(draft[line.id]) < 0 || !Number.isFinite(Number(draft[line.id])))) {
+    if (lines.some((line) => Number(valueForLine(line)) < 0 || !Number.isFinite(Number(valueForLine(line))))) {
       setNotice({ type: "error", text: "Revisa las cantidades: no pueden ser negativas." });
       return;
     }
@@ -519,14 +521,14 @@ export function InventorySimpleAdminPage() {
     setNotice(null);
     try {
       await Promise.all(lines.map((line) => {
-        const detail = details[line.id];
+        const detail = details[line.id] ?? getPersistedCountDetail(line, false);
         return updateInventoryShiftClosingLine({
           countId: shift.id,
           itemId: line.item_id,
-          countedStock: Number(draft[line.id]),
+          countedStock: Number(valueForLine(line)),
           fullPresentations: detail?.usePresentation ? Number(detail.full || 0) : null,
           looseUnits: detail?.usePresentation ? Number(detail.loose || 0) : null,
-          notes: detail?.note.trim() || null,
+          notes: detail?.note.trim() || line.notes || null,
         });
       }));
       await closeInventoryShift({ countId: shift.id, notes: "Conteo físico completado desde inventario simple" });
@@ -648,6 +650,8 @@ export function InventorySimpleAdminPage() {
           openShifts={openShifts}
           closedShifts={closedShifts}
           countLines={countLines}
+          movements={movements}
+          clinicalUsages={clinicalUsages}
           itemMap={itemMap}
           unitMap={unitMap}
           drafts={shiftDrafts}
@@ -860,6 +864,8 @@ function TurnSection({
   openShifts,
   closedShifts,
   countLines,
+  movements,
+  clinicalUsages,
   itemMap,
   unitMap,
   drafts,
@@ -877,6 +883,8 @@ function TurnSection({
   openShifts: InventoryCountRow[];
   closedShifts: InventoryCountRow[];
   countLines: InventoryCountLineRow[];
+  movements: InventoryMovementRow[];
+  clinicalUsages: InventoryClinicalUsageRow[];
   itemMap: Map<string, InventoryItemRow>;
   unitMap: Map<string, InventoryUnitRow>;
   drafts: Record<string, Record<string, string>>;
@@ -892,6 +900,8 @@ function TurnSection({
   onCancel: (shift: InventoryCountRow) => Promise<void>;
 }) {
   const [focusedLineByShift, setFocusedLineByShift] = useState<Record<string, string>>({});
+  const [showAllByShift, setShowAllByShift] = useState<Record<string, boolean>>({});
+  const usageScoreByItem = useMemo(() => buildInventoryUsageScore(movements, clinicalUsages), [movements, clinicalUsages]);
 
   return (
     <div className="space-y-5">
@@ -915,28 +925,57 @@ function TurnSection({
         const draft = drafts[shift.id] ?? {};
         const detailDraft = details[shift.id] ?? {};
         const isOpening = !shift.opening_count_completed_at;
-        const completed = lines.filter((line) => draft[line.id] != null && draft[line.id].trim() !== "").length;
+        const valueForLine = (line: InventoryCountLineRow) => getCountDraftValue(draft, line, isOpening);
+        const completed = lines.filter((line) => valueForLine(line).trim() !== "").length;
+        const missingCount = Math.max(lines.length - completed, 0);
         const stale = shift.count_date < localDateValue();
         const rawSearch = searches[shift.id] ?? "";
         const search = normalizeName(rawSearch);
         const searchMatches = search ? lines.filter((line) => countLineMatchesSearch(line, itemMap, unitMap, search)) : [];
         const focusedLineId = focusedLineByShift[shift.id];
         const focusedLine = lines.find((line) => line.id === focusedLineId);
-        const pendingLines = lines.filter((line) => draft[line.id] == null || draft[line.id].trim() === "");
+        const pendingLines = lines.filter((line) => valueForLine(line).trim() === "");
+        const countedLines = lines.filter((line) => valueForLine(line).trim() !== "");
+        const showAll = Boolean(showAllByShift[shift.id]);
+        const suggestedPendingLines = sortCountLinesByUse(pendingLines, itemMap, usageScoreByItem).slice(0, 5);
+        const suggestedCountedLines = sortCountLinesByUse(countedLines, itemMap, usageScoreByItem).slice(0, 5);
+        const quickLines = suggestedPendingLines.length > 0 ? suggestedPendingLines : suggestedCountedLines;
         const visibleLines = focusedLine
           ? [focusedLine]
           : search
             ? searchMatches
-            : pendingLines.length > 0
-              ? pendingLines
-              : lines;
+            : showAll
+              ? pendingLines.length > 0 ? pendingLines : countedLines
+              : quickLines;
         const countedText = focusedLine
           ? "Producto seleccionado"
           : search
             ? `${searchMatches.length} coincidencia${searchMatches.length === 1 ? "" : "s"}`
-            : pendingLines.length > 0
-              ? `${pendingLines.length} pendiente${pendingLines.length === 1 ? "" : "s"} por contar`
-              : "Todos los productos contados";
+            : showAll
+              ? `Mostrando ${visibleLines.length} de ${pendingLines.length || countedLines.length} producto${(pendingLines.length || countedLines.length) === 1 ? "" : "s"}`
+              : pendingLines.length > 0
+                ? `Mostrando ${visibleLines.length} sugerido${visibleLines.length === 1 ? "" : "s"} de ${pendingLines.length} pendiente${pendingLines.length === 1 ? "" : "s"}`
+                : "Todos los productos contados";
+        const canSubmit = !saving && lines.length > 0 && completed === lines.length;
+        const submitLabel = saving
+          ? "Guardando..."
+          : isOpening
+            ? missingCount > 0 ? `Faltan ${missingCount} para confirmar` : `Confirmar apertura (${completed}/${lines.length})`
+            : missingCount > 0 ? `Faltan ${missingCount} para cerrar` : `Cerrar turno (${completed}/${lines.length})`;
+        const submitHelp = isOpening
+          ? "La apertura regulariza el punto inicial: si el sistema dice 150 y cuentas 100, registra faltante de 50 con historial."
+          : "El cierre deja el stock final real: lo que falte se descuenta como diferencia de conteo y queda en reportes.";
+        const markAllMatches = () => {
+          setDrafts((current) => ({ ...current, [shift.id]: Object.fromEntries(lines.map((line) => [line.id, String(isOpening ? line.opening_stock : itemMap.get(line.item_id)?.current_stock ?? 0)])) }));
+          setDetails((current) => ({ ...current, [shift.id]: {} }));
+          setSearches((current) => ({ ...current, [shift.id]: "" }));
+          setFocusedLineByShift((current) => {
+            const next = { ...current };
+            delete next[shift.id];
+            return next;
+          });
+          setShowAllByShift((current) => ({ ...current, [shift.id]: false }));
+        };
         return (
           <SimplePanel
             key={shift.id}
@@ -947,20 +986,12 @@ function TurnSection({
               <div>
                 <p className="text-sm font-semibold text-[var(--color-ink)]">{shift.opened_by_profile?.full_name ?? shift.shift_name ?? "Personal autorizado"}</p>
                 <p className="mt-1 text-sm text-[var(--color-copy)]">{isOpening ? "Conteo de apertura" : "Conteo de cierre"}: {completed} de {lines.length} productos</p>
+                <p className="mt-1 text-xs leading-5 text-[var(--color-copy)]">{submitHelp}</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    setDrafts((current) => ({ ...current, [shift.id]: Object.fromEntries(lines.map((line) => [line.id, String(isOpening ? line.opening_stock : itemMap.get(line.item_id)?.current_stock ?? 0)])) }));
-                    setDetails((current) => ({ ...current, [shift.id]: {} }));
-                    setSearches((current) => ({ ...current, [shift.id]: "" }));
-                    setFocusedLineByShift((current) => {
-                      const next = { ...current };
-                      delete next[shift.id];
-                      return next;
-                    });
-                  }}
+                  onClick={markAllMatches}
                   className="rounded-full border border-[var(--color-border)] bg-white px-4 py-2 text-sm font-semibold"
                 >
                   Todo coincide con el sistema
@@ -980,6 +1011,7 @@ function TurnSection({
                       value={rawSearch}
                       onChange={(event) => {
                         setSearches((current) => ({ ...current, [shift.id]: event.target.value }));
+                        setShowAllByShift((current) => ({ ...current, [shift.id]: false }));
                         setFocusedLineByShift((current) => {
                           const next = { ...current };
                           delete next[shift.id];
@@ -1002,6 +1034,7 @@ function TurnSection({
                         type="button"
                         onClick={() => {
                           setSearches((current) => ({ ...current, [shift.id]: "" }));
+                          setShowAllByShift((current) => ({ ...current, [shift.id]: false }));
                           setFocusedLineByShift((current) => {
                             const next = { ...current };
                             delete next[shift.id];
@@ -1019,7 +1052,7 @@ function TurnSection({
                     <div className="max-h-56 overflow-y-auto border-t border-[var(--color-border)] p-2">
                       {searchMatches.slice(0, 12).map((line) => {
                         const item = itemMap.get(line.item_id)!;
-                        const isCounted = draft[line.id] != null && draft[line.id].trim() !== "";
+                        const isCounted = valueForLine(line).trim() !== "";
                         return (
                           <button
                             key={line.id}
@@ -1044,29 +1077,59 @@ function TurnSection({
                 </div>
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-[var(--color-copy)]">
                   <span>{countedText}</span>
-                  {focusedLine ? (
+                  <div className="flex flex-wrap gap-2">
+                    {!search && !focusedLine && pendingLines.length > quickLines.length ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowAllByShift((current) => ({ ...current, [shift.id]: !showAll }))}
+                        className="rounded-full border border-[var(--color-border)] bg-white px-3 py-1.5 text-[var(--color-ink)]"
+                      >
+                        {showAll ? "Volver a sugeridos" : `Ver todos (${pendingLines.length})`}
+                      </button>
+                    ) : null}
+                    {focusedLine ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearches((current) => ({ ...current, [shift.id]: "" }));
+                          setShowAllByShift((current) => ({ ...current, [shift.id]: false }));
+                          setFocusedLineByShift((current) => {
+                            const next = { ...current };
+                            delete next[shift.id];
+                            return next;
+                          });
+                        }}
+                        className="rounded-full border border-[var(--color-border)] bg-white px-3 py-1.5 text-[var(--color-ink)]"
+                      >
+                        Buscar otro
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="sticky top-20 z-20 mt-4 rounded-[20px] border border-[var(--color-border)] bg-[rgba(255,249,244,0.96)] p-3 shadow-[0_18px_46px_rgba(62,42,31,0.14)] backdrop-blur-xl">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-[var(--color-ink)]">{isOpening ? "Conteo de apertura" : "Conteo de cierre"}</p>
+                      <p className="mt-1 text-xs text-[var(--color-copy)]">
+                        {missingCount > 0 ? `Aún faltan ${missingCount} producto${missingCount === 1 ? "" : "s"} por contar.` : "Todo el conteo está completo."}
+                      </p>
+                    </div>
                     <button
                       type="button"
-                      onClick={() => {
-                        setSearches((current) => ({ ...current, [shift.id]: "" }));
-                        setFocusedLineByShift((current) => {
-                          const next = { ...current };
-                          delete next[shift.id];
-                          return next;
-                        });
-                      }}
-                      className="rounded-full border border-[var(--color-border)] bg-white px-3 py-1.5 text-[var(--color-ink)]"
+                      onClick={() => void (isOpening ? onConfirmOpening(shift) : onClose(shift))}
+                      disabled={!canSubmit}
+                      className="inline-flex items-center justify-center gap-2 rounded-full bg-[var(--color-mocha)] px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      Buscar otro
+                      {submitLabel}
                     </button>
-                  ) : null}
+                  </div>
                 </div>
                 <div className="mt-4 grid gap-2">
                   {visibleLines.map((line) => {
                     const item = itemMap.get(line.item_id)!;
                     const systemStock = Number(isOpening ? line.opening_stock : item.current_stock);
-                    const countedStock = draft[line.id] ?? "";
-                    const detail = detailDraft[line.id] ?? { usePresentation: false, full: "", loose: "", note: "" };
+                    const countedStock = valueForLine(line);
+                    const detail = detailDraft[line.id] ?? getPersistedCountDetail(line, isOpening);
                     const hasDifference = countedStock !== "" && Number(countedStock) !== systemStock;
                     return (
                       <div key={line.id} className="grid gap-3 rounded-[16px] border border-[var(--color-border)] bg-white p-3 sm:grid-cols-[minmax(180px,1fr)_minmax(280px,1.35fr)] sm:items-start">
@@ -1087,7 +1150,7 @@ function TurnSection({
                             <input
                               value={detail.note}
                               onChange={(event) => setDetails((current) => ({ ...current, [shift.id]: { ...(current[shift.id] ?? {}), [line.id]: { ...detail, note: event.target.value } } }))}
-                              placeholder="Aclaración de la diferencia (opcional)"
+                              placeholder={isOpening ? "Aclaración: ej. al abrir faltaban 50 unidades" : "Aclaración: ej. uso no registrado, merma o sobrante"}
                               className="premium-input"
                             />
                           ) : null}
@@ -1097,7 +1160,6 @@ function TurnSection({
                   })}
                   {visibleLines.length === 0 ? <EmptyState label="No encontramos productos con ese nombre." /> : null}
                 </div>
-                <button type="button" onClick={() => void (isOpening ? onConfirmOpening(shift) : onClose(shift))} disabled={saving || completed !== lines.length} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[var(--color-mocha)] px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{saving ? "Guardando..." : isOpening ? `Confirmar apertura (${completed}/${lines.length})` : `Cerrar turno (${completed}/${lines.length})`}</button>
               </>
             )}
           </SimplePanel>
@@ -1394,6 +1456,51 @@ function normalizeName(value: string) {
 
 function cleanName(value: string) {
   return value.trim().replace(/\s+/g, " ");
+}
+
+function buildInventoryUsageScore(movements: InventoryMovementRow[], clinicalUsages: InventoryClinicalUsageRow[]) {
+  const scores = new Map<string, number>();
+  const add = (itemId: string | null | undefined, weight: number) => {
+    if (!itemId) return;
+    scores.set(itemId, (scores.get(itemId) ?? 0) + weight);
+  };
+
+  movements.forEach((movement) => {
+    const weight = movement.movement_type === "entrada" ? 1 : movement.movement_type === "conteo" ? 0.5 : 2;
+    add(movement.item_id, weight);
+  });
+  clinicalUsages.forEach((usage) => add(usage.item_id, 3));
+  return scores;
+}
+
+function sortCountLinesByUse(lines: InventoryCountLineRow[], itemMap: Map<string, InventoryItemRow>, usageScoreByItem: Map<string, number>) {
+  return lines.slice().sort((a, b) => {
+    const usageDifference = (usageScoreByItem.get(b.item_id) ?? 0) - (usageScoreByItem.get(a.item_id) ?? 0);
+    if (usageDifference !== 0) return usageDifference;
+    return (itemMap.get(a.item_id)?.name ?? "").localeCompare(itemMap.get(b.item_id)?.name ?? "");
+  });
+}
+
+function getCountDraftValue(draft: Record<string, string>, line: InventoryCountLineRow, isOpening: boolean) {
+  const draftValue = draft[line.id];
+  if (draftValue != null) return draftValue;
+
+  if (isOpening) {
+    return line.opening_counted_stock == null ? "" : String(line.opening_counted_stock);
+  }
+
+  return line.counted_by ? String(line.counted_stock ?? "") : "";
+}
+
+function getPersistedCountDetail(line: InventoryCountLineRow, isOpening: boolean): CountDetail {
+  const full = isOpening ? line.opening_full_presentations : line.closing_full_presentations;
+  const loose = isOpening ? line.opening_loose_units : line.closing_loose_units;
+  return {
+    usePresentation: full != null || loose != null,
+    full: full == null ? "" : String(full),
+    loose: loose == null ? "" : String(loose),
+    note: isOpening ? line.opening_notes ?? "" : line.notes ?? "",
+  };
 }
 
 function countLineMatchesSearch(line: InventoryCountLineRow, itemMap: Map<string, InventoryItemRow>, unitMap: Map<string, InventoryUnitRow>, normalizedSearch: string) {
