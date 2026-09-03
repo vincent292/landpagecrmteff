@@ -62,12 +62,7 @@ SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID=tu-client-id.apps.googleusercontent.com
 SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET=tu-client-secret
 ```
 
-Despues cambia en `supabase/config.toml`:
-
-```toml
-[auth.external.google]
-enabled = true
-```
+En `supabase/config.toml` Google ya queda habilitado para local. Si alguien intenta levantar Supabase local sin esas dos claves, debe agregarlas primero o poner temporalmente `enabled = false`.
 
 El frontend solo necesita las variables normales:
 
