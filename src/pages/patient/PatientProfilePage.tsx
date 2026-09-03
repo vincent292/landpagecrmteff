@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { boliviaCities } from "../../data/cities";
+import { GoogleIdentityLinkCard } from "../../components/platform/GoogleIdentityLinkCard";
 import { useAuth } from "../../hooks/useAuth";
 import { getPatientByProfileId, upsertMyPatientProfile } from "../../services/patientService";
 import { normalizeDocumentNumber } from "../../utils/documentNumber";
@@ -95,6 +96,8 @@ export function PatientProfilePage() {
       <p className="mt-4 text-sm leading-7 text-[var(--color-copy)]">
         Completa tu ficha para que recetas, citas, cuidados y seguimiento queden bien vinculados a tu cuenta.
       </p>
+
+      <GoogleIdentityLinkCard />
 
       <div className="mt-8 grid gap-4 md:grid-cols-2">
         <label>

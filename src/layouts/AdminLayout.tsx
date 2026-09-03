@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Link, Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 
 import { BrandSignature } from "../components/common/BrandSignature";
+import { GoogleIdentityLinkCard } from "../components/platform/GoogleIdentityLinkCard";
 import { useAuth } from "../hooks/useAuth";
 import { useAdminNotifications } from "../hooks/useAdminNotifications";
 import { cn } from "../lib/cn";
@@ -297,6 +298,8 @@ export function AdminLayout() {
             })}
           </div>
         </nav>
+
+        <GoogleIdentityLinkCard variant="compact" className="mt-4" />
 
         <button
           type="button"

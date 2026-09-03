@@ -45,6 +45,8 @@ type ForgotPasswordValues = z.infer<typeof forgotPasswordSchema>;
 type ResetPasswordValues = z.infer<typeof resetPasswordSchema>;
 
 const oauthNextStorageKey = "dra_estefany_oauth_next";
+const oauthModeStorageKey = "dra_estefany_oauth_mode";
+type OAuthFlowMode = "signin" | "link";
 
 export function LoginPage() {
   return <AuthForm mode="login" />;
@@ -322,9 +324,14 @@ export function AuthCallbackPage() {
     let active = true;
 
     const finishOAuth = async () => {
+      let requestedPath: string | null = null;
+      let flowMode: OAuthFlowMode = "signin";
+
       try {
         const searchParams = new URLSearchParams(location.search);
         const hashParams = new URLSearchParams(location.hash.replace(/^#/, ""));
+        flowMode = getOAuthFlowMode(searchParams);
+        requestedPath = takeOAuthNextPath();
         const providerError = searchParams.get("error_description") || hashParams.get("error_description") || searchParams.get("error") || hashParams.get("error");
         if (providerError) throw new Error(providerError);
 
@@ -338,15 +345,20 @@ export function AuthCallbackPage() {
         if (sessionError) throw sessionError;
         if (!data.session?.user.id) throw new Error("No pudimos completar el ingreso con Google.");
 
-        const requestedPath = takeOAuthNextPath();
         const role = await getRoleWithRetry(data.session.user.id);
         await refreshProfile();
 
         if (!active) return;
-        navigate(getSafeRedirectPath(role, requestedPath), { replace: true });
+        const safePath = getSafeRedirectPath(role, requestedPath);
+        navigate(flowMode === "link" ? appendOAuthResult(safePath, { linked: true }) : safePath, { replace: true });
       } catch (callbackError) {
         if (!active) return;
         const message = callbackError instanceof Error ? callbackError.message : "";
+        if (flowMode === "link") {
+          const fallbackPath = isSafeRelativePath(requestedPath) ? requestedPath : "/mi-panel/perfil";
+          navigate(appendOAuthResult(fallbackPath, { error: getAuthErrorMessage(message) }), { replace: true });
+          return;
+        }
         setError(getAuthErrorMessage(message));
       }
     };
@@ -413,7 +425,7 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
     setMessage("");
     setGoogleLoading(true);
     try {
-      saveOAuthNextPath(from);
+      saveOAuthNextPath(from, "signin");
       const { error: googleError } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
@@ -743,9 +755,10 @@ function isSafeRelativePath(value?: string | null): value is string {
   return Boolean(value && value.startsWith("/") && !value.startsWith("//"));
 }
 
-function saveOAuthNextPath(value?: string | null) {
+function saveOAuthNextPath(value?: string | null, mode: OAuthFlowMode = "signin") {
   if (typeof window === "undefined") return;
   try {
+    window.sessionStorage.setItem(oauthModeStorageKey, mode);
     if (isSafeRelativePath(value)) {
       window.sessionStorage.setItem(oauthNextStorageKey, value);
     } else {
@@ -753,6 +766,23 @@ function saveOAuthNextPath(value?: string | null) {
     }
   } catch {
     // Storage can be disabled in private browsing modes.
+  }
+}
+
+function getOAuthFlowMode(searchParams: URLSearchParams): OAuthFlowMode {
+  const queryMode = searchParams.get("mode");
+  const storedMode = takeOAuthMode();
+  return queryMode === "link" || storedMode === "link" ? "link" : "signin";
+}
+
+function takeOAuthMode(): OAuthFlowMode | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const value = window.sessionStorage.getItem(oauthModeStorageKey);
+    window.sessionStorage.removeItem(oauthModeStorageKey);
+    return value === "link" || value === "signin" ? value : null;
+  } catch {
+    return null;
   }
 }
 
@@ -765,6 +795,22 @@ function takeOAuthNextPath() {
   } catch {
     return null;
   }
+}
+
+function appendOAuthResult(path: string, result: { linked?: boolean; error?: string }) {
+  const url = new URL(path, window.location.origin);
+  url.searchParams.delete("google_linked");
+  url.searchParams.delete("google_link_error");
+
+  if (result.linked) {
+    url.searchParams.set("google_linked", "1");
+  }
+
+  if (result.error) {
+    url.searchParams.set("google_link_error", result.error);
+  }
+
+  return `${url.pathname}${url.search}${url.hash}`;
 }
 
 async function getRoleWithRetry(userId: string) {
