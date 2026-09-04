@@ -387,7 +387,10 @@ export function WhatsAppCrmPage() {
               <button key={conversation.id} type="button" onClick={() => { setSelectedId(conversation.id); setShowInbox(false); }} className={`mb-1 w-full rounded-2xl border p-3 text-left transition ${selectedId === conversation.id ? "border-[var(--color-mocha)] bg-white shadow-sm" : "border-transparent hover:bg-white/70"}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold">{conversationName(conversation)}</p>
+                    <p className="flex min-w-0 items-center gap-2 truncate text-sm font-semibold">
+                      {conversation.needs_human ? <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-amber-500" title="Necesita respuesta de una persona" /> : null}
+                      <span className="truncate">{conversationName(conversation)}</span>
+                    </p>
                     <p className="mt-1 truncate text-xs text-[var(--color-copy)]">{conversation.last_message_preview || "Conversación nueva"}</p>
                   </div>
                   {conversation.unread_count ? <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{conversation.unread_count}</span> : null}
@@ -418,11 +421,15 @@ export function WhatsAppCrmPage() {
                   <button type="button" onClick={() => setContactOpen(true)} className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-white px-3 py-2 text-xs font-semibold" title="Contacto">
                     <PanelRightOpen className="h-4 w-4" /> Contacto
                   </button>
-                  <button type="button" onClick={() => void patchConversation(selected.ai_enabled ? { ai_enabled: false } : { ai_enabled: true, needs_human: false })} className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold ${selected.ai_enabled && !selected.needs_human ? "bg-violet-100 text-violet-800" : "bg-stone-100 text-stone-600"}`}>
-                    <Bot className="h-4 w-4" /> {selected.ai_enabled && !selected.needs_human ? "IA responde" : "IA pausada"}
+                  <button type="button" onClick={() => void patchConversation({ ai_enabled: !selected.ai_enabled })} className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold ${selected.ai_enabled ? "bg-violet-100 text-violet-800" : "bg-stone-100 text-stone-600"}`}>
+                    <Bot className="h-4 w-4" /> {selected.ai_enabled ? "IA responde" : "IA pausada"}
                   </button>
-                  <button type="button" onClick={() => void patchConversation(selected.needs_human ? { needs_human: false, ai_enabled: true } : { needs_human: true, ai_enabled: false })} className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold ${selected.needs_human ? "bg-amber-100 text-amber-900" : "border border-[var(--color-border)] bg-white"}`}>
-                    <UserRoundCheck className="h-4 w-4" /> {selected.needs_human ? "Devolver a IA" : "Tomar chat"}
+                  <button
+                    type="button"
+                    onClick={() => void patchConversation(selected.needs_human ? { needs_human: false } : { needs_human: true, ai_enabled: false })}
+                    className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold ${selected.needs_human ? "bg-amber-100 text-amber-900" : "border border-[var(--color-border)] bg-white"}`}
+                  >
+                    <UserRoundCheck className="h-4 w-4" /> {selected.needs_human ? "Necesita persona" : "Tomar chat"}
                   </button>
                 </div>
               </header>

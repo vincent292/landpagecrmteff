@@ -322,11 +322,15 @@ Deno.serve(async (request) => {
         const handoff = /\b(emergencia|urgencia)\b/i.test(message.text)
           ? "Si presentas una urgencia médica, acude de inmediato al servicio de emergencias más cercano. También avisamos a administración para que pueda orientarte."
           : "Entendido. Avisé a administración para que una persona continúe contigo lo antes posible.";
+        const alertUpdate = await admin.from("crm_conversations")
+          .update({ needs_human: true })
+          .eq("id", persisted.conversation.id);
+        if (alertUpdate.error) throw alertUpdate.error;
         const meta = await sendMetaMessage(message.from, { type: "text", text: { preview_url: false, body: handoff } });
         await persistOutboundMessage(admin, { conversationId: persisted.conversation.id, metaMessageId: meta?.messages?.[0]?.id ?? null, body: handoff, senderType: "system" });
         continue;
       }
-      if (!persisted.conversation.ai_enabled || persisted.conversation.needs_human) continue;
+      if (!persisted.conversation.ai_enabled) continue;
       const fastReply = await getFastCrmReply(admin, message.text);
       if (fastReply) {
         const meta = await sendMetaMessage(message.from, { type: "text", text: { preview_url: false, body: fastReply } });
