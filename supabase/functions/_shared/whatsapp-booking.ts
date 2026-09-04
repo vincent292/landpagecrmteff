@@ -1055,15 +1055,41 @@ async function ensurePatientAccount(admin: SupabaseClient, session: BookingSessi
 
 async function loadSessionTreatment(admin: SupabaseClient, session: BookingSession) {
   const { data, error } = await admin.from("treatments")
-    .select("id,title,city,doctor_id,appointment_type,agenda_tag,requires_assessment,assessment_mode,assessment_price,assessment_price_presencial,assessment_price_virtual")
+    .select("id,title,city,doctor_id,appointment_type,agenda_tag,requires_assessment,assessment_mode,assessment_price,assessment_price_presencial,assessment_price_virtual,available_slots,approved_slots")
     .eq("id", session.treatment_id).single();
   if (error) throw error;
   return data;
 }
 
+async function getTreatmentQuotaRemaining(admin: SupabaseClient, session: BookingSession, treatment: Record<string, unknown>) {
+  if (isAssessmentBooking(session)) return null;
+  const quota = Number(treatment.available_slots ?? 0);
+  if (!Number.isFinite(quota) || quota <= 0) return null;
+  const activeSessions = await admin
+    .from("crm_booking_sessions")
+    .select("id,state_data")
+    .eq("treatment_id", session.treatment_id)
+    .neq("id", session.id)
+    .in("status", ["awaiting_payment", "payment_review", "approved"]);
+  if (activeSessions.error) throw activeSessions.error;
+
+  const occupiedByWhatsapp = (activeSessions.data ?? []).filter((row) => {
+    const stateData = row.state_data as Record<string, unknown> | null;
+    return stateData?.booking_kind !== "assessment";
+  }).length;
+  const occupiedByApprovedOrders = Number(treatment.approved_slots ?? 0);
+  const occupied = Math.max(
+    Number.isFinite(occupiedByApprovedOrders) ? occupiedByApprovedOrders : 0,
+    occupiedByWhatsapp,
+  );
+  return Math.max(quota - occupied, 0);
+}
+
 async function getMappedSlots(admin: SupabaseClient, session: BookingSession) {
   await admin.rpc("crm_expire_booking_holds");
   const treatment = await loadSessionTreatment(admin, session);
+  const treatmentRemaining = await getTreatmentQuotaRemaining(admin, session, treatment);
+  if (treatmentRemaining === 0) return [];
   const mapping = await admin.from("treatment_availability_rules")
     .select("availability_rule_id").eq("treatment_id", treatment.id).eq("is_active", true);
   if (mapping.error) throw mapping.error;
@@ -1083,9 +1109,17 @@ async function getMappedSlots(admin: SupabaseClient, session: BookingSession) {
   });
   if (result.error) throw result.error;
   const restrictToTreatmentRules = !isAssessmentBooking(session);
-  return (result.data ?? []).filter((slot: { rule_id: string; available_capacity: number }) =>
-    (!restrictToTreatmentRules || allowed.has(slot.rule_id)) && Number(slot.available_capacity) > 0
-  );
+  return (result.data ?? [])
+    .filter((slot: { rule_id: string; available_capacity: number }) =>
+      (!restrictToTreatmentRules || allowed.has(slot.rule_id)) && Number(slot.available_capacity) > 0
+    )
+    .map((slot: { available_capacity: number }) => ({
+      ...slot,
+      available_capacity: treatmentRemaining == null
+        ? Number(slot.available_capacity)
+        : Math.min(Number(slot.available_capacity), treatmentRemaining),
+    }))
+    .filter((slot: { available_capacity: number }) => Number(slot.available_capacity) > 0);
 }
 
 async function showAssessmentCareModeChoice(admin: SupabaseClient, session: BookingSession, to: string, accountMessage?: string) {
