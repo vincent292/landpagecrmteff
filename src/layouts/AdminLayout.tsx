@@ -30,7 +30,6 @@ const adminSections: AdminSection[] = [
     links: [
       { label: "Dashboard", href: "/panel", module: "dashboard" },
       { label: "Mi perfil medico", href: "/panel/mi-perfil", module: "mi-perfil" },
-      { label: "Solicitudes", href: "/panel/solicitudes", module: "solicitudes" },
       { label: "Citas", href: "/panel/citas", module: "citas" },
       { label: "Calendario citas", href: "/panel/calendario-citas", module: "calendario-citas" },
       { label: "Agenda", href: "/panel/agenda", module: "agenda" },
@@ -110,7 +109,8 @@ export function AdminLayout() {
   const activeLink = visibleSections.flatMap((section) => section.links).find((link) => link.module === activeModule);
 
   useEffect(() => {
-    setOpen(false);
+    const timeoutId = window.setTimeout(() => setOpen(false), 0);
+    return () => window.clearTimeout(timeoutId);
   }, [location.pathname]);
 
   useEffect(() => {
@@ -394,7 +394,7 @@ function NotificationBell({
           <div className="flex items-center justify-between gap-3 px-2 py-1">
             <div>
               <p className="text-sm font-semibold text-[var(--color-ink)]">Notificaciones</p>
-              <p className="text-xs text-[var(--color-copy)]">Solicitudes, pagos, citas e inventario en un solo lugar.</p>
+              <p className="text-xs text-[var(--color-copy)]">WhatsApp CRM, pagos, citas e inventario en un solo lugar.</p>
             </div>
             <button type="button" onClick={onClose} className="rounded-full border border-[var(--color-border)] px-3 py-1 text-xs font-semibold">
               Cerrar

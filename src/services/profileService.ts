@@ -85,18 +85,42 @@ type UpdateUserAccessInput = {
 };
 
 export async function updateUserAccess(input: UpdateUserAccessInput) {
-  const { data, error } = await supabase.functions.invoke("update-user-access", {
-    body: {
-      user_id: input.userId,
-      email: input.email,
-      full_name: input.fullName ?? null,
-      password: input.password?.trim() ? input.password.trim() : null,
-      phone: input.phone ?? null,
-      city: input.city ?? null,
-    },
-  });
+  try {
+    const { data, error } = await supabase.functions.invoke("update-user-access", {
+      body: {
+        user_id: input.userId,
+        email: input.email,
+        full_name: input.fullName ?? null,
+        password: input.password?.trim() ? input.password.trim() : null,
+        phone: input.phone ?? null,
+        city: input.city ?? null,
+      },
+    });
 
-  if (error) throw error;
-  if (data?.error) throw new Error(data.error);
-  return data;
+    if (error) throw await formatUpdateUserAccessError(error);
+    if (data?.error) throw new Error(data.error);
+    return data;
+  } catch (error) {
+    throw await formatUpdateUserAccessError(error);
+  }
+}
+
+async function formatUpdateUserAccessError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const context = error && typeof error === "object" && "context" in error ? (error.context as Response | undefined) : undefined;
+  const payload = context
+    ? await context.clone().json().catch(() => null) as { error?: string } | null
+    : null;
+  const functionMessage = payload?.error || message;
+
+  if (
+    /failed to send a request to the edge function/i.test(functionMessage) ||
+    /functionsfetcherror/i.test(functionMessage) ||
+    /load failed/i.test(functionMessage) ||
+    /network/i.test(functionMessage)
+  ) {
+    return new Error("No pudimos contactar la función segura para cambiar el acceso. Verifica que la Edge Function update-user-access esté desplegada en Supabase y vuelve a intentar.");
+  }
+
+  return new Error(functionMessage || "No se pudo actualizar el acceso del usuario.");
 }

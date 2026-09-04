@@ -232,6 +232,7 @@ export async function sendCrmMessage(input: {
   body?: string;
   imageUrl?: string;
   templateName?: string;
+  languageCode?: string;
 }) {
   return invokeCrmFunction("whatsapp-send", input);
 }

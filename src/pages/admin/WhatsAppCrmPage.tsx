@@ -3,10 +3,12 @@ import {
   Bot,
   CalendarDays,
   CheckCheck,
+  ChevronLeft,
   Clock3,
   CreditCard,
   ExternalLink,
   MessageCircle,
+  PanelRightOpen,
   RefreshCw,
   Search,
   Send,
@@ -16,6 +18,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { boliviaCities } from "../../data/cities";
 import { buildCanonicalUrl } from "../../lib/siteUrl";
 import {
   getCrmConversations,
@@ -39,7 +42,6 @@ import {
 } from "../../services/crmService";
 import { getReservationReceiptUrl } from "../../services/reservationService";
 import { getSiteSettings } from "../../services/siteSettingsService";
-import { MetaAdsPanel } from "../../components/admin/MetaAdsPanel";
 
 const stages: Array<{ value: CrmLeadStage; label: string }> = [
   { value: "nuevo", label: "Nuevo" },
@@ -79,6 +81,7 @@ export function WhatsAppCrmPage() {
   const [reservations, setReservations] = useState<CrmReservation[]>([]);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"todas" | "no_leidas" | "humano">("todas");
+  const [cityFilter, setCityFilter] = useState("Todas");
   const [draft, setDraft] = useState("");
   const [templateName, setTemplateName] = useState("");
   const [loading, setLoading] = useState(true);
@@ -91,6 +94,8 @@ export function WhatsAppCrmPage() {
   const [booking, setBooking] = useState<CrmBookingSession | null>(null);
   const [automationSettings, setAutomationSettings] = useState<CrmSettings | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
+  const [showInbox, setShowInbox] = useState(false);
   const [clock, setClock] = useState(() => Date.now());
   const messageScrollerRef = useRef<HTMLDivElement>(null);
 
@@ -102,7 +107,11 @@ export function WhatsAppCrmPage() {
   const loadConversations = useCallback(async () => {
     const rows = await getCrmConversations();
     setConversations(rows);
-    setSelectedId((current) => current ?? rows[0]?.id ?? null);
+    setSelectedId((current) => {
+      if (current) return current;
+      const compactScreen = typeof window !== "undefined" && window.matchMedia("(max-width: 1279px)").matches;
+      return compactScreen ? null : rows[0]?.id ?? null;
+    });
   }, []);
 
   const loadMessages = useCallback(async (conversationId: string) => {
@@ -162,19 +171,34 @@ export function WhatsAppCrmPage() {
     if (scroller) scroller.scrollTo({ top: scroller.scrollHeight, behavior: "auto" });
   }, [messages, selectedId]);
 
+  useEffect(() => {
+    setContactOpen(false);
+    setShowInbox(false);
+  }, [selectedId]);
+
+  const cityOptions = useMemo(() => {
+    const savedCities = conversations
+      .map((conversation) => conversation.crm_contacts.city)
+      .filter((city): city is string => Boolean(city?.trim()));
+    const extraCities = savedCities.filter((city) => !boliviaCities.includes(city));
+    return [...boliviaCities, ...Array.from(new Set(extraCities)).sort((left, right) => left.localeCompare(right, "es"))];
+  }, [conversations]);
+
   const visibleConversations = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return conversations.filter((conversation) => {
       if (filter === "no_leidas" && conversation.unread_count === 0) return false;
       if (filter === "humano" && !conversation.needs_human) return false;
+      const city = conversation.crm_contacts.city?.trim() || "Sin ciudad";
+      if (cityFilter !== "Todas" && city !== cityFilter) return false;
       if (!normalized) return true;
-      return [conversationName(conversation), conversation.crm_contacts.phone, conversation.last_message_preview]
+      return [conversationName(conversation), conversation.crm_contacts.phone, conversation.crm_contacts.city, conversation.last_message_preview]
         .filter(Boolean)
         .join(" ")
         .toLowerCase()
         .includes(normalized);
     });
-  }, [conversations, filter, query]);
+  }, [cityFilter, conversations, filter, query]);
 
   const windowOpen = selected?.customer_service_window_expires_at
     ? new Date(selected.customer_service_window_expires_at).getTime() > clock
@@ -205,7 +229,7 @@ export function WhatsAppCrmPage() {
     setSending(true);
     setError(null);
     try {
-      await sendCrmMessage({ conversationId: selected.id, templateName: templateName.trim() });
+      await sendCrmMessage({ conversationId: selected.id, templateName: templateName.trim(), languageCode: automationSettings?.template_language ?? "es" });
       setTemplateName("");
       await refreshSelected();
     } catch (cause) {
@@ -300,15 +324,18 @@ export function WhatsAppCrmPage() {
       {error ? <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p> : null}
       {notice ? <p className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{notice}</p> : null}
 
-      <MetaAdsPanel />
-
-      <section className="grid min-h-[680px] overflow-hidden rounded-[30px] border border-[var(--color-border)] bg-white/65 shadow-[0_22px_70px_rgba(62,42,31,0.08)] xl:h-[calc(100dvh-11rem)] xl:max-h-[900px] xl:grid-cols-[320px_minmax(0,1fr)_330px]">
-        <aside className="flex min-h-0 flex-col border-b border-[var(--color-border)] bg-[#fbf7f2]/75 xl:border-b-0 xl:border-r">
+      <section className="grid min-h-[calc(100dvh-9rem)] overflow-hidden rounded-[30px] border border-[var(--color-border)] bg-white/65 shadow-[0_22px_70px_rgba(62,42,31,0.08)] xl:h-[calc(100dvh-10rem)] xl:max-h-[920px] xl:grid-cols-[minmax(280px,340px)_minmax(0,1fr)]">
+        <aside className={`${selected && !showInbox ? "hidden xl:flex" : "flex"} min-h-0 flex-col border-b border-[var(--color-border)] bg-[#fbf7f2]/75 xl:border-b-0 xl:border-r`}>
           <div className="border-b border-[var(--color-border)] p-4">
             <label className="flex items-center gap-2 rounded-2xl border border-[var(--color-border)] bg-white/80 px-3 py-2">
               <Search className="h-4 w-4 text-[var(--color-copy)]" />
               <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar nombre o teléfono" className="min-w-0 flex-1 bg-transparent text-sm outline-none" />
             </label>
+            <select value={cityFilter} onChange={(event) => setCityFilter(event.target.value)} className="mt-2 w-full rounded-2xl border border-[var(--color-border)] bg-white/80 px-3 py-2 text-xs font-semibold outline-none">
+              <option value="Todas">Todas las ciudades</option>
+              <option value="Sin ciudad">Sin ciudad</option>
+              {cityOptions.map((city) => <option key={city} value={city}>{city}</option>)}
+            </select>
             <div className="mt-3 flex gap-2 text-[11px] font-semibold">
               {([['todas', 'Todas'], ['no_leidas', 'No leídas'], ['humano', 'Humano']] as const).map(([value, label]) => (
                 <button key={value} type="button" onClick={() => setFilter(value)} className={`rounded-full px-3 py-1.5 ${filter === value ? "bg-[var(--color-mocha)] text-white" : "border border-[var(--color-border)] bg-white/70"}`}>{label}</button>
@@ -319,7 +346,7 @@ export function WhatsAppCrmPage() {
             {loading ? <p className="p-4 text-sm text-[var(--color-copy)]">Cargando conversaciones…</p> : null}
             {!loading && visibleConversations.length === 0 ? <p className="p-5 text-center text-sm text-[var(--color-copy)]">Aún no hay conversaciones para este filtro.</p> : null}
             {visibleConversations.map((conversation) => (
-              <button key={conversation.id} type="button" onClick={() => setSelectedId(conversation.id)} className={`mb-1 w-full rounded-2xl border p-3 text-left transition ${selectedId === conversation.id ? "border-[var(--color-mocha)] bg-white shadow-sm" : "border-transparent hover:bg-white/70"}`}>
+              <button key={conversation.id} type="button" onClick={() => { setSelectedId(conversation.id); setShowInbox(false); }} className={`mb-1 w-full rounded-2xl border p-3 text-left transition ${selectedId === conversation.id ? "border-[var(--color-mocha)] bg-white shadow-sm" : "border-transparent hover:bg-white/70"}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold">{conversationName(conversation)}</p>
@@ -329,24 +356,29 @@ export function WhatsAppCrmPage() {
                 </div>
                 <div className="mt-2 flex items-center justify-between gap-2 text-[10px] text-[var(--color-copy)]">
                   <span className="capitalize">{conversation.crm_contacts.lead_stage}</span>
-                  <span>{formatTime(conversation.last_message_at)}</span>
+                  <span className="truncate">{conversation.crm_contacts.city || formatTime(conversation.last_message_at)}</span>
                 </div>
               </button>
             ))}
           </div>
         </aside>
 
-        <div className="flex min-h-[680px] min-w-0 flex-col border-b border-[var(--color-border)] xl:min-h-0 xl:border-b-0 xl:border-r">
+        <div className={`${selected && !showInbox ? "flex" : "hidden xl:flex"} min-h-[calc(100dvh-9rem)] min-w-0 flex-col xl:min-h-0`}>
           {selected ? (
             <>
-              <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] bg-white/60 p-4">
-                <div>
-                  <p className="font-semibold">{conversationName(selected)}</p>
-                  <p className="text-xs text-[var(--color-copy)]">+{selected.crm_contacts.phone} · {windowOpen ? "ventana de 24 h activa" : "requiere plantilla aprobada"}</p>
+              <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] bg-white/80 p-3 sm:p-4">
+                <div className="flex min-w-0 items-center gap-2">
+                  <button type="button" onClick={() => setShowInbox(true)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--color-border)] bg-white xl:hidden" aria-label="Volver a conversaciones">
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold">{conversationName(selected)}</p>
+                    <p className="truncate text-xs text-[var(--color-copy)]">+{selected.crm_contacts.phone} · {windowOpen ? "24 h activa" : "requiere plantilla"}</p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button type="button" onClick={() => setSettingsOpen(true)} className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-white px-3 py-2 text-xs font-semibold" title="Configuración del CRM">
-                    <Settings className="h-4 w-4" /> Configuración
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <button type="button" onClick={() => setContactOpen(true)} className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-white px-3 py-2 text-xs font-semibold" title="Contacto">
+                    <PanelRightOpen className="h-4 w-4" /> Contacto
                   </button>
                   <button type="button" onClick={() => void patchConversation(selected.ai_enabled ? { ai_enabled: false } : { ai_enabled: true, needs_human: false })} className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold ${selected.ai_enabled && !selected.needs_human ? "bg-violet-100 text-violet-800" : "bg-stone-100 text-stone-600"}`}>
                     <Bot className="h-4 w-4" /> {selected.ai_enabled && !selected.needs_human ? "IA responde" : "IA pausada"}
@@ -376,15 +408,15 @@ export function WhatsAppCrmPage() {
               <footer className="border-t border-[var(--color-border)] bg-white/75 p-4">
                 {!windowOpen ? (
                   <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 p-3">
-                    <p className="flex items-center gap-2 text-xs text-amber-800"><Clock3 className="h-4 w-4" /> Meta solo permite texto libre dentro de las 24 horas posteriores al último mensaje del contacto.</p>
+                    <p className="flex items-center gap-2 text-xs font-semibold text-amber-800"><Clock3 className="h-4 w-4" /> Este contacto no escribió en las últimas 24 h. Para iniciar de nuevo, WhatsApp exige una plantilla aprobada.</p>
                     <div className="mt-2 flex gap-2">
-                      <input value={templateName} onChange={(event) => setTemplateName(event.target.value)} placeholder="nombre_plantilla_aprobada" className="min-w-0 flex-1 rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs outline-none" />
+                      <input value={templateName} onChange={(event) => setTemplateName(event.target.value)} placeholder="Nombre exacto de la plantilla" className="min-w-0 flex-1 rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs outline-none" />
                       <button type="button" onClick={() => void handleTemplateSend()} disabled={sending || !templateName.trim()} className="rounded-full bg-amber-800 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">Enviar plantilla</button>
                     </div>
                   </div>
                 ) : null}
                 <div className="flex items-end gap-2">
-                  <textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void handleSend(); } }} rows={2} disabled={!windowOpen || sending} placeholder={windowOpen ? "Escribe una respuesta…" : "Ventana cerrada; usa una plantilla aprobada"} className="min-h-[48px] flex-1 resize-none rounded-2xl border border-[var(--color-border)] bg-white px-4 py-3 text-sm outline-none disabled:bg-stone-100" />
+                  <textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void handleSend(); } }} rows={2} disabled={!windowOpen || sending} placeholder={windowOpen ? "Escribe una respuesta…" : "Primero envía una plantilla aprobada"} className="min-h-[48px] flex-1 resize-none rounded-2xl border border-[var(--color-border)] bg-white px-4 py-3 text-sm outline-none disabled:bg-stone-100" />
                   <button type="button" onClick={() => void handleSend()} disabled={!windowOpen || sending || !draft.trim()} className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-mocha)] text-white disabled:opacity-40" aria-label="Enviar"><Send className="h-5 w-5" /></button>
                 </div>
               </footer>
@@ -392,14 +424,26 @@ export function WhatsAppCrmPage() {
           ) : <div className="grid flex-1 place-items-center p-8 text-center text-[var(--color-copy)]"><div><MessageCircle className="mx-auto h-10 w-10" /><p className="mt-3">Selecciona una conversación.</p></div></div>}
         </div>
 
-        <aside className="min-h-0 overflow-y-auto bg-white/50 p-5">
+        {selected && contactOpen ? (
+          <button type="button" aria-label="Cerrar contacto" onClick={() => setContactOpen(false)} className="fixed inset-0 z-50 bg-[rgba(35,23,16,0.34)]" />
+        ) : null}
+
+        <aside className={`fixed inset-y-0 right-0 z-[60] w-[min(92vw,390px)] overflow-y-auto border-l border-[var(--color-border)] bg-[#fffaf5] p-5 shadow-[-24px_0_70px_rgba(62,42,31,0.22)] transition-transform duration-300 ${selected && contactOpen ? "translate-x-0" : "translate-x-full"}`}>
           {selected ? (
             <div className="grid gap-5">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-accent-strong)]">Contacto</p>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-accent-strong)]">Contacto</p>
+                  <button type="button" onClick={() => setContactOpen(false)} className="rounded-full border border-[var(--color-border)] bg-white p-2" aria-label="Cerrar contacto">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
                 <input key={`${selected.crm_contacts.id}-name`} defaultValue={selected.crm_contacts.full_name ?? ""} onBlur={(event) => void patchContact({ full_name: event.target.value.trim() || null })} placeholder="Nombre" className="mt-3 w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-sm" />
                 <input key={`${selected.crm_contacts.id}-email`} defaultValue={selected.crm_contacts.email ?? ""} onBlur={(event) => void patchContact({ email: event.target.value.trim() || null })} placeholder="Correo" className="mt-2 w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-sm" />
-                <input key={`${selected.crm_contacts.id}-city`} defaultValue={selected.crm_contacts.city ?? ""} onBlur={(event) => void patchContact({ city: event.target.value.trim() || null })} placeholder="Ciudad" className="mt-2 w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-sm" />
+                <select value={selected.crm_contacts.city ?? ""} onChange={(event) => void patchContact({ city: event.target.value || null })} className="mt-2 w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-sm">
+                  <option value="">Sin ciudad</option>
+                  {cityOptions.map((city) => <option key={city} value={city}>{city}</option>)}
+                </select>
                 <select value={selected.crm_contacts.lead_stage} onChange={(event) => void patchContact({ lead_stage: event.target.value as CrmLeadStage })} className="mt-2 w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-sm">
                   {stages.map((stage) => <option key={stage.value} value={stage.value}>{stage.label}</option>)}
                 </select>
@@ -442,58 +486,10 @@ export function WhatsAppCrmPage() {
                 <textarea key={`${selected.crm_contacts.id}-notes`} defaultValue={selected.crm_contacts.notes ?? ""} onBlur={(event) => void patchContact({ notes: event.target.value.trim() || null })} rows={5} placeholder="Seguimiento, preferencias o contexto comercial…" className="mt-3 w-full resize-none rounded-2xl border border-[var(--color-border)] bg-white px-3 py-2 text-sm" />
               </div>
 
-              {automationSettings && settingsOpen ? (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                  <button type="button" aria-label="Cerrar configuración" onClick={() => setSettingsOpen(false)} className="absolute inset-0 cursor-default bg-[rgba(35,23,16,0.46)]" />
-                  <div role="dialog" aria-modal="true" aria-label="Configuración del CRM" className="relative z-10 max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-[28px] border border-[var(--color-border)] bg-[#fffdf9] p-5 shadow-2xl">
-                    <div className="flex items-start justify-between gap-4 border-b border-[var(--color-border)] pb-4">
-                      <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-accent-strong)]">Configuración del CRM</p><p className="mt-1 text-sm text-[var(--color-copy)]">Automatización, plantillas, avisos y conocimiento de WhatsApp.</p></div>
-                      <button type="button" onClick={() => setSettingsOpen(false)} className="rounded-full border border-[var(--color-border)] bg-white p-2" aria-label="Cerrar"><X className="h-4 w-4" /></button>
-                    </div>
-                    <div className="pt-4">
-                  <label className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs font-semibold">
-                    <span>IA global</span>
-                    <input type="checkbox" checked={automationSettings.ai_enabled} onChange={(event) => void patchAutomationSettings({ ai_enabled: event.target.checked })} />
-                  </label>
-                  <label className="mt-3 block text-[11px] text-[var(--color-copy)]">URL de reserva</label>
-                  <input key={`booking-url-${automationSettings.booking_url}`} defaultValue={automationSettings.booking_url} onBlur={(event) => void patchAutomationSettings({ booking_url: event.target.value.trim() || "/reservar-cita" })} className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs" />
-                  <label className="mt-3 block text-[11px] text-[var(--color-copy)]">Plantilla de confirmación al paciente</label>
-                  <input key={`patient-template-${automationSettings.patient_confirmation_template}`} defaultValue={automationSettings.patient_confirmation_template ?? ""} onBlur={(event) => void patchAutomationSettings({ patient_confirmation_template: event.target.value.trim() || null })} placeholder="cita_confirmada" className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs" />
-                  <label className="mt-2 block text-[11px] text-[var(--color-copy)]">Plantilla de aviso a la doctora</label>
-                  <input key={`doctor-template-${automationSettings.doctor_booking_template}`} defaultValue={automationSettings.doctor_booking_template ?? ""} onBlur={(event) => void patchAutomationSettings({ doctor_booking_template: event.target.value.trim() || null })} placeholder="nueva_cita_doctora" className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs" />
-                  <label className="mt-2 flex items-center gap-2 text-[11px] text-[var(--color-copy)]"><input type="checkbox" checked={automationSettings.doctor_booking_template_document_header} onChange={(event) => void patchAutomationSettings({ doctor_booking_template_document_header: event.target.checked })} /> La plantilla tiene encabezado de tipo Documento</label>
-                  <p className="mt-1 text-[10px] leading-4 text-[var(--color-copy)]">Con encabezado Documento, Meta adjunta el .ics fuera de la ventana de 24 h. Dentro de la ventana de 24 h se envía como archivo normal.</p>
-                  <label className="mt-2 block text-[11px] text-[var(--color-copy)]">Plantilla de pago rechazado</label>
-                  <input key={`rejected-template-${automationSettings.payment_rejected_template}`} defaultValue={automationSettings.payment_rejected_template ?? ""} onBlur={(event) => void patchAutomationSettings({ payment_rejected_template: event.target.value.trim() || null })} placeholder="comprobante_rechazado" className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs" />
-                  <label className="mt-2 block text-[11px] text-[var(--color-copy)]">URL pública del sitio</label>
-                  <input key={`crm-site-url-${automationSettings.site_url}`} defaultValue={automationSettings.site_url} onBlur={(event) => void patchAutomationSettings({ site_url: event.target.value.trim().replace(/\/$/, "") || "https://www.draballesteros.com" })} placeholder="https://www.draballesteros.com" className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs" />
-                  <label className="mt-2 block text-[11px] text-[var(--color-copy)]">WhatsApp(s) que revisan comprobantes</label>
-                  <input key={`admin-reviewers-${automationSettings.admin_notification_whatsapps.join(",")}`} defaultValue={automationSettings.admin_notification_whatsapps.join(", ")} onBlur={(event) => void patchAutomationSettings({ admin_notification_whatsapps: event.target.value.split(/[;,\n]/).map((value) => value.replace(/\D/g, "")).filter(Boolean) })} placeholder="5917XXXXXXX, 5916XXXXXXX" className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs" />
-                  <p className="mt-1 text-[10px] leading-4 text-[var(--color-copy)]">Cada persona recibe un enlace directo al CRM. La aprobación exige iniciar sesión y queda registrada.</p>
-                  <label className="mt-2 block text-[11px] text-[var(--color-copy)]">Plantilla para aviso de comprobante al equipo</label>
-                  <input key={`admin-receipt-template-${automationSettings.admin_receipt_review_template}`} defaultValue={automationSettings.admin_receipt_review_template ?? ""} onBlur={(event) => void patchAutomationSettings({ admin_receipt_review_template: event.target.value.trim() || null })} placeholder="revisar_comprobante" className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs" />
-                  <label className="mt-2 block text-[11px] text-[var(--color-copy)]">Plantilla a paciente para reprogramación</label>
-                  <input key={`patient-reschedule-template-${automationSettings.patient_reschedule_template}`} defaultValue={automationSettings.patient_reschedule_template ?? ""} onBlur={(event) => void patchAutomationSettings({ patient_reschedule_template: event.target.value.trim() || null })} placeholder="cita_reprogramacion" className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs" />
-                  <label className="mt-2 block text-[11px] text-[var(--color-copy)]">Plantilla al equipo si la doctora no puede atender</label>
-                  <input key={`admin-unavailable-template-${automationSettings.admin_doctor_unavailable_template}`} defaultValue={automationSettings.admin_doctor_unavailable_template ?? ""} onBlur={(event) => void patchAutomationSettings({ admin_doctor_unavailable_template: event.target.value.trim() || null })} placeholder="reprogramar_cita" className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs" />
-                  <label className="mt-2 block text-[11px] text-[var(--color-copy)]">Minutos de retención del cupo</label>
-                  <input type="number" min={10} max={120} value={automationSettings.booking_hold_minutes} onChange={(event) => setAutomationSettings({ ...automationSettings, booking_hold_minutes: Number(event.target.value) })} onBlur={(event) => void patchAutomationSettings({ booking_hold_minutes: Math.max(10, Math.min(120, Number(event.target.value) || 30)) })} className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs" />
-                  <label className="mt-3 flex items-center gap-2 text-xs">
-                    <input type="checkbox" checked={automationSettings.allow_external_grounding} onChange={(event) => void patchAutomationSettings({ allow_external_grounding: event.target.checked })} />
-                    Permitir consulta web puntual con Gemini
-                  </label>
-                  <label className="mt-3 block text-[11px] text-[var(--color-copy)]">Instrucciones extra para Gemini</label>
-                  <textarea
-                    key={`ai-prompt-${automationSettings.ai_system_prompt ?? ""}`}
-                    defaultValue={automationSettings.ai_system_prompt ?? ""}
-                    onBlur={(event) => void patchAutomationSettings({ ai_system_prompt: event.target.value.trim() || null })}
-                    rows={5}
-                    placeholder="Tono, politicas internas o mensajes que la IA debe respetar."
-                    className="mt-1 w-full resize-none rounded-2xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs"
-                  />
-                    </div>
-                  </div>
-                </div>
+              {automationSettings ? (
+                <button type="button" onClick={() => setSettingsOpen(true)} className="flex items-center justify-center gap-2 rounded-full border border-[var(--color-border)] bg-white px-4 py-2 text-xs font-semibold">
+                  <Settings className="h-4 w-4" /> Configuración
+                </button>
               ) : null}
 
               <div className="grid grid-cols-2 gap-2">
@@ -504,10 +500,113 @@ export function WhatsAppCrmPage() {
           ) : null}
         </aside>
       </section>
+
+      {automationSettings && settingsOpen ? (
+        <CrmSettingsDialog
+          settings={automationSettings}
+          onClose={() => setSettingsOpen(false)}
+          onPatch={patchAutomationSettings}
+          onLocalChange={setAutomationSettings}
+        />
+      ) : null}
     </div>
   );
 }
 
 function Metric({ label, value }: { label: string; value: number }) {
   return <div className="rounded-2xl border border-[var(--color-border)] bg-white/75 px-3 py-2"><p className="text-lg font-semibold">{value}</p><p className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-copy)]">{label}</p></div>;
+}
+
+function CrmSettingsDialog({
+  settings,
+  onClose,
+  onPatch,
+  onLocalChange,
+}: {
+  settings: CrmSettings;
+  onClose: () => void;
+  onPatch: (values: Partial<CrmSettings>) => Promise<void>;
+  onLocalChange: (settings: CrmSettings) => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+      <button type="button" aria-label="Cerrar configuración" onClick={onClose} className="absolute inset-0 cursor-default bg-[rgba(35,23,16,0.46)]" />
+      <div role="dialog" aria-modal="true" aria-label="Configuración del CRM" className="relative z-10 max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-[28px] border border-[var(--color-border)] bg-[#fffdf9] p-5 shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-[var(--color-border)] pb-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-accent-strong)]">Configuración del CRM</p>
+            <p className="mt-1 text-sm text-[var(--color-copy)]">Automatización, avisos y plantillas de WhatsApp.</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-full border border-[var(--color-border)] bg-white p-2" aria-label="Cerrar">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="grid gap-4 pt-4">
+          <label className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs font-semibold">
+            <span>IA global</span>
+            <input type="checkbox" checked={settings.ai_enabled} onChange={(event) => void onPatch({ ai_enabled: event.target.checked })} />
+          </label>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block text-[11px] font-semibold text-[var(--color-copy)]">URL de reserva
+              <input key={`booking-url-${settings.booking_url}`} defaultValue={settings.booking_url} onBlur={(event) => void onPatch({ booking_url: event.target.value.trim() || "/reservar-cita" })} className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs" />
+            </label>
+            <label className="block text-[11px] font-semibold text-[var(--color-copy)]">URL pública del sitio
+              <input key={`crm-site-url-${settings.site_url}`} defaultValue={settings.site_url} onBlur={(event) => void onPatch({ site_url: event.target.value.trim().replace(/\/$/, "") || "https://www.draballesteros.com" })} placeholder="https://www.draballesteros.com" className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs" />
+            </label>
+          </div>
+
+          <label className="block text-[11px] font-semibold text-[var(--color-copy)]">WhatsApp(s) que revisan comprobantes
+            <input key={`admin-reviewers-${settings.admin_notification_whatsapps.join(",")}`} defaultValue={settings.admin_notification_whatsapps.join(", ")} onBlur={(event) => void onPatch({ admin_notification_whatsapps: event.target.value.split(/[;,\n]/).map((value) => value.replace(/\D/g, "")).filter(Boolean) })} placeholder="5917XXXXXXX, 5916XXXXXXX" className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs" />
+          </label>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block text-[11px] font-semibold text-[var(--color-copy)]">Minutos de retención del cupo
+              <input type="number" min={10} max={120} value={settings.booking_hold_minutes} onChange={(event) => onLocalChange({ ...settings, booking_hold_minutes: Number(event.target.value) })} onBlur={(event) => void onPatch({ booking_hold_minutes: Math.max(10, Math.min(120, Number(event.target.value) || 30)) })} className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs" />
+            </label>
+            <label className="flex items-center gap-2 rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs font-semibold">
+              <input type="checkbox" checked={settings.allow_external_grounding} onChange={(event) => void onPatch({ allow_external_grounding: event.target.checked })} />
+              Gemini con consulta web
+            </label>
+          </div>
+
+          <label className="block text-[11px] font-semibold text-[var(--color-copy)]">Instrucciones extra para Gemini
+            <textarea
+              key={`ai-prompt-${settings.ai_system_prompt ?? ""}`}
+              defaultValue={settings.ai_system_prompt ?? ""}
+              onBlur={(event) => void onPatch({ ai_system_prompt: event.target.value.trim() || null })}
+              rows={4}
+              placeholder="Tono, políticas internas o mensajes que la IA debe respetar."
+              className="mt-1 w-full resize-none rounded-2xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs"
+            />
+          </label>
+
+          <details className="rounded-2xl border border-[var(--color-border)] bg-white px-3 py-3">
+            <summary className="cursor-pointer text-xs font-semibold text-[var(--color-ink)]">Plantillas Meta</summary>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <TemplateNameField label="Confirmación al paciente" value={settings.patient_confirmation_template} placeholder="cita_confirmada" onSave={(value) => onPatch({ patient_confirmation_template: value })} />
+              <TemplateNameField label="Aviso a la doctora" value={settings.doctor_booking_template} placeholder="nueva_cita_doctora" onSave={(value) => onPatch({ doctor_booking_template: value })} />
+              <TemplateNameField label="Pago rechazado" value={settings.payment_rejected_template} placeholder="comprobante_rechazado" onSave={(value) => onPatch({ payment_rejected_template: value })} />
+              <TemplateNameField label="Comprobante al equipo" value={settings.admin_receipt_review_template} placeholder="revisar_comprobante" onSave={(value) => onPatch({ admin_receipt_review_template: value })} />
+              <TemplateNameField label="Reprogramación paciente" value={settings.patient_reschedule_template} placeholder="cita_reprogramacion" onSave={(value) => onPatch({ patient_reschedule_template: value })} />
+              <TemplateNameField label="Doctora no disponible" value={settings.admin_doctor_unavailable_template} placeholder="reprogramar_cita" onSave={(value) => onPatch({ admin_doctor_unavailable_template: value })} />
+              <label className="flex items-center gap-2 text-[11px] font-semibold text-[var(--color-copy)] sm:col-span-2">
+                <input type="checkbox" checked={settings.doctor_booking_template_document_header} onChange={(event) => void onPatch({ doctor_booking_template_document_header: event.target.checked })} />
+                La plantilla de doctora tiene encabezado Documento
+              </label>
+            </div>
+          </details>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TemplateNameField({ label, value, placeholder, onSave }: { label: string; value: string | null; placeholder: string; onSave: (value: string | null) => Promise<void> }) {
+  return (
+    <label className="block text-[11px] font-semibold text-[var(--color-copy)]">{label}
+      <input key={`${label}-${value ?? ""}`} defaultValue={value ?? ""} onBlur={(event) => void onSave(event.target.value.trim() || null)} placeholder={placeholder} className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs" />
+    </label>
+  );
 }

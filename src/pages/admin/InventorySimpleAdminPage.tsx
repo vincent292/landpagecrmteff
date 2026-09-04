@@ -155,6 +155,7 @@ export function InventorySimpleAdminPage() {
   const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [itemFormError, setItemFormError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [inventoryFilter, setInventoryFilter] = useState<InventoryFilter>("all");
   const [showItemModal, setShowItemModal] = useState(false);
@@ -312,6 +313,7 @@ export function InventorySimpleAdminPage() {
 
   const openItemModal = (item?: InventoryItemRow) => {
     setNotice(null);
+    setItemFormError(null);
     setItemForm(item ? itemToSimpleForm(item) : emptyItemForm(units[0]?.id ?? ""));
     setShowItemModal(true);
   };
@@ -334,21 +336,33 @@ export function InventorySimpleAdminPage() {
   };
 
   const saveItem = async () => {
+    const showModalError = (text: string) => {
+      setItemFormError(text);
+      setNotice(null);
+    };
     const name = cleanName(itemForm.name);
-    if (!name) return setNotice({ type: "error", text: "Escribe el nombre del producto." });
+    if (!name) {
+      showModalError("Escribe el nombre del producto o presentación. Ej.: Azufre botella grande.");
+      return;
+    }
     const duplicate = items.find((row) => row.id !== itemForm.id && normalizeName(row.name) === normalizeName(name));
     if (duplicate) {
       setQuery(duplicate.name);
-      setNotice({ type: "error", text: `“${duplicate.name}” ya existe. Usa ese producto para no duplicar el inventario.` });
+      showModalError(`“${duplicate.name}” ya existe. Usa ese producto para no duplicar el inventario.`);
       return;
     }
-    if (!itemForm.unit_id) return setNotice({ type: "error", text: "Selecciona cómo se contará el producto." });
+    if (!itemForm.unit_id) {
+      showModalError("Selecciona la medida interna que se descuenta del stock. Ej.: ml, u, ampolla.");
+      return;
+    }
     if (itemForm.presentation_unit_id && itemForm.presentation_unit_id === itemForm.unit_id) {
-      return setNotice({ type: "error", text: "La presentación debe ser distinta a la unidad interna. Si no aplica, déjala vacía." });
+      showModalError("Elige dos medidas distintas. La medida interna es lo que se resta del stock; la presentación es el envase que cuentas físicamente. Ej.: 1 frasco = 100 u. Si este producto no tiene envase, deja “Sin presentación”.");
+      return;
     }
 
     setSaving(true);
     setNotice(null);
+    setItemFormError(null);
     try {
       const unit = unitMap.get(itemForm.unit_id);
       const category = activeCategories.find((row) => row.id === itemForm.category_id);
@@ -371,10 +385,11 @@ export function InventorySimpleAdminPage() {
       if (itemForm.id) await updateInventoryItem(itemForm.id, payload);
       else await createInventoryItem({ ...payload, current_stock: 0, alert_days_before_expiration: 30, created_by: actorId });
       setShowItemModal(false);
+      setItemFormError(null);
       setNotice({ type: "success", text: itemForm.id ? "Producto actualizado." : "Producto creado. Ahora puedes registrar su primera entrada." });
       await load();
     } catch (error) {
-      setNotice({ type: "error", text: friendlyError(error) });
+      showModalError(friendlyError(error));
     } finally {
       setSaving(false);
     }
@@ -896,10 +911,15 @@ export function InventorySimpleAdminPage() {
       ) : null}
 
       {showItemModal ? (
-        <Modal title={itemForm.id ? "Editar producto" : "Nuevo producto"} onClose={() => setShowItemModal(false)}>
+        <Modal title={itemForm.id ? "Editar producto" : "Nuevo producto"} onClose={() => { setItemFormError(null); setShowItemModal(false); }}>
+          {itemFormError ? (
+            <div className="mb-4 rounded-[16px] border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold leading-6 text-red-800">
+              {itemFormError}
+            </div>
+          ) : null}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <TextField label="Nombre / presentación" value={itemForm.name} onChange={(name) => setItemForm({ ...itemForm, name })} placeholder="Ej. Azufre botella grande" autoFocus />
+              <TextField label="Nombre / presentación" value={itemForm.name} onChange={(name) => { setItemFormError(null); setItemForm({ ...itemForm, name }); }} placeholder="Ej. Azufre botella grande" autoFocus />
               {itemNameSuggestions.length > 0 ? (
                 <div className="rounded-[14px] border border-amber-200 bg-amber-50 p-2">
                   <p className="px-2 pb-1 text-xs font-semibold text-amber-900">¿Ya existe?</p>
@@ -908,6 +928,7 @@ export function InventorySimpleAdminPage() {
                       key={item.id}
                       type="button"
                       onClick={() => {
+                        setItemFormError(null);
                         setShowItemModal(false);
                         setActiveTab("inventario");
                         setQuery(item.name);
@@ -924,7 +945,7 @@ export function InventorySimpleAdminPage() {
             <CreatableSelectField
               label="Se descuenta internamente en"
               value={itemForm.unit_id}
-              onChange={(unit_id) => setItemForm({ ...itemForm, unit_id })}
+              onChange={(unit_id) => { setItemFormError(null); setItemForm({ ...itemForm, unit_id }); }}
               options={activeUnits.map((row) => ({ value: row.id, label: `${row.name} (${row.abbreviation})`, searchText: `${row.name} ${row.abbreviation}`, aliases: [row.name, row.abbreviation] }))}
               onCreate={(name) => createQuickUnit(name)}
               placeholder="Buscar o crear unidad"
@@ -932,7 +953,7 @@ export function InventorySimpleAdminPage() {
             <CreatableSelectField
               label="Categoría"
               value={itemForm.category_id}
-              onChange={(category_id) => setItemForm({ ...itemForm, category_id })}
+              onChange={(category_id) => { setItemFormError(null); setItemForm({ ...itemForm, category_id }); }}
               options={activeCategories.map((row) => ({ value: row.id, label: row.name }))}
               onCreate={createQuickCategory}
               allowEmpty
@@ -942,7 +963,7 @@ export function InventorySimpleAdminPage() {
             <CreatableSelectField
               label="Presentación de este producto"
               value={itemForm.presentation_unit_id}
-              onChange={(presentation_unit_id) => setItemForm({ ...itemForm, presentation_unit_id, units_per_presentation: presentation_unit_id ? itemForm.units_per_presentation : 1 })}
+              onChange={(presentation_unit_id) => { setItemFormError(null); setItemForm({ ...itemForm, presentation_unit_id, units_per_presentation: presentation_unit_id ? itemForm.units_per_presentation : 1 }); }}
               options={activeUnits.map((row) => ({ value: row.id, label: `${row.name} (${row.abbreviation})`, searchText: `${row.name} ${row.abbreviation}`, aliases: [row.name, row.abbreviation] }))}
               onCreate={(name) => createQuickUnit(name, "empaque")}
               allowEmpty
@@ -956,7 +977,7 @@ export function InventorySimpleAdminPage() {
             <TextAreaField label="Nota (opcional)" value={itemForm.notes} onChange={(notes) => setItemForm({ ...itemForm, notes })} className="sm:col-span-2" />
           </div>
           <p className="mt-4 rounded-[16px] bg-[rgba(247,242,236,0.8)] px-4 py-3 text-sm text-[var(--color-copy)]">El stock no se cambia desde esta ficha. Usa Ingresar, Descontar o el cierre de turno para que quede historial.</p>
-          <ModalActions saving={saving} onSave={() => void saveItem()} onCancel={() => setShowItemModal(false)} />
+          <ModalActions saving={saving} onSave={() => void saveItem()} onCancel={() => { setItemFormError(null); setShowItemModal(false); }} />
         </Modal>
       ) : null}
 

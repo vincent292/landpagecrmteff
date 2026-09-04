@@ -14,7 +14,6 @@ type AdminModule =
   | "promociones"
   | "cursos"
   | "inscripciones"
-  | "solicitudes"
   | "agenda"
   | "disponibilidad"
   | "galeria"
@@ -182,7 +181,7 @@ export default function App() {
           <Route path="academy" element={<AdminCollectionPage module="cursos" />} />
           <Route path="cursos" element={<Navigate to="/panel/academy" replace />} />
           <Route path="inscripciones" element={<AdminCollectionPage module="inscripciones" />} />
-          <Route path="solicitudes" element={<AdminCollectionPage module="solicitudes" />} />
+          <Route path="solicitudes" element={<Navigate to="/panel/crm-whatsapp" replace />} />
           <Route path="agenda" element={<AdminCollectionPage module="agenda" />} />
           <Route path="calendario-citas" element={<AppointmentsCalendarPage />} />
           <Route path="disponibilidad" element={<AvailabilityAdminPage />} />

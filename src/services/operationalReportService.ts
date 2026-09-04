@@ -92,13 +92,13 @@ export async function getOperationalReportData(options?: {
     id: `request-${row.id}`,
     type: "request",
     date: row.created_at,
-    title: row.interest_title ?? row.interest_type ?? "Solicitud",
+    title: row.interest_title ?? row.interest_type ?? "WhatsApp CRM",
     patientName: row.full_name ?? null,
     city: row.city ?? null,
     status: row.status ?? "Nuevo",
     amount: 0,
     rating: null,
-    source: row.interest_type ?? "Solicitud",
+    source: row.interest_type ?? "WhatsApp CRM",
     notes: row.message ?? row.internal_notes ?? null,
   }));
 

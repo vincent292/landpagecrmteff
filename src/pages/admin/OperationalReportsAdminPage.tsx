@@ -20,7 +20,7 @@ const typeOptions: { value: TypeFilter; label: string }[] = [
   { value: "appointment", label: "Citas" },
   { value: "treatment", label: "Tratamientos" },
   { value: "promotion", label: "Promociones" },
-  { value: "request", label: "Solicitudes" },
+  { value: "request", label: "CRM WhatsApp" },
   { value: "feedback", label: "Calificaciones" },
 ];
 
@@ -28,7 +28,7 @@ const typeLabels: Record<OperationalEventType, string> = {
   appointment: "Cita",
   treatment: "Tratamiento",
   promotion: "Promoción",
-  request: "Solicitud",
+  request: "CRM",
   feedback: "Calificación",
 };
 
@@ -166,7 +166,7 @@ export function OperationalReportsAdminPage() {
         <SummaryCard label="Tratamientos/procedimientos" value={String(summary.treatments)} />
         <SummaryCard label="Citas" value={String(summary.appointments)} />
         <SummaryCard label="Promociones" value={String(summary.promotions)} />
-        <SummaryCard label="Solicitudes" value={String(summary.requests)} />
+        <SummaryCard label="CRM WhatsApp" value={String(summary.requests)} />
         <SummaryCard label="Calificaciones" value={String(summary.feedback)} />
         <SummaryCard label="Monto ligado" value={formatMoney(summary.totalAmount)} />
         <SummaryCard label="Promedio atención" value={summary.averageRating == null ? "Sin datos" : `${summary.averageRating.toFixed(1)} / 5`} icon={<Star className="h-4 w-4" />} />

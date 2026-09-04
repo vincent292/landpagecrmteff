@@ -28,11 +28,11 @@ import { getBooksAdmin } from "../../services/bookService";
 import { getAdminCalendarEvents } from "../../services/calendarService";
 import { getCashMovements, getCashRegisterSessions, getCashSessionCounts } from "../../services/cashService";
 import { getAdminCourses } from "../../services/courseService";
+import { getCrmConversations, type CrmConversation } from "../../services/crmService";
 import { getMyDoctorProfile } from "../../services/doctorService";
 import { getCourseEnrollments } from "../../services/enrollmentService";
 import { getAdminGalleryAlbums } from "../../services/galleryService";
 import { getInventoryItems, getInventoryLots } from "../../services/inventoryService";
-import { getInformationRequests, type InformationRequestRow } from "../../services/requestService";
 import { getReservationsAdmin, type AppointmentReservationRow } from "../../services/reservationService";
 import { getAdminTreatments } from "../../services/treatmentService";
 import { formatDate, formatMoney } from "../../utils/text";
@@ -40,7 +40,7 @@ import { formatDate, formatMoney } from "../../utils/text";
 export function AdminDashboard() {
   const { role, user } = useAuth();
   const hidePatientPhone = shouldHidePatientPhone(role);
-  const [requests, setRequests] = useState<InformationRequestRow[]>([]);
+  const [crmConversations, setCrmConversations] = useState<CrmConversation[]>([]);
   const [coursesCount, setCoursesCount] = useState(0);
   const [enrollmentsPending, setEnrollmentsPending] = useState(0);
   const [eventsCount, setEventsCount] = useState(0);
@@ -73,7 +73,7 @@ export function AdminDashboard() {
           getAdminGalleryAlbums(false, doctorId),
         ]);
 
-        setRequests([]);
+        setCrmConversations([]);
         setCoursesCount(courseRows.filter((item) => item.is_active).length);
         setEnrollmentsPending(0);
         setEventsCount(eventRows.filter((item) => item.is_active).length);
@@ -91,7 +91,7 @@ export function AdminDashboard() {
       }
 
       const [
-        requestRows,
+        crmRows,
         courseRows,
         enrollmentRows,
         eventRows,
@@ -103,7 +103,7 @@ export function AdminDashboard() {
         inventoryItemRows,
         inventoryLotRows,
       ] = await Promise.all([
-        getInformationRequests(),
+        getCrmConversations(),
         getAdminCourses(),
         getCourseEnrollments(),
         getAdminCalendarEvents(),
@@ -121,7 +121,7 @@ export function AdminDashboard() {
       const nextThirtyDays = new Date(todayDate);
       nextThirtyDays.setDate(nextThirtyDays.getDate() + 30);
 
-      setRequests(requestRows);
+      setCrmConversations(crmRows);
       setCoursesCount(courseRows.filter((item) => item.is_active).length);
       setEnrollmentsPending(enrollmentRows.filter((item) => item.status === "Pendiente").length);
       setEventsCount(eventRows.filter((item) => item.is_active).length);
@@ -158,9 +158,17 @@ export function AdminDashboard() {
     void load();
   }, [role, user?.id]);
 
-  const newRequests = useMemo(
-    () => requests.filter((item) => item.status === "Nuevo").length,
-    [requests]
+  const crmUnreadCount = useMemo(
+    () => crmConversations.reduce((total, item) => total + Number(item.unread_count ?? 0), 0),
+    [crmConversations]
+  );
+  const crmNeedsHumanCount = useMemo(
+    () => crmConversations.filter((item) => item.needs_human).length,
+    [crmConversations]
+  );
+  const crmOpenCount = useMemo(
+    () => crmConversations.filter((item) => item.status !== "cerrada").length,
+    [crmConversations]
   );
 
   const activeReservations = useMemo(
@@ -281,12 +289,12 @@ export function AdminDashboard() {
               Una vista clara para mover el dia a dia de la clinica con elegancia.
             </h1>
             <p className="mt-5 max-w-2xl text-sm leading-7 text-[var(--color-copy)] md:text-base">
-              Aqui concentramos solicitudes, inscripciones, agenda, caja e inventario
+              Aqui concentramos WhatsApp CRM, inscripciones, agenda, caja e inventario
               para que el seguimiento sea rapido, ordenado y amable.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <MiniStat label="Solicitudes nuevas" value={String(newRequests)} href="/panel/solicitudes" />
+            <MiniStat label="WhatsApp sin leer" value={String(crmUnreadCount)} href="/panel/crm-whatsapp" />
             <MiniStat label="Ingresos de hoy" value={formatMoney(cashIncomeToday)} href="/panel/caja" />
           </div>
         </div>
@@ -297,8 +305,8 @@ export function AdminDashboard() {
       ) : null}
 
       <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-        <Metric icon={<MessagesSquare className="h-5 w-5" />} label="Solicitudes nuevas" value={String(newRequests)} href="/panel/solicitudes" />
-        <Metric icon={<ClipboardList className="h-5 w-5" />} label="Total solicitudes" value={String(requests.length)} href="/panel/solicitudes" />
+        <Metric icon={<MessagesSquare className="h-5 w-5" />} label="WhatsApp sin leer" value={String(crmUnreadCount)} href="/panel/crm-whatsapp" />
+        <Metric icon={<ClipboardList className="h-5 w-5" />} label="Conversaciones abiertas" value={String(crmOpenCount)} href="/panel/crm-whatsapp" />
         <Metric icon={<GraduationCap className="h-5 w-5" />} label="Academy activa" value={String(coursesCount)} href="/panel/academy" />
         <Metric icon={<Users className="h-5 w-5" />} label="Inscripciones pendientes" value={String(enrollmentsPending)} href="/panel/inscripciones" />
         <Metric icon={<CalendarDays className="h-5 w-5" />} label="Citas agendadas" value={String(activeReservations.length)} href="/panel/citas" />
@@ -364,29 +372,30 @@ export function AdminDashboard() {
 
       <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <div className="rounded-[28px] border border-[var(--color-border)] bg-white/75 p-6 shadow-[0_18px_50px_rgba(62,42,31,0.08)]">
-          <h2 className="text-xl font-semibold text-[var(--color-ink)]">Solicitudes recientes</h2>
+          <h2 className="text-xl font-semibold text-[var(--color-ink)]">Conversaciones recientes</h2>
           <div className="mt-5 grid gap-3 md:hidden">
-            {requests.slice(0, 8).map((request) => (
+            {crmConversations.slice(0, 8).map((conversation) => (
               <Link
-                key={request.id}
-                to="/panel/solicitudes"
+                key={conversation.id}
+                to="/panel/crm-whatsapp"
                 className="rounded-[22px] border border-[var(--color-border)] bg-[rgba(247,242,236,0.76)] p-4 transition hover:bg-white"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <h3 className="font-semibold text-[var(--color-ink)]">{request.full_name}</h3>
+                    <h3 className="font-semibold text-[var(--color-ink)]">{crmConversationTitle(conversation)}</h3>
                     <p className="mt-1 text-sm text-[var(--color-copy)]">
-                      {request.phone} · {request.city ?? "Sin ciudad"}
+                      +{conversation.crm_contacts.phone} · {conversation.crm_contacts.city ?? "Sin ciudad"}
                     </p>
                   </div>
                   <span className="rounded-full bg-[rgba(216,194,174,0.26)] px-3 py-1 text-xs font-semibold text-[var(--color-mocha)]">
-                    {request.status}
+                    {conversation.crm_contacts.lead_stage}
                   </span>
                 </div>
-                <p className="mt-3 text-sm text-[var(--color-copy)]">{request.interest_title ?? "General"}</p>
-                <p className="mt-2 text-xs text-[var(--color-copy)]">{new Date(request.created_at).toLocaleDateString("es-BO")}</p>
+                <p className="mt-3 text-sm text-[var(--color-copy)]">{conversation.last_message_preview || "Sin mensajes recientes"}</p>
+                <p className="mt-2 text-xs text-[var(--color-copy)]">{formatCrmDate(conversation.last_message_at)}</p>
               </Link>
             ))}
+            {crmConversations.length === 0 ? <p className="text-sm text-[var(--color-copy)]">Todavia no hay conversaciones en WhatsApp CRM.</p> : null}
           </div>
           <div className="mt-5 hidden overflow-x-auto md:block">
             <table className="w-full min-w-[760px] text-left text-sm">
@@ -395,28 +404,29 @@ export function AdminDashboard() {
                   <th className="py-3">Nombre</th>
                   <th>Celular</th>
                   <th>Ciudad</th>
-                  <th>Interes</th>
+                  <th>Ultimo mensaje</th>
                   <th>Estado</th>
                   <th>Fecha</th>
                 </tr>
               </thead>
               <tbody>
-                {requests.slice(0, 8).map((request) => (
-                  <tr key={request.id} className="border-t border-[rgba(198,162,123,0.14)]">
-                    <td className="py-4 font-medium">{request.full_name}</td>
-                    <td>{request.phone}</td>
-                    <td>{request.city ?? "Sin ciudad"}</td>
-                    <td>{request.interest_title ?? "General"}</td>
+                {crmConversations.slice(0, 8).map((conversation) => (
+                  <tr key={conversation.id} className="border-t border-[rgba(198,162,123,0.14)]">
+                    <td className="py-4 font-medium">{crmConversationTitle(conversation)}</td>
+                    <td>+{conversation.crm_contacts.phone}</td>
+                    <td>{conversation.crm_contacts.city ?? "Sin ciudad"}</td>
+                    <td className="max-w-[260px] truncate">{conversation.last_message_preview || "Sin mensajes recientes"}</td>
                     <td>
                       <span className="rounded-full bg-[rgba(216,194,174,0.26)] px-3 py-1 text-xs font-semibold text-[var(--color-mocha)]">
-                        {request.status}
+                        {conversation.needs_human ? "Humano" : conversation.status}
                       </span>
                     </td>
-                    <td>{new Date(request.created_at).toLocaleDateString("es-BO")}</td>
+                    <td>{formatCrmDate(conversation.last_message_at)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            {crmConversations.length === 0 ? <p className="mt-4 text-sm text-[var(--color-copy)]">Todavia no hay conversaciones en WhatsApp CRM.</p> : null}
           </div>
         </div>
 
@@ -425,9 +435,9 @@ export function AdminDashboard() {
             <h2 className="text-xl font-semibold text-[var(--color-ink)]">Prioridades del dia</h2>
             <div className="mt-5 grid gap-3">
               <PriorityItem
-                title="Responder nuevas solicitudes"
-                detail={`${newRequests} conversaciones necesitan primer contacto.`}
-                href="/panel/solicitudes"
+                title="Responder WhatsApp CRM"
+                detail={`${crmUnreadCount} mensajes sin leer y ${crmNeedsHumanCount} requieren persona.`}
+                href="/panel/crm-whatsapp"
               />
               <PriorityItem
                 title="Revisar inscripciones Academy"
@@ -455,7 +465,7 @@ export function AdminDashboard() {
           <div className="rounded-[28px] border border-[var(--color-border)] bg-white/75 p-6 shadow-[0_18px_50px_rgba(62,42,31,0.08)]">
             <h2 className="text-xl font-semibold text-[var(--color-ink)]">Resumen operativo</h2>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <QuickCard label="Solicitudes abiertas" value={String(requests.filter((item) => item.status !== "Finalizado" && item.status !== "Descartado").length)} href="/panel/solicitudes" />
+              <QuickCard label="Conversaciones abiertas" value={String(crmOpenCount)} href="/panel/crm-whatsapp" />
               <QuickCard label="Academy publicada" value={String(coursesCount)} href="/panel/academy" />
               <QuickCard label="Agenda visible" value={String(eventsCount)} href="/panel/agenda" />
               <QuickCard label="Catalogo activo" value={String(treatmentsCount)} href="/panel/tratamientos" />
@@ -561,6 +571,15 @@ function QuickCard({ label, value, href }: { label: string; value: string; href:
       <p className="mt-2 text-2xl font-semibold text-[var(--color-ink)]">{value}</p>
     </Link>
   );
+}
+
+function crmConversationTitle(conversation: CrmConversation) {
+  return conversation.crm_contacts.full_name || `+${conversation.crm_contacts.phone}`;
+}
+
+function formatCrmDate(value?: string | null) {
+  if (!value) return "Sin fecha";
+  return new Date(value).toLocaleDateString("es-BO");
 }
 
 function AppointmentModal({

@@ -40,9 +40,9 @@ export async function requireCrmManager(request: Request) {
     .select("role")
     .eq("id", userData.user.id)
     .maybeSingle();
-  if (profileError || !["admin", "superadmin"].includes(profile?.role ?? "")) throw new Error("FORBIDDEN");
+  if (profileError || !["admin", "superadmin", "assistant"].includes(profile?.role ?? "")) throw new Error("FORBIDDEN");
 
-  return { admin, user: userData.user, role: profile!.role as "admin" | "superadmin" };
+  return { admin, user: userData.user, role: profile!.role as "admin" | "superadmin" | "assistant" };
 }
 
 type WhatsAppContact = { profile?: { name?: string }; wa_id?: string };

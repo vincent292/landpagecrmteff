@@ -53,7 +53,7 @@ export function canAccessAdminModule(role: UserRole, module: string) {
       "dashboard",
       "pacientes",
       "inscripciones",
-      "solicitudes",
+      "crm-whatsapp",
       "agenda",
       "calendario-citas",
       "disponibilidad",

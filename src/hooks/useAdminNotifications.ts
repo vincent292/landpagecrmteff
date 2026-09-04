@@ -9,17 +9,16 @@ import { getEnrollmentById } from "../services/enrollmentService";
 import { getInventoryItems, getInventoryLots } from "../services/inventoryService";
 import { isPaymentManagedReservation } from "../services/paymentsAndReservationsService";
 import { getPromotionOrderById } from "../services/promotionOrderService";
-import { getInformationRequestById } from "../services/requestService";
 import { getReservationById } from "../services/reservationService";
 
 export type AdminNotification = {
   id: string;
   entityId: string;
-  type: "request" | "enrollment" | "reservation" | "promotion_order" | "book_order" | "appointment" | "inventory";
+  type: "crm" | "enrollment" | "reservation" | "promotion_order" | "book_order" | "appointment" | "inventory";
   title: string;
   detail: string;
   href: string;
-  module: "dashboard" | "solicitudes" | "pagos-reservas" | "citas";
+  module: "dashboard" | "crm-whatsapp" | "pagos-reservas" | "citas";
   createdAt: string;
 };
 
@@ -166,6 +165,40 @@ async function getInventoryAlertNotification() {
   };
 }
 
+type CrmNotificationRow = {
+  id: string;
+  unread_count?: number | null;
+  needs_human?: boolean | null;
+  last_message_preview?: string | null;
+  last_message_at?: string | null;
+  created_at: string;
+  crm_contacts?: { full_name?: string | null; phone?: string | null; city?: string | null } | { full_name?: string | null; phone?: string | null; city?: string | null }[] | null;
+};
+
+function getJoinedContact(
+  value: CrmNotificationRow["crm_contacts"]
+) {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}
+
+function buildCrmNotification(row: CrmNotificationRow): AdminNotification {
+  const contact = getJoinedContact(row.crm_contacts);
+  const name = contact?.full_name?.trim() || (contact?.phone ? `+${contact.phone}` : "Contacto");
+  const city = contact?.city ? ` · ${contact.city}` : "";
+  const preview = row.last_message_preview ? ` · ${row.last_message_preview}` : "";
+  return {
+    id: `crm-${row.id}`,
+    entityId: row.id,
+    type: "crm",
+    title: row.needs_human ? "WhatsApp requiere persona" : "Nuevo mensaje WhatsApp",
+    detail: `${name}${city}${preview}`,
+    href: "/panel/crm-whatsapp",
+    module: "crm-whatsapp",
+    createdAt: row.last_message_at ?? row.created_at,
+  };
+}
+
 export function useAdminNotifications(userId?: string | null, role?: UserRole) {
   const [items, setItems] = useState<AdminNotification[]>([]);
   const [lastSeenAt, setLastSeenAt] = useState<string>(new Date(0).toISOString());
@@ -173,14 +206,12 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
 
   useEffect(() => {
     if (!userId) return;
-    setLastSeenAt(readLastSeen(userId));
+    const timeoutId = window.setTimeout(() => setLastSeenAt(readLastSeen(userId)), 0);
+    return () => window.clearTimeout(timeoutId);
   }, [userId]);
 
   useEffect(() => {
-    if (!userId || !role || !isDoctorRole(role)) {
-      setDoctorProfileId(null);
-      return;
-    }
+    if (!userId || !role || !isDoctorRole(role)) return;
 
     let active = true;
 
@@ -211,13 +242,12 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
       const enrollmentsFilter = getVisibleDeletionFilter("course_enrollments", false);
       const promotionOrdersFilter = getVisibleDeletionFilter("promotion_orders", false);
 
-      const [requestsResult, enrollmentsResult, promotionOrdersResult, reservationsResult, bookOrders, doctorAppointmentsResult, inventoryNotification] = await Promise.all([
+      const [crmResult, enrollmentsResult, promotionOrdersResult, reservationsResult, bookOrders, doctorAppointmentsResult, inventoryNotification] = await Promise.all([
         supabase
-          .from("information_requests")
-          .select("id, full_name, interest_title, interest_type, created_at")
-          .eq("is_deleted", false)
-          .order("created_at", { ascending: false })
-          .limit(6),
+          .from("crm_conversations")
+          .select("id, unread_count, needs_human, last_message_preview, last_message_at, created_at, crm_contacts(full_name, phone, city)")
+          .order("last_message_at", { ascending: false, nullsFirst: false })
+          .limit(8),
         (() => {
           let query = supabase
             .from("course_enrollments")
@@ -264,16 +294,9 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
       const notifications: AdminNotification[] = [
         ...(doctorScoped
           ? []
-          : (requestsResult.data ?? []).map((row) => ({
-              id: `request-${row.id}`,
-              entityId: row.id,
-              type: "request" as const,
-              title: "Nueva solicitud",
-              detail: `${row.full_name} · ${row.interest_title ?? row.interest_type ?? "General"}`,
-              href: "/panel/solicitudes",
-              module: "solicitudes" as const,
-              createdAt: row.created_at,
-            }))),
+          : (crmResult.data ?? [])
+              .filter((row) => Number(row.unread_count ?? 0) > 0 || Boolean(row.needs_human))
+              .map((row) => buildCrmNotification(row as unknown as CrmNotificationRow))),
         ...(doctorScoped
           ? []
           : (enrollmentsResult.data ?? []).map((row) => ({
@@ -377,21 +400,19 @@ export function useAdminNotifications(userId?: string | null, role?: UserRole) {
       .channel(`admin-live-notifications:${userId}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "information_requests" },
+        { event: "INSERT", schema: "public", table: "crm_messages" },
         async (payload) => {
           if (!active || inventoryOnly) return;
-          const row = await getInformationRequestById(payload.new.id).catch(() => null);
+          if (payload.new.direction !== "inbound") return;
+          const conversationId = String(payload.new.conversation_id ?? "");
+          if (!conversationId) return;
+          const { data: row } = await supabase
+            .from("crm_conversations")
+            .select("id, unread_count, needs_human, last_message_preview, last_message_at, created_at, crm_contacts(full_name, phone, city)")
+            .eq("id", conversationId)
+            .maybeSingle();
           if (!row) return;
-          prepend({
-            id: `request-${row.id}`,
-            entityId: row.id,
-            type: "request",
-            title: "Nueva solicitud",
-            detail: `${row.full_name} · ${row.interest_title ?? row.interest_type ?? "General"}`,
-            href: "/panel/solicitudes",
-            module: "solicitudes",
-            createdAt: row.created_at,
-          });
+          prepend(buildCrmNotification(row as unknown as CrmNotificationRow));
         }
       )
       .on(

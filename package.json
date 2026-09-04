@@ -14,7 +14,7 @@
     "supabase:status": "supabase status",
     "supabase:reset": "supabase db reset",
     "supabase:push": "supabase db push",
-    "supabase:deploy-functions": "supabase functions deploy create-doctor",
+    "supabase:deploy-functions": "supabase functions deploy create-doctor && supabase functions deploy update-user-access",
     "supabase:deploy-crm": "supabase functions deploy whatsapp-webhook --project-ref huwdvusjdiumohegffci && supabase functions deploy whatsapp-send --project-ref huwdvusjdiumohegffci && supabase functions deploy crm-knowledge-sync --project-ref huwdvusjdiumohegffci && supabase functions deploy crm-notification-dispatch --project-ref huwdvusjdiumohegffci",
     "supabase:types": "supabase gen types typescript --local > src/lib/database.types.ts"
   },
