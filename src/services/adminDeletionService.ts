@@ -222,6 +222,25 @@ async function deleteLinkedCashMovement(id?: string | null) {
 
 async function cleanupBeforeHardDelete(table: DeletableTable, id: string) {
   switch (table) {
+    case "inventory_items": {
+      const { data: movements, error: movementsError } = await supabase
+        .from("inventory_movements")
+        .select("id")
+        .eq("item_id", id);
+      if (movementsError) throw movementsError;
+
+      await deleteRowsByColumn("inventory_supplier_order_items", "item_id", id);
+      await deleteRowsByColumn("inventory_count_lines", "item_id", id);
+
+      for (const movement of movements ?? []) {
+        await hardDeleteRecord("inventory_movements", movement.id);
+      }
+
+      await deleteRowsByColumn("clinical_inventory_usages", "item_id", id);
+      await deleteRowsByColumn("inventory_adjustments", "item_id", id);
+      await deleteRowsByColumn("inventory_lots", "item_id", id);
+      return;
+    }
     case "course_enrollments": {
       const { data, error } = await supabase
         .from("course_enrollments")
@@ -474,6 +493,11 @@ async function cleanupBeforeHardDelete(table: DeletableTable, id: string) {
     default:
       return;
   }
+}
+
+async function deleteRowsByColumn(table: string, column: string, value: string) {
+  const { error } = await supabase.from(table).delete().eq(column, value);
+  if (error) throw error;
 }
 
 export async function hardDeleteRecord(table: DeletableTable, id: string) {

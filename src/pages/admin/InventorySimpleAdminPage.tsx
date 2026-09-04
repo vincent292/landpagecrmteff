@@ -23,15 +23,17 @@ import { DeleteActions, DeletedStatusNote } from "../../components/admin/DeleteA
 import { InventorySimpleOrdersPanel } from "../../components/admin/InventorySimpleOrdersPanel";
 import { EmptyState, ErrorState, LoadingState } from "../../components/common/AsyncState";
 import { useAuth } from "../../hooks/useAuth";
-import { canSoftDelete, hardDeleteRecord, isSoftDeleted, restoreRecord, softDeleteRecord } from "../../services/adminDeletionService";
+import { canSoftDelete, hardDeleteRecord, isSoftDeleted, restoreRecord, softDeleteRecord, type DeletableTable, type DeletionMetadata } from "../../services/adminDeletionService";
 import { recordClinicalInventoryUsage } from "../../services/clinicalHistoryService";
 import {
   cancelInventoryShift,
   closeInventoryShift,
   confirmInventoryShiftOpening,
+  createInventoryCategory,
   createInventoryItem,
   createInventoryLot,
   createInventorySupplier,
+  createInventoryUnit,
   getInventoryCategories,
   getInventoryClinicalUsages,
   getInventoryCountLines,
@@ -175,14 +177,14 @@ export function InventorySimpleAdminPage() {
     try {
       const [itemRows, categoryRows, unitRows, supplierRows, locationRows, lotRows, movementRows, usageRows, countRows, lineRows, patientRows] = await Promise.all([
         getInventoryItems(includeDeletedInventory),
-        getInventoryCategories(false),
-        getInventoryUnits(false),
+        getInventoryCategories(includeDeletedInventory),
+        getInventoryUnits(includeDeletedInventory),
         getInventorySuppliers(false),
         getInventoryLocations(false),
         getInventoryLots(false),
         getInventoryMovements(false),
         getInventoryClinicalUsages(false),
-        getInventoryCounts(false),
+        getInventoryCounts(includeDeletedInventory),
         getInventoryCountLines(),
         getPatients(false, role),
       ]);
@@ -213,8 +215,13 @@ export function InventorySimpleAdminPage() {
   const unitMap = useMemo(() => new Map(units.map((row) => [row.id, row])), [units]);
   const activeItems = useMemo(() => items.filter((row) => !isSoftDeleted(row)), [items]);
   const archivedItems = useMemo(() => items.filter((row) => isSoftDeleted(row)), [items]);
+  const activeCategories = useMemo(() => categories.filter((row) => row.is_active && !isSoftDeleted(row)), [categories]);
+  const activeUnits = useMemo(() => units.filter((row) => row.is_active && !isSoftDeleted(row)), [units]);
+  const archivedCategories = useMemo(() => categories.filter((row) => isSoftDeleted(row)), [categories]);
+  const archivedUnits = useMemo(() => units.filter((row) => isSoftDeleted(row)), [units]);
   const openShifts = counts.filter((row) => row.status === "abierto" && !isSoftDeleted(row));
   const closedShifts = counts.filter((row) => row.status === "cerrado" && !isSoftDeleted(row));
+  const archivedShifts = counts.filter((row) => row.status === "cerrado" && isSoftDeleted(row));
   const openShiftIds = useMemo(() => new Set(openShifts.map((shift) => shift.id)), [openShifts]);
   const itemIdsInOpenShifts = useMemo(() => new Set(countLines.filter((line) => openShiftIds.has(line.count_id)).map((line) => line.item_id)), [countLines, openShiftIds]);
   const lowStockItems = activeItems.filter((row) => Number(row.current_stock) <= Number(row.minimum_stock));
@@ -263,6 +270,46 @@ export function InventorySimpleAdminPage() {
     return count?.status === "cerrado" && isWithinRange(count.closed_at ?? count.count_date, reportRange);
   });
 
+  const createQuickCategory = async (rawName: string) => {
+    const name = cleanName(rawName);
+    if (!name) throw new Error("Escribe la categoría.");
+    const existing = activeCategories.find((row) => sameNormalized(row.name, name));
+    if (existing) return existing.id;
+
+    const created = await createInventoryCategory({
+      name,
+      description: null,
+      is_active: true,
+      created_by: actorId,
+      updated_by: actorId,
+    });
+    setCategories((current) => sortByName(mergeById(current, created)));
+    return created.id;
+  };
+
+  const createQuickUnit = async (rawName: string, preferredType?: InventoryUnitRow["unit_type"]) => {
+    const name = cleanName(rawName);
+    if (!name) throw new Error("Escribe la unidad.");
+    const abbreviation = unitAbbreviationFromName(name);
+    const existing = activeUnits.find((row) => sameNormalized(row.name, name) || sameNormalized(row.abbreviation, name) || sameNormalized(row.abbreviation, abbreviation));
+    if (existing) return existing.id;
+
+    const unitType = preferredType ?? inferUnitType(name);
+    const created = await createInventoryUnit({
+      name,
+      abbreviation,
+      unit_type: unitType,
+      is_base_unit: unitType !== "empaque",
+      base_unit_id: null,
+      conversion_factor: 1,
+      is_active: true,
+      created_by: actorId,
+      updated_by: actorId,
+    });
+    setUnits((current) => sortByName(mergeById(current, created)));
+    return created.id;
+  };
+
   const openItemModal = (item?: InventoryItemRow) => {
     setNotice(null);
     setItemForm(item ? itemToSimpleForm(item) : emptyItemForm(units[0]?.id ?? ""));
@@ -296,12 +343,15 @@ export function InventorySimpleAdminPage() {
       return;
     }
     if (!itemForm.unit_id) return setNotice({ type: "error", text: "Selecciona cómo se contará el producto." });
+    if (itemForm.presentation_unit_id && itemForm.presentation_unit_id === itemForm.unit_id) {
+      return setNotice({ type: "error", text: "La presentación debe ser distinta a la unidad interna. Si no aplica, déjala vacía." });
+    }
 
     setSaving(true);
     setNotice(null);
     try {
       const unit = unitMap.get(itemForm.unit_id);
-      const category = categories.find((row) => row.id === itemForm.category_id);
+      const category = activeCategories.find((row) => row.id === itemForm.category_id);
       const payload = {
         name,
         item_type: "insumo",
@@ -605,6 +655,47 @@ export function InventorySimpleAdminPage() {
     }
   };
 
+  const archiveInventoryRecord = async (table: DeletableTable, id: string, label: string) => {
+    if (!window.confirm(`Quitar “${label}” de la vista? No se borra su historial.`)) return;
+    setSaving(true);
+    try {
+      await softDeleteRecord({ table, id, actorId, actorRole: role, actorName, actorEmail });
+      setNotice({ type: "success", text: `“${label}” fue ocultado de la vista.` });
+      await load();
+    } catch (error) {
+      setNotice({ type: "error", text: friendlyError(error) });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const restoreInventoryRecord = async (table: DeletableTable, id: string, label: string) => {
+    setSaving(true);
+    try {
+      await restoreRecord(table, id);
+      setNotice({ type: "success", text: `“${label}” fue recuperado.` });
+      await load();
+    } catch (error) {
+      setNotice({ type: "error", text: friendlyError(error) });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const hardDeleteInventoryRecord = async (table: DeletableTable, id: string, label: string) => {
+    if (!window.confirm(`Borrar definitivamente “${label}”? Esta acción no se puede deshacer.`)) return;
+    setSaving(true);
+    try {
+      await hardDeleteRecord(table, id);
+      setNotice({ type: "success", text: `“${label}” fue borrado definitivamente.` });
+      await load();
+    } catch (error) {
+      setNotice({ type: "error", text: friendlyError(error) });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) return <LoadingState label="Preparando inventario..." />;
   if (loadError) return <ErrorState label="No pudimos cargar el inventario." />;
 
@@ -649,6 +740,7 @@ export function InventorySimpleAdminPage() {
         <TurnSection
           openShifts={openShifts}
           closedShifts={closedShifts}
+          archivedShifts={archivedShifts}
           countLines={countLines}
           movements={movements}
           clinicalUsages={clinicalUsages}
@@ -660,11 +752,15 @@ export function InventorySimpleAdminPage() {
           setDetails={setShiftCountDetails}
           searches={shiftSearch}
           setSearches={setShiftSearch}
+          role={role}
           saving={saving}
           onOpen={createShift}
           onConfirmOpening={confirmShiftOpening}
           onClose={closeShift}
           onCancel={cancelShift}
+          onArchiveShift={(shift) => void archiveInventoryRecord("inventory_counts", shift.id, shift.shift_name || "Turno")}
+          onRestoreShift={(shift) => void restoreInventoryRecord("inventory_counts", shift.id, shift.shift_name || "Turno")}
+          onHardDeleteShift={(shift) => void hardDeleteInventoryRecord("inventory_counts", shift.id, shift.shift_name || "Turno")}
         />
       ) : null}
 
@@ -744,6 +840,20 @@ export function InventorySimpleAdminPage() {
             </div>
           </SimplePanel>
 
+          {canSoftDelete(role) ? (
+            <QuickInventorySettingsPanel
+              role={role}
+              categories={[...activeCategories, ...archivedCategories]}
+              units={[...activeUnits, ...archivedUnits]}
+              onArchiveCategory={(category) => void archiveInventoryRecord("inventory_categories", category.id, category.name)}
+              onRestoreCategory={(category) => void restoreInventoryRecord("inventory_categories", category.id, category.name)}
+              onHardDeleteCategory={(category) => void hardDeleteInventoryRecord("inventory_categories", category.id, category.name)}
+              onArchiveUnit={(unit) => void archiveInventoryRecord("inventory_units", unit.id, unit.name)}
+              onRestoreUnit={(unit) => void restoreInventoryRecord("inventory_units", unit.id, unit.name)}
+              onHardDeleteUnit={(unit) => void hardDeleteInventoryRecord("inventory_units", unit.id, unit.name)}
+            />
+          ) : null}
+
           <SimplePanel title="Últimos movimientos">
             <MovementList movements={movements.filter((row) => !clinicalMovementIds.has(row.id)).slice(0, 20)} clinicalUsages={clinicalUsages.slice(0, 10)} itemMap={itemMap} unitMap={unitMap} />
           </SimplePanel>
@@ -764,7 +874,7 @@ export function InventorySimpleAdminPage() {
             suppliers={suppliers}
             items={activeItems}
             locations={locations}
-            units={units}
+            units={activeUnits}
             onInventoryRefresh={load}
             onNewSupplier={() => setShowSupplierModal(true)}
             onNotice={setNotice}
@@ -789,7 +899,7 @@ export function InventorySimpleAdminPage() {
         <Modal title={itemForm.id ? "Editar producto" : "Nuevo producto"} onClose={() => setShowItemModal(false)}>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <TextField label="Nombre" value={itemForm.name} onChange={(name) => setItemForm({ ...itemForm, name })} placeholder="Ej. Aguja 30G" autoFocus />
+              <TextField label="Nombre / presentación" value={itemForm.name} onChange={(name) => setItemForm({ ...itemForm, name })} placeholder="Ej. Azufre botella grande" autoFocus />
               {itemNameSuggestions.length > 0 ? (
                 <div className="rounded-[14px] border border-amber-200 bg-amber-50 p-2">
                   <p className="px-2 pb-1 text-xs font-semibold text-amber-900">¿Ya existe?</p>
@@ -811,10 +921,35 @@ export function InventorySimpleAdminPage() {
                 </div>
               ) : null}
             </div>
-            <SelectField label="Se controla y descuenta en" value={itemForm.unit_id} onChange={(unit_id) => setItemForm({ ...itemForm, unit_id })} options={units.map((row) => ({ value: row.id, label: `${row.name} (${row.abbreviation})` }))} />
-            <SelectField label="Categoría (opcional)" value={itemForm.category_id} onChange={(category_id) => setItemForm({ ...itemForm, category_id })} options={categories.map((row) => ({ value: row.id, label: row.name }))} allowEmpty />
-            <SelectField label="Se compra o ingresa en (opcional)" value={itemForm.presentation_unit_id} onChange={(presentation_unit_id) => setItemForm({ ...itemForm, presentation_unit_id, units_per_presentation: presentation_unit_id ? itemForm.units_per_presentation : 1 })} options={units.map((row) => ({ value: row.id, label: `${row.name} (${row.abbreviation})` }))} allowEmpty emptyLabel="La misma unidad" />
-            {itemForm.presentation_unit_id ? <NumberField label={`Contenido de cada ${unitMap.get(itemForm.presentation_unit_id)?.name.toLocaleLowerCase("es") ?? "envase"}`} value={itemForm.units_per_presentation} onChange={(units_per_presentation) => setItemForm({ ...itemForm, units_per_presentation })} min={0.01} /> : null}
+            <CreatableSelectField
+              label="Se descuenta internamente en"
+              value={itemForm.unit_id}
+              onChange={(unit_id) => setItemForm({ ...itemForm, unit_id })}
+              options={activeUnits.map((row) => ({ value: row.id, label: `${row.name} (${row.abbreviation})`, searchText: `${row.name} ${row.abbreviation}`, aliases: [row.name, row.abbreviation] }))}
+              onCreate={(name) => createQuickUnit(name)}
+              placeholder="Buscar o crear unidad"
+            />
+            <CreatableSelectField
+              label="Categoría"
+              value={itemForm.category_id}
+              onChange={(category_id) => setItemForm({ ...itemForm, category_id })}
+              options={activeCategories.map((row) => ({ value: row.id, label: row.name }))}
+              onCreate={createQuickCategory}
+              allowEmpty
+              emptyLabel="Sin categoría"
+              placeholder="Buscar o crear categoría"
+            />
+            <CreatableSelectField
+              label="Presentación de este producto"
+              value={itemForm.presentation_unit_id}
+              onChange={(presentation_unit_id) => setItemForm({ ...itemForm, presentation_unit_id, units_per_presentation: presentation_unit_id ? itemForm.units_per_presentation : 1 })}
+              options={activeUnits.map((row) => ({ value: row.id, label: `${row.name} (${row.abbreviation})`, searchText: `${row.name} ${row.abbreviation}`, aliases: [row.name, row.abbreviation] }))}
+              onCreate={(name) => createQuickUnit(name, "empaque")}
+              allowEmpty
+              emptyLabel="Sin presentación"
+              placeholder="Buscar o crear presentación"
+            />
+            {itemForm.presentation_unit_id ? <NumberField label={`1 ${unitMap.get(itemForm.presentation_unit_id)?.name.toLocaleLowerCase("es") ?? "presentación"} contiene`} value={itemForm.units_per_presentation} onChange={(units_per_presentation) => setItemForm({ ...itemForm, units_per_presentation })} min={0.01} /> : null}
             <NumberField label="Avisar cuando queden" value={itemForm.minimum_stock} onChange={(minimum_stock) => setItemForm({ ...itemForm, minimum_stock })} min={0} />
             <NumberField label="Costo por unidad (opcional)" value={itemForm.reference_cost} onChange={(reference_cost) => setItemForm({ ...itemForm, reference_cost })} min={0} />
             <SelectField label="Proveedor habitual (opcional)" value={itemForm.supplier_id} onChange={(supplier_id) => setItemForm({ ...itemForm, supplier_id })} options={suppliers.map((row) => ({ value: row.id, label: row.name }))} allowEmpty />
@@ -863,6 +998,7 @@ export function InventorySimpleAdminPage() {
 function TurnSection({
   openShifts,
   closedShifts,
+  archivedShifts,
   countLines,
   movements,
   clinicalUsages,
@@ -874,14 +1010,19 @@ function TurnSection({
   setDetails,
   searches,
   setSearches,
+  role,
   saving,
   onOpen,
   onConfirmOpening,
   onClose,
   onCancel,
+  onArchiveShift,
+  onRestoreShift,
+  onHardDeleteShift,
 }: {
   openShifts: InventoryCountRow[];
   closedShifts: InventoryCountRow[];
+  archivedShifts: InventoryCountRow[];
   countLines: InventoryCountLineRow[];
   movements: InventoryMovementRow[];
   clinicalUsages: InventoryClinicalUsageRow[];
@@ -893,17 +1034,22 @@ function TurnSection({
   setDetails: React.Dispatch<React.SetStateAction<Record<string, Record<string, CountDetail>>>>;
   searches: Record<string, string>;
   setSearches: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  role: ReturnType<typeof useAuth>["role"];
   saving: boolean;
   onOpen: () => Promise<void>;
   onConfirmOpening: (shift: InventoryCountRow) => Promise<void>;
   onClose: (shift: InventoryCountRow) => Promise<void>;
   onCancel: (shift: InventoryCountRow) => Promise<void>;
+  onArchiveShift: (shift: InventoryCountRow) => void;
+  onRestoreShift: (shift: InventoryCountRow) => void;
+  onHardDeleteShift: (shift: InventoryCountRow) => void;
 }) {
   const [focusedLineByShift, setFocusedLineByShift] = useState<Record<string, string>>({});
   const [showAllByShift, setShowAllByShift] = useState<Record<string, boolean>>({});
   const [viewingShiftId, setViewingShiftId] = useState<string | null>(null);
   const usageScoreByItem = useMemo(() => buildInventoryUsageScore(movements, clinicalUsages), [movements, clinicalUsages]);
-  const viewingShift = useMemo(() => closedShifts.find((shift) => shift.id === viewingShiftId) ?? null, [closedShifts, viewingShiftId]);
+  const previousShifts = useMemo(() => [...closedShifts, ...archivedShifts], [archivedShifts, closedShifts]);
+  const viewingShift = useMemo(() => previousShifts.find((shift) => shift.id === viewingShiftId) ?? null, [previousShifts, viewingShiftId]);
   const viewingLines = useMemo(
     () => viewingShift ? countLines.filter((line) => line.count_id === viewingShift.id && itemMap.has(line.item_id)) : [],
     [countLines, itemMap, viewingShift]
@@ -1174,14 +1320,17 @@ function TurnSection({
 
       <SimplePanel title="Turnos anteriores">
         <div className="grid gap-2">
-          {closedShifts.slice(0, 8).map((shift) => (
-            <div key={shift.id} className="flex items-center justify-between gap-3 rounded-[16px] border border-[var(--color-border)] bg-white/75 px-4 py-3">
+          {previousShifts.slice(0, 8).map((shift) => {
+            const deleted = isSoftDeleted(shift);
+            return (
+            <div key={shift.id} className={`flex items-center justify-between gap-3 rounded-[16px] border px-4 py-3 ${deleted ? "border-amber-200 bg-amber-50/80" : "border-[var(--color-border)] bg-white/75"}`}>
               <div>
                 <p className="font-semibold text-[var(--color-ink)]">{shift.shift_name || "Turno"}</p>
                 <p className="mt-1 text-xs text-[var(--color-copy)]">{formatDate(shift.count_date)} · Solo lectura</p>
+                <DeletedStatusNote row={shift} />
               </div>
-              <div className="flex items-center gap-2">
-                <SmallTag text="Cerrado" />
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <SmallTag text={deleted ? "Archivado" : "Cerrado"} tone={deleted ? "warning" : "normal"} />
                 <button
                   type="button"
                   onClick={() => setViewingShiftId(shift.id)}
@@ -1189,10 +1338,21 @@ function TurnSection({
                 >
                   <Eye className="h-4 w-4" /> Ver
                 </button>
+                {canSoftDelete(role) || deleted ? (
+                  <DeleteActions
+                    role={role}
+                    row={shift}
+                    compact
+                    onSoftDelete={() => onArchiveShift(shift)}
+                    onRestore={() => onRestoreShift(shift)}
+                    onHardDelete={role === "superadmin" ? () => onHardDeleteShift(shift) : undefined}
+                  />
+                ) : null}
               </div>
             </div>
-          ))}
-          {closedShifts.length === 0 ? <EmptyState label="Todavía no hay turnos cerrados." /> : null}
+            );
+          })}
+          {previousShifts.length === 0 ? <EmptyState label="Todavía no hay turnos cerrados." /> : null}
         </div>
       </SimplePanel>
 
@@ -1532,6 +1692,111 @@ function MovementList({ movements, clinicalUsages, itemMap, unitMap }: { movemen
   );
 }
 
+function QuickInventorySettingsPanel({
+  role,
+  categories,
+  units,
+  onArchiveCategory,
+  onRestoreCategory,
+  onHardDeleteCategory,
+  onArchiveUnit,
+  onRestoreUnit,
+  onHardDeleteUnit,
+}: {
+  role: ReturnType<typeof useAuth>["role"];
+  categories: InventoryCategoryRow[];
+  units: InventoryUnitRow[];
+  onArchiveCategory: (category: InventoryCategoryRow) => void;
+  onRestoreCategory: (category: InventoryCategoryRow) => void;
+  onHardDeleteCategory: (category: InventoryCategoryRow) => void;
+  onArchiveUnit: (unit: InventoryUnitRow) => void;
+  onRestoreUnit: (unit: InventoryUnitRow) => void;
+  onHardDeleteUnit: (unit: InventoryUnitRow) => void;
+}) {
+  const sortedCategories = sortByDeletedAndName(categories);
+  const sortedUnits = sortByDeletedAndName(units);
+
+  return (
+    <SimplePanel title="Configuración rápida">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-2">
+          <p className="text-sm font-semibold text-[var(--color-ink)]">Categorías</p>
+          {sortedCategories.slice(0, 16).map((category) => (
+            <SettingsRecordRow
+              key={category.id}
+              role={role}
+              row={category}
+              title={category.name}
+              detail={category.description ?? "Sin descripción"}
+              onArchive={() => onArchiveCategory(category)}
+              onRestore={() => onRestoreCategory(category)}
+              onHardDelete={() => onHardDeleteCategory(category)}
+            />
+          ))}
+          {sortedCategories.length === 0 ? <EmptyState label="Sin categorías." /> : null}
+        </div>
+        <div className="grid gap-2">
+          <p className="text-sm font-semibold text-[var(--color-ink)]">Unidades y presentaciones</p>
+          {sortedUnits.slice(0, 16).map((unit) => (
+            <SettingsRecordRow
+              key={unit.id}
+              role={role}
+              row={unit}
+              title={unit.name}
+              detail={`${unit.abbreviation} · ${unit.unit_type}`}
+              onArchive={() => onArchiveUnit(unit)}
+              onRestore={() => onRestoreUnit(unit)}
+              onHardDelete={() => onHardDeleteUnit(unit)}
+            />
+          ))}
+          {sortedUnits.length === 0 ? <EmptyState label="Sin unidades." /> : null}
+        </div>
+      </div>
+    </SimplePanel>
+  );
+}
+
+function SettingsRecordRow({
+  role,
+  row,
+  title,
+  detail,
+  onArchive,
+  onRestore,
+  onHardDelete,
+}: {
+  role: ReturnType<typeof useAuth>["role"];
+  row: DeletionMetadata;
+  title: string;
+  detail: string;
+  onArchive: () => void;
+  onRestore: () => void;
+  onHardDelete: () => void;
+}) {
+  const deleted = isSoftDeleted(row);
+
+  return (
+    <div className={`flex flex-col gap-3 rounded-[16px] border px-4 py-3 sm:flex-row sm:items-start sm:justify-between ${deleted ? "border-amber-200 bg-amber-50/80" : "border-[var(--color-border)] bg-white/75"}`}>
+      <div className="min-w-0">
+        <p className="truncate font-semibold text-[var(--color-ink)]">{title}</p>
+        <p className="mt-1 text-xs text-[var(--color-copy)]">{detail}</p>
+        <DeletedStatusNote row={row} />
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        {deleted ? <SmallTag text="Archivado" tone="warning" /> : null}
+        <DeleteActions
+          role={role}
+          row={row}
+          compact
+          onSoftDelete={onArchive}
+          onRestore={onRestore}
+          onHardDelete={role === "superadmin" ? onHardDelete : undefined}
+        />
+      </div>
+    </div>
+  );
+}
+
 function QuickAction({ label, icon, onClick, primary = false }: { label: string; icon: ReactNode; onClick: () => void; primary?: boolean }) {
   return <button type="button" onClick={onClick} className={`inline-flex items-center justify-center gap-2 rounded-full px-4 py-3 text-sm font-semibold ${primary ? "bg-[var(--color-mocha)] text-white" : "border border-[var(--color-border)] bg-white text-[var(--color-ink)]"}`}>{icon}{label}</button>;
 }
@@ -1578,6 +1843,138 @@ function SelectField({ label, value, onChange, options, allowEmpty = false, empt
   return <label className="grid gap-1.5 text-sm font-semibold text-[var(--color-ink)]">{label}<select value={value} onChange={(event) => onChange(event.target.value)} className="premium-input"><option value="">{allowEmpty ? emptyLabel : "Selecciona"}</option>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>;
 }
 
+type CreatableOption = {
+  value: string;
+  label: string;
+  searchText?: string;
+  aliases?: string[];
+};
+
+function CreatableSelectField({
+  label,
+  value,
+  onChange,
+  options,
+  onCreate,
+  allowEmpty = false,
+  emptyLabel = "Sin selección",
+  placeholder = "Buscar o crear",
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: CreatableOption[];
+  onCreate?: (name: string) => Promise<string>;
+  allowEmpty?: boolean;
+  emptyLabel?: string;
+  placeholder?: string;
+}) {
+  const [search, setSearch] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState("");
+  const selected = options.find((option) => option.value === value) ?? null;
+  const normalizedSearch = normalizeName(search);
+  const cleanSearch = cleanName(search);
+  const listIsOpen = Boolean(normalizedSearch) || !selected;
+  const visibleOptions = options
+    .filter((option) => !normalizedSearch || normalizeName(optionSearchText(option)).includes(normalizedSearch))
+    .slice(0, 8);
+  const exactOption = cleanSearch ? options.find((option) => optionMatchesExactly(option, cleanSearch)) : null;
+  const canCreate = Boolean(onCreate && cleanSearch && !exactOption);
+
+  const create = async () => {
+    if (!onCreate || !cleanSearch) return;
+    setCreating(true);
+    setError("");
+    try {
+      const createdId = await onCreate(cleanSearch);
+      onChange(createdId);
+      setSearch("");
+    } catch (createError) {
+      setError(friendlyError(createError));
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  return (
+    <div className="grid gap-1.5 text-sm font-semibold text-[var(--color-ink)]">
+      <span>{label}</span>
+      <div className="rounded-[16px] border border-[var(--color-border)] bg-white p-2">
+        {selected ? (
+          <div className="mb-2 flex items-center justify-between gap-2 rounded-[12px] bg-emerald-50 px-3 py-2 text-emerald-950">
+            <span className="truncate">{selected.label}</span>
+            <button
+              type="button"
+              onClick={() => onChange("")}
+              className="rounded-full p-1 text-emerald-900 hover:bg-emerald-100"
+              aria-label={`Quitar ${selected.label}`}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        ) : null}
+        <label className="flex items-center gap-2 rounded-[12px] bg-[#fbf7f2] px-3 py-2">
+          <Search className="h-4 w-4 shrink-0 text-[var(--color-copy)]" />
+          <input
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setError("");
+            }}
+            placeholder={placeholder}
+            className="min-w-0 flex-1 bg-transparent text-sm font-medium outline-none"
+          />
+        </label>
+        {listIsOpen ? (
+          <div className="mt-2 max-h-48 overflow-y-auto rounded-[12px] bg-[#fbf7f2] p-1">
+            {allowEmpty ? (
+              <button
+                type="button"
+                onClick={() => {
+                  onChange("");
+                  setSearch("");
+                  setError("");
+                }}
+                className="block w-full rounded-[10px] px-3 py-2 text-left text-sm font-semibold text-[var(--color-copy)] hover:bg-white"
+              >
+                {emptyLabel}
+              </button>
+            ) : null}
+            {visibleOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => {
+                  onChange(option.value);
+                  setSearch("");
+                  setError("");
+                }}
+                className="block w-full rounded-[10px] px-3 py-2 text-left text-sm font-semibold text-[var(--color-ink)] hover:bg-white"
+              >
+                {option.label}
+              </button>
+            ))}
+            {canCreate ? (
+              <button
+                type="button"
+                onClick={() => void create()}
+                disabled={creating}
+                className="mt-1 flex w-full items-center gap-2 rounded-[10px] px-3 py-2 text-left text-sm font-semibold text-emerald-800 hover:bg-white disabled:opacity-50"
+              >
+                <Plus className="h-4 w-4" />
+                {creating ? "Creando..." : `Crear “${cleanSearch}”`}
+              </button>
+            ) : null}
+            {visibleOptions.length === 0 && !canCreate ? <p className="px-3 py-3 text-sm font-medium text-[var(--color-copy)]">Sin resultados.</p> : null}
+          </div>
+        ) : null}
+        {error ? <p className="mt-2 rounded-[10px] bg-red-50 px-3 py-2 text-xs font-semibold text-red-800">{error}</p> : null}
+      </div>
+    </div>
+  );
+}
+
 function DateField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return <label className="grid gap-1.5 text-sm font-semibold text-[var(--color-ink)]">{label}<input type="date" value={value} onChange={(event) => onChange(event.target.value)} className="premium-input" /></label>;
 }
@@ -1600,6 +1997,61 @@ function normalizeName(value: string) {
 
 function cleanName(value: string) {
   return value.trim().replace(/\s+/g, " ");
+}
+
+function sameNormalized(left: string | null | undefined, right: string | null | undefined) {
+  return normalizeName(left ?? "") === normalizeName(right ?? "");
+}
+
+function mergeById<T extends { id: string }>(rows: T[], row: T) {
+  return [...rows.filter((current) => current.id !== row.id), row];
+}
+
+function sortByName<T extends { name: string }>(rows: T[]) {
+  return rows.slice().sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function sortByDeletedAndName<T extends DeletionMetadata & { name: string }>(rows: T[]) {
+  return rows.slice().sort((a, b) => {
+    const deletedDifference = Number(isSoftDeleted(a)) - Number(isSoftDeleted(b));
+    if (deletedDifference !== 0) return deletedDifference;
+    return a.name.localeCompare(b.name);
+  });
+}
+
+function optionSearchText(option: CreatableOption) {
+  return [option.label, option.searchText, ...(option.aliases ?? [])].filter(Boolean).join(" ");
+}
+
+function optionMatchesExactly(option: CreatableOption, value: string) {
+  return [option.label, option.searchText, ...(option.aliases ?? [])].filter(Boolean).some((candidate) => sameNormalized(candidate, value));
+}
+
+function unitAbbreviationFromName(value: string) {
+  const normalized = normalizeName(value);
+  const known = new Map([
+    ["unidad", "u"],
+    ["unidades", "u"],
+    ["mililitro", "ml"],
+    ["mililitros", "ml"],
+    ["litro", "l"],
+    ["litros", "l"],
+    ["gramo", "g"],
+    ["gramos", "g"],
+    ["kilogramo", "kg"],
+    ["kilogramos", "kg"],
+  ]);
+  const direct = known.get(normalized);
+  if (direct) return direct;
+  return normalized.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "u";
+}
+
+function inferUnitType(value: string): InventoryUnitRow["unit_type"] {
+  const normalized = normalizeName(value);
+  if (/\b(ml|mililitro|mililitros|l|lt|litro|litros)\b/.test(normalized)) return "volumen";
+  if (/\b(g|gr|gramo|gramos|kg|kilogramo|kilogramos)\b/.test(normalized)) return "peso";
+  if (/(ampolla|botella|caja|frasco|paquete|sachet|sobre|tubo|vial)/.test(normalized)) return "empaque";
+  return "unidad";
 }
 
 function buildInventoryUsageScore(movements: InventoryMovementRow[], clinicalUsages: InventoryClinicalUsageRow[]) {
@@ -1789,5 +2241,7 @@ function friendlyError(error: unknown) {
   if (message.toLowerCase().includes("duplicate") || message.includes("Ya existe un producto")) return "Ya existe un producto con ese nombre.";
   if (message.includes("stock negativo") || message.includes("dejaria stock negativo")) return "No hay suficiente stock para realizar ese descuento.";
   if (message.includes("cancel_inventory_shift")) return "Primero debe aplicarse la actualización de seguridad de turnos en Supabase.";
+  if (message.includes("Solo el superusuario")) return "Solo Superusuario puede borrar definitivamente.";
+  if (message.toLowerCase().includes("foreign key") || message.toLowerCase().includes("violates")) return "No se puede borrar definitivamente porque todavía tiene historial relacionado. Puedes ocultarlo de la vista.";
   return message || "No pudimos completar la operación. Revisa los datos e intenta nuevamente.";
 }

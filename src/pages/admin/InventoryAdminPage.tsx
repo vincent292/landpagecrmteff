@@ -3207,6 +3207,14 @@ function getInventorySubmitErrorMessage(error: unknown) {
     return "La unidad base no se puede cambiar desde la ficha porque el item ya tiene stock o historial. Primero realiza una conciliacion controlada de unidades.";
   }
 
+  if (detail.includes("solo el superusuario")) {
+    return "Solo Superusuario puede borrar definitivamente.";
+  }
+
+  if (detail.includes("foreign key") || detail.includes("violates")) {
+    return "No se puede borrar definitivamente porque todavía tiene historial relacionado. Puedes ocultarlo de la vista.";
+  }
+
   if (message) return message;
 
   return "No pudimos guardar el registro. Revisa los datos e intenta nuevamente.";
