@@ -50,8 +50,10 @@ const bookingPattern = /\b(reserv(?:ar|a|o)|agend(?:ar|a|o)|sacar\s+(?:una\s+)?c
 const cancelPattern = /\b(cancelar|salir|detener|ya\s+no)\b/i;
 const boliviaCities = ["Cochabamba", "La Paz", "Santa Cruz", "Sucre", "Oruro", "Potosi", "Tarija", "Beni", "Pando"];
 const treatmentCatalogPattern = /\b(que|cuales|cu[aá]les|ver|mu[eé]strame|informaci[oó]n|saber).{0,45}\b(trat[a]?m?ientos?|servicios?)\b|\b(trat[a]?m?ientos?|servicios?).{0,45}\b(disponibles?|tienen|ofrecen|hay)\b/i;
-const doctorTreatmentPattern = /\b(?:doctora|doctor|dra|dr)\b.{0,80}\b(?:tratamientos?|servicios?|atiende|hace|realiza|ofrece|agenda|agendar|reservar|cita|horarios?|precio|costo)\b|\b(?:tratamientos?|servicios?|atiende|hace|realiza|ofrece|agenda|agendar|reservar|cita|horarios?|precio|costo)\b.{0,80}\b(?:doctora|doctor|dra|dr)\b/i;
+const doctorTreatmentPattern = /\b(?:doctora|doctor|dra|dr|dora)\b.{0,80}\b(?:tratamientos?|servicios?|atiende|hace|realiza|ofrece|agenda|agendar|reservar|cita|horarios?|precio|costo)\b|\b(?:tratamientos?|servicios?|atiende|hace|realiza|ofrece|agenda|agendar|reservar|cita|horarios?|precio|costo)\b.{0,80}\b(?:doctora|doctor|dra|dr|dora)\b/i;
 const doctorListPattern = /^(?:ver\s+)?(?:doctoras?|doctores|dras?|medicas?|m[eé]dicas?)$/i;
+const greetingOnlyPattern = /^(hola|holi|buenas|buen dia|buenos dias|buenas tardes|buenas noches)$/i;
+const topicSwitchPattern = /\b(ahora|mejor|cambiar|cambiemos|otra cosa|quiero ver|quiero saber|no,?|esos son|esa es|ese es)\b/i;
 const exactNoPattern = /^(no|nop|nel|no gracias)$/i;
 const identityHandoffPattern = /^(omitir|saltar|luego|despues|después|mas tarde|más tarde|no tengo|no lo tengo|no recuerdo|no se|no sé|prefiero no|no quiero)$/i;
 
@@ -229,9 +231,42 @@ function doctorSearchTokens(text: string) {
     "que", "cual", "cuales", "tratamiento", "tratamientos", "servicio", "servicios", "hace", "realiza",
     "ofrece", "atiende", "agenda", "horario", "horarios", "precio", "costo", "doctora", "doctor", "dra",
     "dr", "la", "el", "con", "de", "del", "una", "un", "quiero", "quisiera", "saber", "me", "puedes",
-    "decir", "tiene", "hay", "reservar", "reserva", "cita", "agendar",
+    "decir", "tiene", "hay", "reservar", "reserva", "cita", "agendar", "dora", "doc", "ahora",
+    "ver", "mostrar", "muestra", "esos", "son",
   ]);
   return normalize(text).split(" ").filter((token) => token.length >= 3 && !stopWords.has(token));
+}
+
+function editDistance(a: string, b: string) {
+  const previous = Array.from({ length: b.length + 1 }, (_, index) => index);
+  const current = Array.from({ length: b.length + 1 }, () => 0);
+  for (let i = 1; i <= a.length; i += 1) {
+    current[0] = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      current[j] = Math.min(
+        previous[j] + 1,
+        current[j - 1] + 1,
+        previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1),
+      );
+    }
+    previous.splice(0, previous.length, ...current);
+  }
+  return previous[b.length];
+}
+
+function looksLikeTokenMatch(inputToken: string, nameToken: string) {
+  if (inputToken === nameToken || inputToken.includes(nameToken) || nameToken.includes(inputToken)) return true;
+  if (inputToken.length < 5 || nameToken.length < 5) return false;
+  return editDistance(inputToken, nameToken) <= 2;
+}
+
+function knownDoctorAliasTokens(doctor: DoctorLite) {
+  const normalizedName = normalize(doctor.full_name);
+  const aliases = new Set(normalizedName.split(" ").filter((token) => token.length >= 3));
+  if (/\bestefany\b|\bballesteros\b/.test(normalizedName)) {
+    ["estefany", "ballesteros", "balleteros", "draestefany"].forEach((token) => aliases.add(token));
+  }
+  return [...aliases];
 }
 
 function resolveDoctorFromText(doctors: DoctorLite[], text: string) {
@@ -240,14 +275,19 @@ function resolveDoctorFromText(doctors: DoctorLite[], text: string) {
   let best: { doctor: DoctorLite; score: number } | null = null;
   for (const doctor of doctors) {
     const normalizedName = normalize(doctor.full_name);
-    const nameTokens = normalizedName.split(" ").filter((token) => token.length >= 3);
+    const nameTokens = knownDoctorAliasTokens(doctor);
     let score = normalizedText.includes(normalizedName) ? 8 : 0;
     for (const token of tokens) {
-      if (nameTokens.some((nameToken) => nameToken === token || nameToken.includes(token) || token.includes(nameToken))) score += 2;
+      if (nameTokens.some((nameToken) => looksLikeTokenMatch(token, nameToken))) score += 2;
     }
     if (!best || score > best.score) best = { doctor, score };
   }
   return best && best.score > 0 ? best.doctor : null;
+}
+
+async function resolveConversationCity(admin: SupabaseClient, persisted: PersistedInbound, text?: string | null) {
+  const cityFromMessage = text ? await resolveKnownCity(admin, text) : null;
+  return cityFromMessage ?? textValue(persisted.contact.city);
 }
 
 async function showDoctorChoices(admin: SupabaseClient, persisted: PersistedInbound, doctors: DoctorLite[], userText?: string | null) {
@@ -284,10 +324,37 @@ async function showDoctorChoices(admin: SupabaseClient, persisted: PersistedInbo
   return true;
 }
 
-async function showDoctorTreatments(admin: SupabaseClient, persisted: PersistedInbound, doctor: DoctorLite, userText?: string | null) {
-  const treatments = (await getInformationalTreatments(admin)).filter((treatment) => treatment.doctor_id === doctor.id);
+async function askCityForDoctorTreatments(admin: SupabaseClient, persisted: PersistedInbound, doctor: DoctorLite, userText?: string | null) {
+  const body = `Claro. ¿En qué ciudad quieres ver los tratamientos de ${doctor.full_name}?`;
+  await admin.from("crm_conversations").update({ intent: `doctor_city:${doctor.id}` }).eq("id", persisted.conversation.id);
+  await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, body, {
+    type: "interactive",
+    interactive: {
+      type: "list", body: { text: body },
+      action: { button: "Elegir ciudad", sections: [{ title: "Ciudades", rows: boliviaCities.map((city, index) => ({
+        id: `doctor-city:${doctor.id}:${index}`, title: city, description: "Ver tratamientos de la doctora",
+      })) }] },
+    },
+  });
+  await recordBotLearningEvent(admin, {
+    conversationId: persisted.conversation.id,
+    contactId: persisted.contact.id,
+    crmMessageId: persisted.messageId ?? null,
+    eventType: "doctor_clarification",
+    detectedIntent: "consulta_doctora_ciudad",
+    userText,
+    botResponse: body,
+    metadata: { doctor_id: doctor.id, doctor_name: doctor.full_name },
+  });
+  return true;
+}
+
+async function showDoctorTreatments(admin: SupabaseClient, persisted: PersistedInbound, doctor: DoctorLite, userText?: string | null, city?: string | null) {
+  const contextCity = city ? textValue(city) : null;
+  const treatments = (await getInformationalTreatments(admin, contextCity)).filter((treatment) => treatment.doctor_id === doctor.id);
   if (!treatments.length) {
-    const body = `No encontré tratamientos publicados a nombre de ${doctor.full_name}. Avisé a administración para que te oriente con datos actualizados.`;
+    const cityText = contextCity ? ` en ${contextCity}` : "";
+    const body = `No encontré tratamientos publicados a nombre de ${doctor.full_name}${cityText}. Avisé a administración para que te oriente con datos actualizados.`;
     const conversationUpdate = await admin.from("crm_conversations").update({ needs_human: true, intent: "doctor_without_catalog" }).eq("id", persisted.conversation.id);
     if (conversationUpdate.error) throw conversationUpdate.error;
     await recordBotLearningEvent(admin, {
@@ -298,11 +365,12 @@ async function showDoctorTreatments(admin: SupabaseClient, persisted: PersistedI
       detectedIntent: "consulta_doctora",
       userText,
       botResponse: body,
-      metadata: { doctor_id: doctor.id, doctor_name: doctor.full_name },
+      metadata: { doctor_id: doctor.id, doctor_name: doctor.full_name, city: contextCity },
     });
     await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, body);
     return true;
   }
+  if (contextCity) await rememberCityInterest(admin, persisted.contact.id, contextCity);
 
   const lines = treatments.slice(0, 8).map((treatment, index) => {
     const city = textValue(treatment.city);
@@ -310,7 +378,9 @@ async function showDoctorTreatments(admin: SupabaseClient, persisted: PersistedI
     return `${index + 1}. ${String(treatment.title)}${city ? ` · ${city}` : ""}${price ? ` · ${price}` : ""}`;
   });
   const more = treatments.length > lines.length ? `\nY ${treatments.length - lines.length} más disponibles.` : "";
-  const body = `${doctor.full_name}${doctor.specialty ? ` (${doctor.specialty})` : ""} atiende estos tratamientos:\n\n${lines.join("\n")}${more}\n\nToca un tratamiento para ver detalle o escribe “reservar con ${doctor.full_name.split(" ")[0]}”.`;
+  const contextLine = contextCity ? ` en ${contextCity}` : "";
+  const changeHint = contextCity ? "\n\nSi quieres otra ciudad u otra doctora, escríbelo y cambio la búsqueda." : "";
+  const body = `${doctor.full_name}${doctor.specialty ? ` (${doctor.specialty})` : ""} atiende estos tratamientos${contextLine}:\n\n${lines.join("\n")}${more}\n\nToca un tratamiento para ver detalle o escribe “reservar con ${doctor.full_name.split(" ")[0]}”.${changeHint}`;
   await admin.from("crm_conversations").update({ intent: `doctor_info:${doctor.id}` }).eq("id", persisted.conversation.id);
   await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, body.slice(0, 1024), {
     type: "interactive",
@@ -508,11 +578,69 @@ export async function handleTreatmentCatalogConversation(admin: SupabaseClient, 
   if (currentIntent.error) throw currentIntent.error;
   const currentIntentValue = currentIntent.data?.intent ?? null;
   const doctorChoiceId = message.interactiveId?.startsWith("doctor-info:") ? message.interactiveId.slice("doctor-info:".length) : null;
+  const doctorCityChoice = message.interactiveId?.match(/^doctor-city:([0-9a-f-]{36}):(\d+)$/i);
+  if (doctorCityChoice) {
+    const doctors = await getActiveDoctors(admin);
+    const doctor = doctors.find((item) => item.id === doctorCityChoice[1]);
+    const city = boliviaCities[Number(doctorCityChoice[2])];
+    if (!doctor || !city) return false;
+    return await showDoctorTreatments(admin, persisted, doctor, message.text, city);
+  }
   if (doctorChoiceId) {
     const doctors = await getActiveDoctors(admin);
     const doctor = doctors.find((item) => item.id === doctorChoiceId);
     if (!doctor) return false;
-    return await showDoctorTreatments(admin, persisted, doctor, message.text);
+    const city = await resolveConversationCity(admin, persisted, message.text);
+    if (!city) return await askCityForDoctorTreatments(admin, persisted, doctor, message.text);
+    return await showDoctorTreatments(admin, persisted, doctor, message.text, city);
+  }
+  const pendingDoctorCityId = currentIntentValue?.match(/^doctor_city:([0-9a-f-]{36})$/i)?.[1] ?? null;
+  if (!message.interactiveId && message.text && pendingDoctorCityId) {
+    const doctors = await getActiveDoctors(admin);
+    const changedDoctor = resolveDoctorFromText(doctors, message.text);
+    if (changedDoctor && topicSwitchPattern.test(normalize(message.text))) {
+      const city = await resolveConversationCity(admin, persisted, message.text);
+      if (!city) return await askCityForDoctorTreatments(admin, persisted, changedDoctor, message.text);
+      return await showDoctorTreatments(admin, persisted, changedDoctor, message.text, city);
+    }
+    const city = await resolveKnownCity(admin, message.text);
+    const doctor = doctors.find((item) => item.id === pendingDoctorCityId);
+    if (city && doctor) return await showDoctorTreatments(admin, persisted, doctor, message.text, city);
+    if (greetingOnlyPattern.test(normalize(message.text))) {
+      await admin.from("crm_conversations").update({ intent: "saludo" }).eq("id", persisted.conversation.id);
+      await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, "Hola 😊 ¿Quieres seguir viendo tratamientos por doctora, consultar otra cosa o reservar una cita?");
+      return true;
+    }
+    await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, "Te entiendo. Para mostrarte tratamientos por doctora necesito la ciudad. También puedes escribir otra doctora o “asesora” si prefieres ayuda humana.");
+    return await showCityChoices(admin, persisted, "info");
+  }
+  if (!message.interactiveId && message.text && doctorTreatmentPattern.test(message.text)) {
+    const doctors = await getActiveDoctors(admin);
+    const doctor = resolveDoctorFromText(doctors, message.text);
+    if (doctor) {
+      const city = await resolveConversationCity(admin, persisted, message.text);
+      if (!city) return await askCityForDoctorTreatments(admin, persisted, doctor, message.text);
+      return await showDoctorTreatments(admin, persisted, doctor, message.text, city);
+    }
+    return await showDoctorChoices(admin, persisted, doctors, message.text);
+  }
+  if (!message.interactiveId && message.text && topicSwitchPattern.test(normalize(message.text))) {
+    const doctors = await getActiveDoctors(admin);
+    const doctor = resolveDoctorFromText(doctors, message.text);
+    if (doctor) {
+      const city = await resolveConversationCity(admin, persisted, message.text);
+      if (!city) return await askCityForDoctorTreatments(admin, persisted, doctor, message.text);
+      return await showDoctorTreatments(admin, persisted, doctor, message.text, city);
+    }
+  }
+  if (!message.interactiveId && message.text && currentIntentValue?.startsWith("doctor_info:")) {
+    const doctors = await getActiveDoctors(admin);
+    const doctor = resolveDoctorFromText(doctors, message.text);
+    if (doctor) {
+      const city = await resolveConversationCity(admin, persisted, message.text);
+      if (!city) return await askCityForDoctorTreatments(admin, persisted, doctor, message.text);
+      return await showDoctorTreatments(admin, persisted, doctor, message.text, city);
+    }
   }
   if (!message.interactiveId && message.text && (currentIntentValue === "select_treatment_city" || currentIntentValue === "catalog_city")) {
     const purpose = currentIntentValue === "select_treatment_city" ? "booking" : "info";
@@ -526,20 +654,28 @@ export async function handleTreatmentCatalogConversation(admin: SupabaseClient, 
       }
       return true;
     }
-    await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, "No encontré esa ciudad en las opciones. Elige una de la lista para continuar.");
+    if (greetingOnlyPattern.test(normalize(message.text))) {
+      await admin.from("crm_conversations").update({ intent: "saludo" }).eq("id", persisted.conversation.id);
+      await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, "Hola 😊 ¿Quieres seguir viendo tratamientos, consultar por doctora o reservar una cita?");
+      return true;
+    }
+    if (topicSwitchPattern.test(normalize(message.text)) || treatmentCatalogPattern.test(message.text)) {
+      await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, "Claro, puedo cambiar la búsqueda. Dime la doctora, el tratamiento o la ciudad que quieres consultar.");
+      await admin.from("crm_conversations").update({ intent: "consulta_abierta" }).eq("id", persisted.conversation.id);
+      return true;
+    }
+    await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, "No reconocí la ciudad. Puedes elegir una de la lista o escribir una nueva consulta, por ejemplo “tratamientos de la Dra. Estefany”.");
     return await showCityChoices(admin, persisted, purpose);
   }
   if (!message.interactiveId && message.text && currentIntentValue === "doctor_lookup") {
     const doctors = await getActiveDoctors(admin);
     const doctor = resolveDoctorFromText(doctors, message.text);
-    if (doctor) return await showDoctorTreatments(admin, persisted, doctor, message.text);
+    if (doctor) {
+      const city = await resolveConversationCity(admin, persisted, message.text);
+      if (!city) return await askCityForDoctorTreatments(admin, persisted, doctor, message.text);
+      return await showDoctorTreatments(admin, persisted, doctor, message.text, city);
+    }
     await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, "No encontré esa doctora en la lista. Elige una opción para continuar.");
-    return await showDoctorChoices(admin, persisted, doctors, message.text);
-  }
-  if (!message.interactiveId && doctorTreatmentPattern.test(message.text ?? "")) {
-    const doctors = await getActiveDoctors(admin);
-    const doctor = resolveDoctorFromText(doctors, message.text ?? "");
-    if (doctor) return await showDoctorTreatments(admin, persisted, doctor, message.text);
     return await showDoctorChoices(admin, persisted, doctors, message.text);
   }
   if (!message.interactiveId && doctorListPattern.test(normalize(message.text ?? ""))) {
