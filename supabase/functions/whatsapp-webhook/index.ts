@@ -11,6 +11,7 @@ import {
   json,
   persistInboundMessage,
   persistOutboundMessage,
+  recordBotLearningEvent,
   requiredEnv,
   sendMetaMessage,
   verifyMetaSignature,
@@ -196,6 +197,7 @@ async function answerWithAi(input: {
   const context = await getAiContext(admin, input.conversationId);
   if (!context.settings.ai_enabled) return;
   let reply: string;
+  let usedFallback = false;
   try {
     reply = await generateGeminiReply({
       contactName: input.contactName,
@@ -213,7 +215,8 @@ async function answerWithAi(input: {
     }
   } catch (error) {
     console.error("[whatsapp] Gemini reply failed; sending fallback", error);
-    reply = "Estoy teniendo una demora para consultar la información completa. Puedo ayudarte con información general de tratamientos o, si deseas reservar, escribe: quiero reservar una cita.";
+    reply = "Te ayudo. Puedes preguntarme por tratamientos, precios, doctoras o ciudades. Si deseas agendar, escribe “quiero reservar una cita”. Si prefieres una persona, escribe “asesora”.";
+    usedFallback = true;
   }
   const meta = await sendMetaMessage(input.to, {
     type: "text",
@@ -225,6 +228,17 @@ async function answerWithAi(input: {
     body: reply,
     senderType: "ai",
   });
+  if (usedFallback) {
+    const latestInbound = [...context.messages].reverse().find((message) => message.direction === "inbound" && message.body?.trim())?.body ?? null;
+    await recordBotLearningEvent(admin, {
+      conversationId: input.conversationId,
+      eventType: "ai_fallback",
+      detectedIntent: "fallback_gemini",
+      userText: latestInbound,
+      botResponse: reply,
+      metadata: { source: "whatsapp-webhook" },
+    });
+  }
 }
 
 Deno.serve(async (request) => {

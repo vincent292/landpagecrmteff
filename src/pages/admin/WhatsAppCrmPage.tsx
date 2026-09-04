@@ -23,6 +23,7 @@ import { buildCanonicalUrl } from "../../lib/siteUrl";
 import {
   getCrmConversations,
   getCrmBookingSession,
+  getCrmBotLearningEvents,
   getCrmMessages,
   getCrmReservationOptions,
   getCrmSettings,
@@ -34,6 +35,7 @@ import {
   updateCrmConversation,
   updateCrmSettings,
   type CrmBookingSession,
+  type CrmBotLearningEvent,
   type CrmConversation,
   type CrmLeadStage,
   type CrmMessage,
@@ -92,6 +94,7 @@ export function WhatsAppCrmPage() {
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
   const [paymentQrUrl, setPaymentQrUrl] = useState<string | null>(null);
   const [booking, setBooking] = useState<CrmBookingSession | null>(null);
+  const [learningEvents, setLearningEvents] = useState<CrmBotLearningEvent[]>([]);
   const [automationSettings, setAutomationSettings] = useState<CrmSettings | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
@@ -123,16 +126,21 @@ export function WhatsAppCrmPage() {
     setBooking(await getCrmBookingSession(conversationId));
   }, []);
 
+  const loadLearningEvents = useCallback(async () => {
+    setLearningEvents(await getCrmBotLearningEvents());
+  }, []);
+
   useEffect(() => {
-    void Promise.all([loadConversations(), getCrmReservationOptions(), getSiteSettings(), getCrmSettings()])
-      .then(([, reservationRows, settings, crmSettings]) => {
+    void Promise.all([loadConversations(), getCrmReservationOptions(), getSiteSettings(), getCrmSettings(), getCrmBotLearningEvents()])
+      .then(([, reservationRows, settings, crmSettings, learningRows]) => {
         setReservations(reservationRows);
         setPaymentQrUrl(settings.payment_qr_image ?? settings.appointment_qr_payment_image ?? null);
         setAutomationSettings(crmSettings);
+        setLearningEvents(learningRows);
       })
       .catch((cause) => setError(cause instanceof Error ? cause.message : "No se pudo cargar el CRM."))
       .finally(() => setLoading(false));
-  }, [loadConversations]);
+  }, [loadConversations, loadLearningEvents]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -146,11 +154,12 @@ export function WhatsAppCrmPage() {
 
   useEffect(() => subscribeToCrm(selectedId, () => {
     void loadConversations();
+    void loadLearningEvents();
     if (selectedId) {
       void loadMessages(selectedId);
       void loadBooking(selectedId);
     }
-  }), [loadBooking, loadConversations, loadMessages, selectedId]);
+  }), [loadBooking, loadConversations, loadLearningEvents, loadMessages, selectedId]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setClock(Date.now()), 60_000);
@@ -504,6 +513,7 @@ export function WhatsAppCrmPage() {
       {automationSettings && settingsOpen ? (
         <CrmSettingsDialog
           settings={automationSettings}
+          learningEvents={learningEvents}
           onClose={() => setSettingsOpen(false)}
           onPatch={patchAutomationSettings}
           onLocalChange={setAutomationSettings}
@@ -517,13 +527,26 @@ function Metric({ label, value }: { label: string; value: number }) {
   return <div className="rounded-2xl border border-[var(--color-border)] bg-white/75 px-3 py-2"><p className="text-lg font-semibold">{value}</p><p className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-copy)]">{label}</p></div>;
 }
 
+function learningEventLabel(type: string) {
+  if (type === "booking_step_recovery") return "Dato corregido en reserva";
+  if (type === "booking_handoff") return "Derivado a administración";
+  if (type === "booking_info_interruption") return "Pregunta durante reserva";
+  if (type === "doctor_clarification") return "Consulta por doctora";
+  if (type === "doctor_catalog_missing") return "Falta catálogo de doctora";
+  if (type === "ai_fallback") return "Fallback de IA";
+  if (type === "human_reply_example") return "Ejemplo humano";
+  return "Aprendizaje del bot";
+}
+
 function CrmSettingsDialog({
   settings,
+  learningEvents,
   onClose,
   onPatch,
   onLocalChange,
 }: {
   settings: CrmSettings;
+  learningEvents: CrmBotLearningEvent[];
   onClose: () => void;
   onPatch: (values: Partial<CrmSettings>) => Promise<void>;
   onLocalChange: (settings: CrmSettings) => void;
@@ -581,6 +604,25 @@ function CrmSettingsDialog({
               className="mt-1 w-full resize-none rounded-2xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs"
             />
           </label>
+
+          <details className="rounded-2xl border border-[var(--color-border)] bg-white px-3 py-3">
+            <summary className="cursor-pointer text-xs font-semibold text-[var(--color-ink)]">Aprendizaje supervisado</summary>
+            <div className="mt-3 grid gap-2 text-xs">
+              {learningEvents.length ? learningEvents.map((event) => (
+                <div key={event.id} className="rounded-xl border border-[var(--color-border)] bg-[#fbf7f2] p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-semibold">{learningEventLabel(event.event_type)}</p>
+                    <span className="rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-[var(--color-copy)]">{event.status}</span>
+                  </div>
+                  <p className="mt-1 text-[10px] text-[var(--color-copy)]">{formatTime(event.created_at)} · {event.crm_contacts?.full_name || event.crm_contacts?.phone || "Contacto WhatsApp"}</p>
+                  {event.user_text ? <p className="mt-2 line-clamp-2 text-[var(--color-ink)]">Cliente: {event.user_text}</p> : null}
+                  {event.bot_response ? <p className="mt-1 line-clamp-2 text-[var(--color-copy)]">Bot: {event.bot_response}</p> : null}
+                </div>
+              )) : (
+                <p className="rounded-xl border border-dashed border-[var(--color-border)] bg-[#fbf7f2] p-3 text-[var(--color-copy)]">Todavía no hay casos registrados.</p>
+              )}
+            </div>
+          </details>
 
           <details className="rounded-2xl border border-[var(--color-border)] bg-white px-3 py-3">
             <summary className="cursor-pointer text-xs font-semibold text-[var(--color-ink)]">Plantillas Meta</summary>

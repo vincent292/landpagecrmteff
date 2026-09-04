@@ -76,6 +76,7 @@ export function PromotionDetailPage() {
     notes: "",
     wants_appointment: true,
   });
+  const fixedPromotionCity = promotion?.city?.trim() || "";
 
   useEffect(() => {
     if (!slug) return;
@@ -99,12 +100,12 @@ export function PromotionDetailPage() {
       full_name: profile?.full_name ?? user?.user_metadata.full_name ?? "",
       email: profile?.email ?? user?.email ?? "",
       phone: profile?.phone ?? user?.user_metadata.phone ?? "",
-      city: profile?.city ?? user?.user_metadata.city ?? "",
+      city: fixedPromotionCity || profile?.city || user?.user_metadata.city || "",
       document_number: profile?.document_number ?? user?.user_metadata.document_number ?? "",
       notes: "",
       wants_appointment: true,
     });
-  }, [profile, user]);
+  }, [fixedPromotionCity, profile, user]);
 
   useEffect(() => {
     const action = searchParams.get("accion");
@@ -130,7 +131,7 @@ export function PromotionDetailPage() {
   }, [showAssessmentModal, showOrderModal]);
 
   useEffect(() => {
-    const slotCity = form.city.trim() || promotion?.city?.trim() || "";
+    const slotCity = fixedPromotionCity || form.city.trim();
     if (!showOrderModal || !form.wants_appointment || !slotCity || !promotion || !usesAppointmentSlots(promotion.agenda_mode)) {
       setAppointmentSlots([]);
       return;
@@ -175,7 +176,7 @@ export function PromotionDetailPage() {
         );
       })
       .finally(() => setLoadingAppointmentSlots(false));
-  }, [form.city, form.wants_appointment, promotion, showOrderModal]);
+  }, [fixedPromotionCity, form.city, form.wants_appointment, promotion, showOrderModal]);
 
   const groupedAppointmentSlots = useMemo(() => {
     const grouped = new Map<string, AvailableSlot[]>();
@@ -696,7 +697,13 @@ export function PromotionDetailPage() {
                 <input value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} className="premium-input" />
               </Field>
               ) : null}
-              {orderStep === "datos" ? (
+              {orderStep === "datos" && fixedPromotionCity ? (
+                <div className="rounded-[18px] border border-[var(--color-border)] bg-white/70 px-4 py-3">
+                  <p className="text-sm font-semibold text-[var(--color-ink)]">Ciudad de atención</p>
+                  <p className="mt-1 text-sm text-[var(--color-copy)]">{fixedPromotionCity}</p>
+                </div>
+              ) : null}
+              {orderStep === "datos" && !fixedPromotionCity ? (
               <Field label="Ciudad">
                 <select value={form.city} onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))} className="premium-input">
                   <option value="">Selecciona ciudad</option>

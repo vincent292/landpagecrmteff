@@ -3,6 +3,7 @@ import { PutObjectCommand } from "npm:@aws-sdk/client-s3";
 
 import {
   persistOutboundMessage,
+  recordBotLearningEvent,
   requiredEnv,
   sendMetaMessage,
   type IncomingWhatsAppMessage,
@@ -49,6 +50,10 @@ const bookingPattern = /\b(reserv(?:ar|a|o)|agend(?:ar|a|o)|sacar\s+(?:una\s+)?c
 const cancelPattern = /\b(cancelar|salir|detener|ya\s+no)\b/i;
 const boliviaCities = ["Cochabamba", "La Paz", "Santa Cruz", "Sucre", "Oruro", "Potosi", "Tarija", "Beni", "Pando"];
 const treatmentCatalogPattern = /\b(que|cuales|cu[aá]les|ver|mu[eé]strame|informaci[oó]n|saber).{0,45}\b(trat[a]?m?ientos?|servicios?)\b|\b(trat[a]?m?ientos?|servicios?).{0,45}\b(disponibles?|tienen|ofrecen|hay)\b/i;
+const doctorTreatmentPattern = /\b(?:doctora|doctor|dra|dr)\b.{0,80}\b(?:tratamientos?|servicios?|atiende|hace|realiza|ofrece|agenda|agendar|reservar|cita|horarios?|precio|costo)\b|\b(?:tratamientos?|servicios?|atiende|hace|realiza|ofrece|agenda|agendar|reservar|cita|horarios?|precio|costo)\b.{0,80}\b(?:doctora|doctor|dra|dr)\b/i;
+const doctorListPattern = /^(?:ver\s+)?(?:doctoras?|doctores|dras?|medicas?|m[eé]dicas?)$/i;
+const exactNoPattern = /^(no|nop|nel|no gracias)$/i;
+const identityHandoffPattern = /^(omitir|saltar|luego|despues|después|mas tarde|más tarde|no tengo|no lo tengo|no recuerdo|no se|no sé|prefiero no|no quiero)$/i;
 
 function normalize(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -132,6 +137,37 @@ function textValue(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+async function resolveKnownCity(admin: SupabaseClient, text: string) {
+  const normalizedText = normalize(text);
+  if (!normalizedText) return null;
+  const compactText = normalizedText.replace(/\b(ciudad|sede|en|quiero|atender|atenderme|atencion|para|tratamientos?)\b/g, " ").replace(/\s+/g, " ").trim();
+  const staticMatch = boliviaCities.find((city) => {
+    const normalizedCity = normalize(city);
+    return normalizedText === normalizedCity
+      || compactText === normalizedCity
+      || normalizedText.includes(normalizedCity)
+      || (compactText.length >= 4 && normalizedCity.includes(compactText));
+  });
+  if (staticMatch) return staticMatch;
+
+  const { data, error } = await admin
+    .from("treatments")
+    .select("city")
+    .eq("is_active", true)
+    .is("deleted_at", null)
+    .not("city", "is", null)
+    .limit(200);
+  if (error) throw error;
+  const cities = [...new Set((data ?? []).map((row) => textValue(row.city)).filter((city): city is string => Boolean(city)))];
+  return cities.find((city) => {
+    const normalizedCity = normalize(city);
+    return normalizedText === normalizedCity
+      || compactText === normalizedCity
+      || normalizedText.includes(normalizedCity)
+      || (compactText.length >= 4 && normalizedCity.includes(compactText));
+  }) ?? null;
+}
+
 function compactText(value: unknown, maxLength: number) {
   const text = textValue(value)?.replace(/\s+/g, " ");
   if (!text) return null;
@@ -172,6 +208,129 @@ function formatTreatmentSlotsLine(treatment: Record<string, unknown>) {
   const remaining = remainingTreatmentSlots(treatment);
   if (remaining == null) return treatment.allows_direct_booking ? "Cupos: segun agenda disponible." : null;
   return remaining > 0 ? `Cupos disponibles: ${remaining}.` : "Cupos disponibles: agotados por ahora.";
+}
+
+type DoctorLite = { id: string; full_name: string; specialty: string | null; city: string | null };
+
+async function getActiveDoctors(admin: SupabaseClient) {
+  const { data, error } = await admin
+    .from("doctor_profiles")
+    .select("id,full_name,specialty,city")
+    .eq("is_active", true)
+    .is("deleted_at", null)
+    .order("full_name")
+    .limit(50);
+  if (error) throw error;
+  return (data ?? []).filter((doctor) => String(doctor.full_name ?? "").trim()) as DoctorLite[];
+}
+
+function doctorSearchTokens(text: string) {
+  const stopWords = new Set([
+    "que", "cual", "cuales", "tratamiento", "tratamientos", "servicio", "servicios", "hace", "realiza",
+    "ofrece", "atiende", "agenda", "horario", "horarios", "precio", "costo", "doctora", "doctor", "dra",
+    "dr", "la", "el", "con", "de", "del", "una", "un", "quiero", "quisiera", "saber", "me", "puedes",
+    "decir", "tiene", "hay", "reservar", "reserva", "cita", "agendar",
+  ]);
+  return normalize(text).split(" ").filter((token) => token.length >= 3 && !stopWords.has(token));
+}
+
+function resolveDoctorFromText(doctors: DoctorLite[], text: string) {
+  const normalizedText = normalize(text);
+  const tokens = doctorSearchTokens(text);
+  let best: { doctor: DoctorLite; score: number } | null = null;
+  for (const doctor of doctors) {
+    const normalizedName = normalize(doctor.full_name);
+    const nameTokens = normalizedName.split(" ").filter((token) => token.length >= 3);
+    let score = normalizedText.includes(normalizedName) ? 8 : 0;
+    for (const token of tokens) {
+      if (nameTokens.some((nameToken) => nameToken === token || nameToken.includes(token) || token.includes(nameToken))) score += 2;
+    }
+    if (!best || score > best.score) best = { doctor, score };
+  }
+  return best && best.score > 0 ? best.doctor : null;
+}
+
+async function showDoctorChoices(admin: SupabaseClient, persisted: PersistedInbound, doctors: DoctorLite[], userText?: string | null) {
+  if (!doctors.length) return false;
+  const body = "Claro. ¿Sobre qué doctora quieres consultar?";
+  await admin.from("crm_conversations").update({ intent: "doctor_lookup" }).eq("id", persisted.conversation.id);
+  await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, body, {
+    type: "interactive",
+    interactive: {
+      type: "list",
+      body: { text: body },
+      action: {
+        button: "Ver doctoras",
+        sections: [{
+          title: "Doctoras",
+          rows: doctors.slice(0, 10).map((doctor) => ({
+            id: `doctor-info:${doctor.id}`,
+            title: doctor.full_name.slice(0, 24),
+            description: [doctor.specialty, doctor.city].filter(Boolean).join(" · ").slice(0, 72) || "Ver tratamientos",
+          })),
+        }],
+      },
+    },
+  });
+  await recordBotLearningEvent(admin, {
+    conversationId: persisted.conversation.id,
+    contactId: persisted.contact.id,
+    crmMessageId: persisted.messageId ?? null,
+    eventType: "doctor_clarification",
+    detectedIntent: "consulta_doctora",
+    userText,
+    botResponse: body,
+  });
+  return true;
+}
+
+async function showDoctorTreatments(admin: SupabaseClient, persisted: PersistedInbound, doctor: DoctorLite, userText?: string | null) {
+  const treatments = (await getInformationalTreatments(admin)).filter((treatment) => treatment.doctor_id === doctor.id);
+  if (!treatments.length) {
+    const body = `No encontré tratamientos publicados a nombre de ${doctor.full_name}. Avisé a administración para que te oriente con datos actualizados.`;
+    const conversationUpdate = await admin.from("crm_conversations").update({ needs_human: true, intent: "doctor_without_catalog" }).eq("id", persisted.conversation.id);
+    if (conversationUpdate.error) throw conversationUpdate.error;
+    await recordBotLearningEvent(admin, {
+      conversationId: persisted.conversation.id,
+      contactId: persisted.contact.id,
+      crmMessageId: persisted.messageId ?? null,
+      eventType: "doctor_catalog_missing",
+      detectedIntent: "consulta_doctora",
+      userText,
+      botResponse: body,
+      metadata: { doctor_id: doctor.id, doctor_name: doctor.full_name },
+    });
+    await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, body);
+    return true;
+  }
+
+  const lines = treatments.slice(0, 8).map((treatment, index) => {
+    const city = textValue(treatment.city);
+    const price = displayPrice(treatment);
+    return `${index + 1}. ${String(treatment.title)}${city ? ` · ${city}` : ""}${price ? ` · ${price}` : ""}`;
+  });
+  const more = treatments.length > lines.length ? `\nY ${treatments.length - lines.length} más disponibles.` : "";
+  const body = `${doctor.full_name}${doctor.specialty ? ` (${doctor.specialty})` : ""} atiende estos tratamientos:\n\n${lines.join("\n")}${more}\n\nToca un tratamiento para ver detalle o escribe “reservar con ${doctor.full_name.split(" ")[0]}”.`;
+  await admin.from("crm_conversations").update({ intent: `doctor_info:${doctor.id}` }).eq("id", persisted.conversation.id);
+  await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, body.slice(0, 1024), {
+    type: "interactive",
+    interactive: {
+      type: "list",
+      body: { text: body.slice(0, 1024) },
+      action: {
+        button: "Ver detalle",
+        sections: [{
+          title: "Tratamientos",
+          rows: treatments.slice(0, 10).map((treatment) => ({
+            id: `treatment-info:${treatment.id}`,
+            title: String(treatment.title).slice(0, 24),
+            description: [textValue(treatment.city), displayPrice(treatment)].filter(Boolean).join(" · ").slice(0, 72) || "Ver información",
+          })),
+        }],
+      },
+    },
+  });
+  return true;
 }
 
 function formatTreatmentOverview(treatment: Record<string, unknown>) {
@@ -347,7 +506,46 @@ export async function handleTreatmentCatalogConversation(admin: SupabaseClient, 
   if (message.interactiveId === "treatment-catalog") return await showCityChoices(admin, persisted, "info");
   const currentIntent = await admin.from("crm_conversations").select("intent").eq("id", persisted.conversation.id).maybeSingle();
   if (currentIntent.error) throw currentIntent.error;
-  const currentTreatmentInfoId = currentIntent.data?.intent?.match(/^treatment_info:([0-9a-f-]{36})$/i)?.[1] ?? null;
+  const currentIntentValue = currentIntent.data?.intent ?? null;
+  const doctorChoiceId = message.interactiveId?.startsWith("doctor-info:") ? message.interactiveId.slice("doctor-info:".length) : null;
+  if (doctorChoiceId) {
+    const doctors = await getActiveDoctors(admin);
+    const doctor = doctors.find((item) => item.id === doctorChoiceId);
+    if (!doctor) return false;
+    return await showDoctorTreatments(admin, persisted, doctor, message.text);
+  }
+  if (!message.interactiveId && message.text && (currentIntentValue === "select_treatment_city" || currentIntentValue === "catalog_city")) {
+    const purpose = currentIntentValue === "select_treatment_city" ? "booking" : "info";
+    const city = await resolveKnownCity(admin, message.text);
+    if (city) {
+      await rememberCityInterest(admin, persisted.contact.id, city);
+      if (purpose === "booking") return await showTreatmentChoices(admin, persisted, city);
+      const shown = await showTreatmentInformationChoices(admin, persisted, city);
+      if (!shown) {
+        await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, `Aún no tenemos tratamientos publicados en ${city}. Puedes elegir otra ciudad.`);
+      }
+      return true;
+    }
+    await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, "No encontré esa ciudad en las opciones. Elige una de la lista para continuar.");
+    return await showCityChoices(admin, persisted, purpose);
+  }
+  if (!message.interactiveId && message.text && currentIntentValue === "doctor_lookup") {
+    const doctors = await getActiveDoctors(admin);
+    const doctor = resolveDoctorFromText(doctors, message.text);
+    if (doctor) return await showDoctorTreatments(admin, persisted, doctor, message.text);
+    await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, "No encontré esa doctora en la lista. Elige una opción para continuar.");
+    return await showDoctorChoices(admin, persisted, doctors, message.text);
+  }
+  if (!message.interactiveId && doctorTreatmentPattern.test(message.text ?? "")) {
+    const doctors = await getActiveDoctors(admin);
+    const doctor = resolveDoctorFromText(doctors, message.text ?? "");
+    if (doctor) return await showDoctorTreatments(admin, persisted, doctor, message.text);
+    return await showDoctorChoices(admin, persisted, doctors, message.text);
+  }
+  if (!message.interactiveId && doctorListPattern.test(normalize(message.text ?? ""))) {
+    return await showDoctorChoices(admin, persisted, await getActiveDoctors(admin), message.text);
+  }
+  const currentTreatmentInfoId = currentIntentValue?.match(/^treatment_info:([0-9a-f-]{36})$/i)?.[1] ?? null;
   if (!message.interactiveId && currentTreatmentInfoId && message.text) {
     const treatment = await loadInformationalTreatment(admin, currentTreatmentInfoId);
     if (treatment && bookingPattern.test(message.text)) {
@@ -470,6 +668,126 @@ function identityPrompt(step: string) {
   if (step === "email") return "¿Cuál es el correo electrónico del paciente? Lo usaremos para registrar su reserva y darle acceso al seguimiento.";
   if (step === "city") return "¿En qué ciudad desea atenderse el paciente?";
   return "Para completar la reserva, envíame el nombre y apellido completos del paciente.";
+}
+
+function identityIssueState(session: BookingSession, step: string, reason: string) {
+  const rawErrors = session.state_data?.identity_step_errors;
+  const errors = rawErrors && typeof rawErrors === "object" && !Array.isArray(rawErrors)
+    ? rawErrors as Record<string, unknown>
+    : {};
+  const count = Number(errors[step] ?? 0) + 1;
+  return {
+    count,
+    stateData: {
+      ...session.state_data,
+      identity_step_errors: { ...errors, [step]: count },
+      last_identity_issue: reason,
+      last_identity_issue_at: new Date().toISOString(),
+    },
+  };
+}
+
+async function flagBookingNeedsHuman(
+  admin: SupabaseClient,
+  session: BookingSession,
+  persisted: PersistedInbound,
+  message: IncomingWhatsAppMessage,
+  body: string,
+  reason: string,
+  intent: string,
+  extraState: Record<string, unknown> = {},
+) {
+  const stateData = {
+    ...session.state_data,
+    ...extraState,
+    handoff_reason: reason,
+    handoff_at: new Date().toISOString(),
+  };
+  const [sessionUpdate, conversationUpdate] = await Promise.all([
+    admin.from("crm_booking_sessions").update({ status: "needs_human", state_data: stateData }).eq("id", session.id),
+    admin.from("crm_conversations").update({ needs_human: true, intent }).eq("id", session.conversation_id),
+  ]);
+  if (sessionUpdate.error) throw sessionUpdate.error;
+  if (conversationUpdate.error) throw conversationUpdate.error;
+  await sendBookingMessage(admin, session.conversation_id, persisted.contact.wa_id, body);
+  await recordBotLearningEvent(admin, {
+    conversationId: persisted.conversation.id,
+    contactId: persisted.contact.id,
+    bookingSessionId: session.id,
+    crmMessageId: persisted.messageId ?? null,
+    eventType: "booking_handoff",
+    detectedIntent: intent,
+    userText: message.text ?? null,
+    botResponse: body,
+    metadata: { reason, identity_step: session.identity_step },
+  });
+}
+
+async function recoverIdentityStep(
+  admin: SupabaseClient,
+  session: BookingSession,
+  persisted: PersistedInbound,
+  message: IncomingWhatsAppMessage,
+  prompt: string,
+  reason: string,
+  intent: string,
+  handoffAfterSecond = true,
+) {
+  const step = session.identity_step ?? "unknown";
+  const issue = identityIssueState(session, step, reason);
+  if (handoffAfterSecond && issue.count >= 2) {
+    await flagBookingNeedsHuman(
+      admin,
+      session,
+      persisted,
+      message,
+      "Te paso con administración para continuar la reserva sin perder el contexto. Una asesora revisará este dato contigo.",
+      reason,
+      intent,
+      issue.stateData,
+    );
+    return true;
+  }
+  const update = await admin.from("crm_booking_sessions").update({ state_data: issue.stateData }).eq("id", session.id);
+  if (update.error) throw update.error;
+  await sendBookingMessage(admin, session.conversation_id, persisted.contact.wa_id, prompt);
+  await recordBotLearningEvent(admin, {
+    conversationId: persisted.conversation.id,
+    contactId: persisted.contact.id,
+    bookingSessionId: session.id,
+    crmMessageId: persisted.messageId ?? null,
+    eventType: "booking_step_recovery",
+    detectedIntent: intent,
+    userText: message.text ?? null,
+    botResponse: prompt,
+    metadata: { reason, identity_step: step, count: issue.count },
+  });
+  return true;
+}
+
+async function answerTreatmentQuestionDuringIdentity(
+  admin: SupabaseClient,
+  session: BookingSession,
+  persisted: PersistedInbound,
+  message: IncomingWhatsAppMessage,
+) {
+  if (!session.identity_step || !message.text || !isTreatmentFollowUpQuestion(message.text)) return false;
+  const treatment = await loadInformationalTreatment(admin, session.treatment_id);
+  if (!treatment) return false;
+  const body = `${formatTreatmentFollowUpAnswer(treatment, message.text)}\n\nPara seguir con la reserva: ${identityPrompt(session.identity_step)}`;
+  await sendBookingMessage(admin, session.conversation_id, persisted.contact.wa_id, body);
+  await recordBotLearningEvent(admin, {
+    conversationId: persisted.conversation.id,
+    contactId: persisted.contact.id,
+    bookingSessionId: session.id,
+    crmMessageId: persisted.messageId ?? null,
+    eventType: "booking_info_interruption",
+    detectedIntent: "consulta_durante_reserva",
+    userText: message.text,
+    botResponse: body,
+    metadata: { identity_step: session.identity_step, treatment_id: session.treatment_id },
+  });
+  return true;
 }
 
 async function beginIdentityCollection(admin: SupabaseClient, persisted: PersistedInbound, treatment: Record<string, unknown>) {
@@ -819,26 +1137,125 @@ async function handleIdentityStep(admin: SupabaseClient, session: BookingSession
     return true;
   }
   if (!value) return true;
+  if (await answerTreatmentQuestionDuringIdentity(admin, session, persisted, message)) return true;
   const updates: Record<string, unknown> = {};
   let prompt = "";
+  const normalizedValue = normalize(value);
   switch (session.identity_step) {
     case "full_name":
-      if (value.length < 5 || !value.includes(" ")) prompt = "Necesito tu nombre y apellido completos, por favor.";
+      if (identityHandoffPattern.test(normalizedValue)) {
+        await flagBookingNeedsHuman(
+          admin,
+          session,
+          persisted,
+          message,
+          "De acuerdo. Una asesora continuará contigo para tomar los datos de la reserva.",
+          "name_omitted",
+          "reserva_datos_incompletos",
+        );
+        return true;
+      }
+      if (exactNoPattern.test(normalizedValue) || value.length < 5 || !value.includes(" ")) {
+        return await recoverIdentityStep(
+          admin,
+          session,
+          persisted,
+          message,
+          "Para reservar necesitamos nombre y apellido completos del paciente. Escríbelos como figuran en su registro, por favor.",
+          "invalid_full_name",
+          "reserva_nombre_incompleto",
+        );
+      }
       else { updates.full_name = value.slice(0, 140); updates.identity_step = "document_number"; prompt = "Ahora envíame tu número de carnet, sin fotografía."; }
       break;
     case "document_number": {
+      if (identityHandoffPattern.test(normalizedValue)) {
+        await flagBookingNeedsHuman(
+          admin,
+          session,
+          persisted,
+          message,
+          "Lo dejo pendiente para administración. Una asesora continuará contigo para completar el carnet y confirmar la reserva.",
+          "document_omitted",
+          "reserva_sin_carnet",
+        );
+        return true;
+      }
+      if (exactNoPattern.test(normalizedValue)) {
+        return await recoverIdentityStep(
+          admin,
+          session,
+          persisted,
+          message,
+          "Entiendo. Para confirmar la cita necesitamos el CI del paciente. Si no lo tienes ahora, escribe “omitir” y una asesora continuará contigo.",
+          "document_refused",
+          "reserva_carnet_no_enviado",
+        );
+      }
       const document = value.replace(/[^0-9A-Za-z]/g, "").toUpperCase();
-      if (document.length < 4) prompt = "El número de carnet parece incompleto. Escríbelo nuevamente.";
+      if (document.length < 4) {
+        return await recoverIdentityStep(
+          admin,
+          session,
+          persisted,
+          message,
+          "El número de carnet parece incompleto. Escríbelo nuevamente solo con números y letras, sin foto.",
+          "invalid_document_number",
+          "reserva_carnet_incompleto",
+        );
+      }
       else { updates.document_number = document; updates.identity_step = "email"; prompt = "¿Cuál es tu correo electrónico? Lo usaremos para registrar tu reserva y darte acceso a su seguimiento."; }
       break;
     }
     case "email":
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) prompt = "Ese correo no parece válido. Escríbelo nuevamente, por ejemplo nombre@correo.com.";
-      else { updates.email = value.toLowerCase(); updates.identity_step = "city"; prompt = "¿En qué ciudad deseas atenderte?"; }
+      if (identityHandoffPattern.test(normalizedValue) || exactNoPattern.test(normalizedValue)) {
+        await flagBookingNeedsHuman(
+          admin,
+          session,
+          persisted,
+          message,
+          "No hay problema. Una asesora continuará contigo para completar el correo y terminar la reserva.",
+          "email_omitted",
+          "reserva_sin_correo",
+        );
+        return true;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        return await recoverIdentityStep(
+          admin,
+          session,
+          persisted,
+          message,
+          "Ese correo no parece válido. Escríbelo nuevamente, por ejemplo nombre@correo.com.",
+          "invalid_email",
+          "reserva_correo_invalido",
+        );
+      }
+      else {
+        updates.email = value.toLowerCase();
+        if (session.city?.trim()) {
+          updates.identity_step = null;
+          prompt = "";
+        } else {
+          updates.identity_step = "city";
+          prompt = "¿En qué ciudad deseas atenderte?";
+        }
+      }
       break;
     case "city":
-      if (value.length < 3) prompt = "Indícame la ciudad completa, por favor.";
-      else updates.city = value.slice(0, 100);
+      if (value.length < 3 || exactNoPattern.test(normalizedValue)) {
+        return await recoverIdentityStep(
+          admin,
+          session,
+          persisted,
+          message,
+          "Indícame la ciudad completa donde deseas atenderte, por favor.",
+          "invalid_city",
+          "reserva_ciudad_incompleta",
+          false,
+        );
+      }
+      else updates.city = ((await resolveKnownCity(admin, value)) ?? value).slice(0, 100);
       break;
     default:
       updates.identity_step = "full_name";
@@ -847,7 +1264,7 @@ async function handleIdentityStep(admin: SupabaseClient, session: BookingSession
   const updated = await admin.from("crm_booking_sessions").update(updates).eq("id", session.id).select("*").limit(1);
   if (updated.error || !updated.data?.[0]) throw updated.error ?? new Error("No se pudo actualizar la reserva.");
   const updatedSession = updated.data[0] as BookingSession;
-  if (session.identity_step === "city" && updates.city) {
+  if ((session.identity_step === "city" && updates.city) || (session.identity_step === "email" && updates.email && updatedSession.city)) {
     try {
       const account = await ensurePatientAccount(admin, updatedSession);
       const accountMessage = account.accountCreated
@@ -857,11 +1274,11 @@ async function handleIdentityStep(admin: SupabaseClient, session: BookingSession
       if (!ready) throw new Error("No se pudo recuperar la sesión de reserva.");
       await showAssessmentCareModeChoice(admin, ready, persisted.contact.wa_id, accountMessage);
     } catch (error) {
-      await admin.from("crm_booking_sessions").update({ status: "needs_human", state_data: { account_error: error instanceof Error ? error.message : "unknown" } }).eq("id", session.id);
+      await admin.from("crm_booking_sessions").update({ status: "needs_human", state_data: { ...updatedSession.state_data, account_error: error instanceof Error ? error.message : "unknown" } }).eq("id", session.id);
       await admin.from("crm_conversations").update({ needs_human: true }).eq("id", session.conversation_id);
       await sendBookingMessage(admin, session.conversation_id, persisted.contact.wa_id, "No pude vincular la cuenta de forma segura. Una administradora verificará tus datos antes de continuar.");
     }
-  } else await sendBookingMessage(admin, session.conversation_id, persisted.contact.wa_id, prompt);
+  } else if (prompt) await sendBookingMessage(admin, session.conversation_id, persisted.contact.wa_id, prompt);
   return true;
 }
 

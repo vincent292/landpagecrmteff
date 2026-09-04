@@ -107,10 +107,7 @@ export async function updateUserAccess(input: UpdateUserAccessInput) {
 
 async function formatUpdateUserAccessError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error ?? "");
-  const context = error && typeof error === "object" && "context" in error ? (error.context as Response | undefined) : undefined;
-  const payload = context
-    ? await context.clone().json().catch(() => null) as { error?: string } | null
-    : null;
+  const payload = await readFunctionErrorPayload(error);
   const functionMessage = payload?.error || message;
 
   if (
@@ -123,4 +120,21 @@ async function formatUpdateUserAccessError(error: unknown) {
   }
 
   return new Error(functionMessage || "No se pudo actualizar el acceso del usuario.");
+}
+
+async function readFunctionErrorPayload(error: unknown) {
+  const context = error && typeof error === "object" && "context" in error
+    ? (error as { context?: unknown }).context
+    : null;
+  if (!context) return null;
+  if (context instanceof Response) {
+    return await context.clone().json().catch(() => null) as { error?: string } | null;
+  }
+  if (typeof context === "object" && "json" in context && typeof context.json === "function") {
+    return await (context.json as () => Promise<unknown>)().catch(() => null) as { error?: string } | null;
+  }
+  if (typeof context === "object" && "error" in context && typeof (context as { error?: unknown }).error === "string") {
+    return { error: (context as { error: string }).error };
+  }
+  return null;
 }

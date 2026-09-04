@@ -66,6 +66,7 @@ export function TreatmentDirectBookingFlow({
     notes: "",
     wants_appointment: true,
   });
+  const fixedTreatmentCity = treatment.city?.trim() || "";
 
   useEffect(() => {
     getSiteSettings().then(setSettings).catch(() => undefined);
@@ -81,12 +82,12 @@ export function TreatmentDirectBookingFlow({
       full_name: profile?.full_name ?? user?.user_metadata.full_name ?? "",
       email: profile?.email ?? user?.email ?? "",
       phone: profile?.phone ?? user?.user_metadata.phone ?? "",
-      city: profile?.city ?? user?.user_metadata.city ?? "",
+      city: fixedTreatmentCity || profile?.city || user?.user_metadata.city || "",
       document_number: profile?.document_number ?? user?.user_metadata.document_number ?? "",
       notes: "",
       wants_appointment: true,
     });
-  }, [profile, user]);
+  }, [fixedTreatmentCity, profile, user]);
 
   useEffect(() => {
     if (!open) return;
@@ -105,7 +106,7 @@ export function TreatmentDirectBookingFlow({
   }, [open]);
 
   useEffect(() => {
-    const slotCity = form.city.trim() || treatment.city?.trim() || "";
+    const slotCity = fixedTreatmentCity || form.city.trim();
     if (!open || !form.wants_appointment || !slotCity || !usesAppointmentSlots(treatment.agenda_mode)) {
       setAppointmentSlots([]);
       setSelectedSlot(null);
@@ -144,7 +145,7 @@ export function TreatmentDirectBookingFlow({
         setSelectedSlot(null);
       })
       .finally(() => setLoadingAppointmentSlots(false));
-  }, [form.city, form.wants_appointment, open, treatment]);
+  }, [fixedTreatmentCity, form.city, form.wants_appointment, open, treatment]);
 
   const groupedAppointmentSlots = useMemo(() => {
     const grouped = new Map<string, AvailableSlot[]>();
@@ -377,7 +378,13 @@ export function TreatmentDirectBookingFlow({
               <input value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} className="premium-input" />
             </Field>
           ) : null}
-          {orderStep === "datos" ? (
+          {orderStep === "datos" && fixedTreatmentCity ? (
+            <div className="rounded-[18px] border border-[var(--color-border)] bg-white/70 px-4 py-3">
+              <p className="text-sm font-semibold text-[var(--color-ink)]">Ciudad de atención</p>
+              <p className="mt-1 text-sm text-[var(--color-copy)]">{fixedTreatmentCity}</p>
+            </div>
+          ) : null}
+          {orderStep === "datos" && !fixedTreatmentCity ? (
             <Field label="Ciudad">
               <select value={form.city} onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))} className="premium-input">
                 <option value="">Selecciona ciudad</option>

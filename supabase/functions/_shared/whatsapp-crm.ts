@@ -382,6 +382,33 @@ export async function applyWhatsAppStatus(admin: SupabaseClient, event: WhatsApp
   if (updateError) throw updateError;
 }
 
+export async function recordBotLearningEvent(admin: SupabaseClient, input: {
+  conversationId: string;
+  contactId?: string | null;
+  bookingSessionId?: string | null;
+  crmMessageId?: string | null;
+  eventType: string;
+  detectedIntent?: string | null;
+  userText?: string | null;
+  botResponse?: string | null;
+  metadata?: Record<string, unknown>;
+}) {
+  const { error } = await admin.from("crm_bot_learning_events").insert({
+    conversation_id: input.conversationId,
+    contact_id: input.contactId ?? null,
+    booking_session_id: input.bookingSessionId ?? null,
+    crm_message_id: input.crmMessageId ?? null,
+    event_type: input.eventType,
+    detected_intent: input.detectedIntent ?? null,
+    user_text: input.userText?.slice(0, 1200) ?? null,
+    bot_response: input.botResponse?.slice(0, 1800) ?? null,
+    metadata: input.metadata ?? {},
+  });
+  if (error && error.code !== "42P01" && !String(error.message ?? "").includes("crm_bot_learning_events")) {
+    console.error("[whatsapp] Could not record bot learning event", error);
+  }
+}
+
 type MetaAdContext = {
   id: string;
   status: "pending" | "configured";
@@ -553,6 +580,14 @@ function normalizeForSearch(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
+function normalizeForIntent(value: string) {
+  return normalizeForSearch(value).replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function compactIntentText(value: string) {
+  return normalizeForIntent(value).replace(/\s+/g, "");
+}
+
 /**
  * Keep the AI prompt small and relevant. Sending the whole web site on every
  * WhatsApp message was the main source of slow responses and unnecessary cost.
@@ -580,6 +615,16 @@ const treatmentWord = "trat[a]?m?ientos?";
 const treatmentListPattern = new RegExp(`\\b(que|cuales|cu[aá]les|ver|mu[eé]strame|informaci[oó]n).{0,45}\\b(${treatmentWord}|servicios?)\\b|\\b(${treatmentWord}|servicios?).{0,45}\\b(disponibles?|tienen|ofrecen|hay)\\b`, "i");
 const humanRequestPattern = /\b(humano|persona|administradora|asesor(?:a)?|reclamo|emergencia|urgencia)\b/i;
 
+function looksLikeGeneralInfoRequest(message: string) {
+  const normalized = normalizeForIntent(message);
+  const compact = compactIntentText(message);
+  if (!normalized) return false;
+  const hasInfoWord = /\b(info|informacion|infirmacion|sinformacion|datos|detalle|detalles)\b/.test(normalized)
+    || /(mas)?(s?infor?macion|informacion|infirmacion|infomacion|infro?macion)/.test(compact);
+  const hasAskVerb = /\b(quiero|quisiera|quieria|necesito|me das|mandame|pasame|saber|consulta|consultar|puedes)\b/.test(normalized);
+  return hasInfoWord && (hasAskVerb || /\b(hola|holi|buenas)\b/.test(normalized));
+}
+
 export function isHumanRequest(text?: string | null) {
   return humanRequestPattern.test(text ?? "");
 }
@@ -589,7 +634,10 @@ export async function getFastCrmReply(admin: SupabaseClient, text?: string | nul
   const message = (text ?? "").trim();
   if (!message) return null;
   if (greetingPattern.test(message)) {
-    return "¡Hola! 😊 Soy la asistente virtual de la Dra. Estefany Ballesteros. Puedo informarte sobre tratamientos y, cuando decidas, ayudarte a reservar una cita. ¿Qué deseas consultar?";
+    return "¡Hola! Soy la asistente virtual de la Dra. Estefany Ballesteros.\n\nPuedo ayudarte con:\n1. Tratamientos\n2. Precios\n3. Doctoras\n4. Reservar una cita\n\n¿Qué deseas consultar?";
+  }
+  if (looksLikeGeneralInfoRequest(message)) {
+    return "Claro, te ayudo.\n\nPuedes preguntarme por tratamientos, precios, doctoras o ciudades. También puedes escribir “quiero reservar una cita” cuando quieras agendar.";
   }
   if (!treatmentListPattern.test(message)) return null;
 
@@ -635,6 +683,9 @@ export async function generateGeminiReply(input: {
     "Si la persona solo pide informacion, conversa y explica con lenguaje simple usando el contexto; no la fuerces a reservar.",
     "Solo orienta hacia reserva cuando la persona exprese claramente que quiere agendar, reservar, tomar cita o continuar con el proceso.",
     "No asumas que hay una reserva activa por mensajes anteriores; usa el ESTADO REAL DE RESERVA ACTIVA.",
+    "Responde como WhatsApp: mensajes breves, naturales, con opciones numeradas cuando ayuden. No uses lenguaje técnico ni digas que hay demoras salvo que el sistema lo indique.",
+    "Tolera errores de escritura comunes. Si el mensaje parece 'mas informacion', 'info', 'quiero saber' o similar, ofrece ayuda concreta en vez de pedir que repita.",
+    "Si el paciente rechaza o no entiende un dato requerido de una reserva, no reinicies la conversacion; explica para que sirve el dato y ofrece derivar a una administradora.",
     "Responde en español cálido, profesional, breve y claro. No inventes precios, horarios, resultados ni servicios.",
     "Para precios, horarios, servicios, sedes, profesionales y políticas del consultorio usa exclusivamente CONTEXTO DEL NEGOCIO.",
     "Para una pregunta puntual de información general puedes consultar Google Search solo si está habilitado. Prioriza fuentes oficiales, médicas institucionales o artículos científicos y agrega al final los enlaces consultados.",

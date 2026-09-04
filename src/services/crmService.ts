@@ -121,6 +121,17 @@ export type MetaCtwaAd = {
 
 export type MetaCtwaTarget = { id: string; title: string; kind: "treatment" | "promotion" };
 
+export type CrmBotLearningEvent = {
+  id: string;
+  event_type: string;
+  detected_intent: string | null;
+  user_text: string | null;
+  bot_response: string | null;
+  status: "pending" | "reviewed" | "ignored" | "applied";
+  created_at: string;
+  crm_contacts?: { full_name: string | null; phone: string | null } | null;
+};
+
 export async function getCrmConversations() {
   const { data, error } = await supabase
     .from("crm_conversations")
@@ -185,6 +196,19 @@ export async function getMetaCtwaTargets() {
   ] as MetaCtwaTarget[];
 }
 
+export async function getCrmBotLearningEvents() {
+  const { data, error } = await supabase
+    .from("crm_bot_learning_events")
+    .select("id,event_type,detected_intent,user_text,bot_response,status,created_at,crm_contacts(full_name,phone)")
+    .order("created_at", { ascending: false })
+    .limit(12);
+  if (error) {
+    if (error.code === "42P01" || error.message.includes("crm_bot_learning_events")) return [];
+    throw error;
+  }
+  return (data ?? []) as unknown as CrmBotLearningEvent[];
+}
+
 export async function updateMetaCtwaAd(id: string, values: Partial<Pick<MetaCtwaAd, "treatment_id" | "promotion_id" | "welcome_message">>) {
   const { data, error } = await supabase.from("meta_ctwa_ads").update(values).eq("id", id).select().single();
   if (error) throw error;
@@ -218,13 +242,27 @@ async function invokeCrmFunction(name: string, body: Record<string, unknown>) {
 
   const { data, error } = await supabase.functions.invoke(name, { body });
   if (error) {
-    const context = error.context as Response | undefined;
-    const payload = context
-      ? await context.clone().json().catch(() => null) as { error?: string } | null
-      : null;
+    const payload = await readFunctionErrorPayload(error);
     throw new Error(payload?.error || error.message || "La operación no pudo completarse.");
   }
   return data as Record<string, unknown>;
+}
+
+async function readFunctionErrorPayload(error: unknown) {
+  const context = error && typeof error === "object" && "context" in error
+    ? (error as { context?: unknown }).context
+    : null;
+  if (!context) return null;
+  if (context instanceof Response) {
+    return await context.clone().json().catch(() => null) as { error?: string } | null;
+  }
+  if (typeof context === "object" && "json" in context && typeof context.json === "function") {
+    return await (context.json as () => Promise<unknown>)().catch(() => null) as { error?: string } | null;
+  }
+  if (typeof context === "object" && "error" in context && typeof (context as { error?: unknown }).error === "string") {
+    return { error: (context as { error: string }).error };
+  }
+  return null;
 }
 
 export async function sendCrmMessage(input: {
@@ -267,6 +305,7 @@ export function subscribeToCrm(conversationId: string | null, onChange: () => vo
     )
     .on("postgres_changes", { event: "UPDATE", schema: "public", table: "appointment_reservations" }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "crm_booking_sessions" }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "crm_bot_learning_events" }, onChange)
     .subscribe();
   return () => { void supabase.removeChannel(channel); };
 }

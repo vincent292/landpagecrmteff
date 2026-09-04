@@ -88,6 +88,7 @@ export function PublicAssessmentBookingFlow({
     document_number: "",
     notes: "",
   });
+  const fixedContextCity = context.city?.trim() || "";
 
   useEffect(() => {
     getSiteSettings()
@@ -100,11 +101,11 @@ export function PublicAssessmentBookingFlow({
     setForm({
       full_name: profile?.full_name ?? user?.user_metadata.full_name ?? "",
       phone: profile?.phone ?? user?.user_metadata.phone ?? "",
-      city: profile?.city ?? context.city ?? "Cochabamba",
+      city: fixedContextCity || profile?.city || user?.user_metadata.city || "Cochabamba",
       document_number: profile?.document_number ?? user?.user_metadata.document_number ?? "",
       notes: "",
     });
-  }, [context.city, profile, user]);
+  }, [fixedContextCity, profile, user]);
 
   const assessmentTitle = settings?.assessment_label?.trim() || "Valoracion estetica";
   const defaultAppointmentType =
@@ -456,20 +457,27 @@ export function PublicAssessmentBookingFlow({
                   className="premium-input"
                 />
               </Field>
-              <Field label="Ciudad">
-                <select
-                  value={form.city}
-                  onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))}
-                  className="premium-input"
-                >
-                  <option value="">Selecciona ciudad</option>
-                  {boliviaCities.map((city) => (
-                    <option key={city} value={city}>
-                      {city}
-                    </option>
-                  ))}
-                </select>
-              </Field>
+              {fixedContextCity ? (
+                <div className="rounded-[18px] border border-[var(--color-border)] bg-white/70 px-4 py-3">
+                  <p className="text-sm font-semibold text-[var(--color-ink)]">Ciudad de atención</p>
+                  <p className="mt-1 text-sm text-[var(--color-copy)]">{fixedContextCity}</p>
+                </div>
+              ) : (
+                <Field label="Ciudad">
+                  <select
+                    value={form.city}
+                    onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))}
+                    className="premium-input"
+                  >
+                    <option value="">Selecciona ciudad</option>
+                    {boliviaCities.map((city) => (
+                      <option key={city} value={city}>
+                        {city}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              )}
               {allowAppointmentTypeSelection ? (
                 <Field label="Tipo de cita">
                   <select

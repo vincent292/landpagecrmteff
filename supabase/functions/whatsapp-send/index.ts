@@ -2,6 +2,7 @@ import {
   corsHeaders,
   json,
   persistOutboundMessage,
+  recordBotLearningEvent,
   requireCrmManager,
   sendMetaMessage,
 } from "../_shared/whatsapp-crm.ts";
@@ -27,11 +28,11 @@ Deno.serve(async (request) => {
 
     const { data: conversation, error: conversationError } = await admin
       .from("crm_conversations")
-      .select("id,customer_service_window_expires_at,crm_contacts(wa_id)")
+      .select("id,needs_human,customer_service_window_expires_at,crm_contacts(id,wa_id)")
       .eq("id", input.conversationId)
       .maybeSingle();
     if (conversationError) throw conversationError;
-    const embeddedContact = conversation?.crm_contacts as unknown as { wa_id?: string } | null;
+    const embeddedContact = conversation?.crm_contacts as unknown as { id?: string; wa_id?: string } | null;
     const to = embeddedContact?.wa_id;
     if (!conversation || !to) return json({ error: "Conversación no encontrada." }, 404);
 
@@ -64,6 +65,27 @@ Deno.serve(async (request) => {
       senderProfileId: user.id,
       messageType,
     });
+    if (conversation.needs_human && input.body?.trim() && !input.templateName) {
+      const recentInbound = await admin
+        .from("crm_messages")
+        .select("id,body")
+        .eq("conversation_id", conversation.id)
+        .eq("direction", "inbound")
+        .order("occurred_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (recentInbound.error) throw recentInbound.error;
+      await recordBotLearningEvent(admin, {
+        conversationId: conversation.id,
+        contactId: embeddedContact.id ?? null,
+        crmMessageId: recentInbound.data?.id ?? null,
+        eventType: "human_reply_example",
+        detectedIntent: "respuesta_humana",
+        userText: recentInbound.data?.body ?? null,
+        botResponse: input.body.trim(),
+        metadata: { sender_profile_id: user.id, source: "whatsapp-send" },
+      });
+    }
     return json({ ok: true, metaMessageId: meta?.messages?.[0]?.id ?? null });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Error desconocido";
