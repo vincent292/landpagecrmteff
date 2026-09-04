@@ -1157,9 +1157,14 @@ async function showAvailableDates(admin: SupabaseClient, session: BookingSession
   const slots = await getMappedSlots(admin, session);
   const dates = [...new Set<string>(slots.map((slot: { date: string }) => slot.date))].slice(0, 10);
   if (!dates.length) {
-    await admin.from("crm_booking_sessions").update({ status: "needs_human" }).eq("id", session.id);
-    await admin.from("crm_conversations").update({ needs_human: true }).eq("id", session.conversation_id);
-    await sendBookingMessage(admin, session.conversation_id, to, `${accountMessage ? `${accountMessage}\n\n` : ""}No encontré fechas disponibles durante los próximos 45 días. Administración revisará otras opciones contigo.`);
+    await admin.from("crm_booking_sessions").update({ status: "choosing_date", last_options: [] }).eq("id", session.id);
+    await admin.from("crm_conversations").update({ needs_human: false, ai_enabled: true, intent: "sin_fechas_disponibles" }).eq("id", session.conversation_id);
+    await sendBookingMessage(
+      admin,
+      session.conversation_id,
+      to,
+      `${accountMessage ? `${accountMessage}\n\n` : ""}No encontré fechas disponibles para este tratamiento durante los próximos 45 días. Puedo ayudarte a revisar otra ciudad, otra doctora u otro tratamiento. Si prefieres que una asesora lo vea contigo, escribe “asesora”.`,
+    );
     return;
   }
   const options = dates.map((date) => ({ date, slot_count: slots.filter((slot: { date: string }) => slot.date === date).length }));
@@ -1593,6 +1598,9 @@ export async function handleBookingConversation(
     const option = selectedOption(session, message, "date") as { date?: string } | null;
     const writtenDate = message.text?.match(/\b(20\d{2}-\d{2}-\d{2})\b/)?.[1];
     const date = option?.date || writtenDate;
+    if (!date && Array.isArray(session.last_options) && session.last_options.length === 0 && message.text) {
+      return false;
+    }
     if (!date) {
       await sendBookingMessage(admin, session.conversation_id, persisted.contact.wa_id, "Selecciona una fecha de la lista para continuar.");
       await showAvailableDates(admin, session, persisted.contact.wa_id);

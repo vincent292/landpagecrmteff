@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabaseClient";
+import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 
 export type CrmLeadStage = "nuevo" | "calificado" | "cita" | "pago" | "paciente" | "cerrado";
 export type CrmConversationStatus = "abierta" | "pendiente" | "cerrada";
@@ -294,18 +295,37 @@ export async function getCrmReservationOptions() {
   return (data ?? []) as unknown as CrmReservation[];
 }
 
-export function subscribeToCrm(conversationId: string | null, onChange: () => void) {
+type CrmRealtimeHandlers = {
+  onConversationChange?: (payload: RealtimePostgresChangesPayload<CrmConversation>) => void;
+  onMessageChange?: (payload: RealtimePostgresChangesPayload<CrmMessage>) => void;
+  onBookingChange?: () => void;
+  onLearningChange?: () => void;
+};
+
+export function subscribeToCrm(conversationId: string | null, handlers: CrmRealtimeHandlers | (() => void)) {
+  const normalizedHandlers = typeof handlers === "function"
+    ? {
+      onConversationChange: handlers,
+      onMessageChange: handlers,
+      onBookingChange: handlers,
+      onLearningChange: handlers,
+    }
+    : handlers;
   const channel = supabase
     .channel(`crm-inbox-${conversationId || "all"}`)
-    .on("postgres_changes", { event: "*", schema: "public", table: "crm_conversations" }, onChange)
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "crm_conversations" },
+      (payload) => normalizedHandlers.onConversationChange?.(payload as RealtimePostgresChangesPayload<CrmConversation>)
+    )
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "crm_messages", ...(conversationId ? { filter: `conversation_id=eq.${conversationId}` } : {}) },
-      onChange
+      (payload) => normalizedHandlers.onMessageChange?.(payload as RealtimePostgresChangesPayload<CrmMessage>)
     )
-    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "appointment_reservations" }, onChange)
-    .on("postgres_changes", { event: "*", schema: "public", table: "crm_booking_sessions" }, onChange)
-    .on("postgres_changes", { event: "*", schema: "public", table: "crm_bot_learning_events" }, onChange)
+    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "appointment_reservations" }, () => normalizedHandlers.onBookingChange?.())
+    .on("postgres_changes", { event: "*", schema: "public", table: "crm_booking_sessions" }, () => normalizedHandlers.onBookingChange?.())
+    .on("postgres_changes", { event: "*", schema: "public", table: "crm_bot_learning_events" }, () => normalizedHandlers.onLearningChange?.())
     .subscribe();
   return () => { void supabase.removeChannel(channel); };
 }

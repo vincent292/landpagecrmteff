@@ -76,6 +76,18 @@ function conversationName(conversation: CrmConversation) {
   return conversation.crm_contacts.full_name || `+${conversation.crm_contacts.phone}`;
 }
 
+function sortMessages(rows: CrmMessage[]) {
+  return [...rows].sort((left, right) => new Date(left.occurred_at).getTime() - new Date(right.occurred_at).getTime());
+}
+
+function upsertMessage(rows: CrmMessage[], message: CrmMessage) {
+  const index = rows.findIndex((row) => row.id === message.id);
+  if (index === -1) return sortMessages([...rows, message]);
+  const copy = [...rows];
+  copy[index] = { ...copy[index], ...message };
+  return sortMessages(copy);
+}
+
 export function WhatsAppCrmPage() {
   const [conversations, setConversations] = useState<CrmConversation[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -152,13 +164,30 @@ export function WhatsAppCrmPage() {
       .catch((cause) => setError(cause instanceof Error ? cause.message : "No se pudo abrir la conversación."));
   }, [loadBooking, loadMessages, selectedId]);
 
-  useEffect(() => subscribeToCrm(selectedId, () => {
-    void loadConversations();
-    void loadLearningEvents();
-    if (selectedId) {
-      void loadMessages(selectedId);
-      void loadBooking(selectedId);
-    }
+  useEffect(() => subscribeToCrm(selectedId, {
+    onConversationChange: () => {
+      void loadConversations();
+    },
+    onMessageChange: (payload) => {
+      if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
+        setMessages((rows) => upsertMessage(rows, payload.new as CrmMessage));
+        if (payload.new.direction === "inbound" && selectedId) {
+          void markCrmConversationRead(selectedId);
+          setConversations((rows) => rows.map((row) => row.id === selectedId ? { ...row, unread_count: 0 } : row));
+        }
+      } else if (payload.eventType === "DELETE") {
+        setMessages((rows) => rows.filter((row) => row.id !== payload.old.id));
+      } else if (selectedId) {
+        void loadMessages(selectedId);
+      }
+    },
+    onBookingChange: () => {
+      void loadConversations();
+      if (selectedId) void loadBooking(selectedId);
+    },
+    onLearningChange: () => {
+      void loadLearningEvents();
+    },
   }), [loadBooking, loadConversations, loadLearningEvents, loadMessages, selectedId]);
 
   useEffect(() => {
