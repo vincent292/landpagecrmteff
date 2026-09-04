@@ -68,6 +68,7 @@ type ReportPeriod = "day" | "week" | "month";
 type InventoryFilter = "all" | "low" | "expired" | "duplicates" | "deleted";
 type QuantityMode = "base" | "presentation";
 type CountDetail = { usePresentation: boolean; full: string; loose: string; note: string };
+type ShiftReadOnlyView = "products" | "consumption" | "differences";
 
 type ItemForm = {
   id: string | null;
@@ -1277,22 +1278,46 @@ function ShiftReadOnlyModal({ shift, lines, movements, clinicalUsages, itemMap, 
   unitMap: Map<string, InventoryUnitRow>;
   onClose: () => void;
 }) {
-  const sortedLines = lines
-    .slice()
-    .sort((a, b) => (itemMap.get(a.item_id)?.name ?? "").localeCompare(itemMap.get(b.item_id)?.name ?? ""));
-  const openingDifferences = sortedLines.filter((line) => Number(line.opening_difference_stock ?? 0) !== 0).length;
-  const closingDifferences = sortedLines.filter((line) => closingDifferenceForLine(line) !== 0).length;
+  const [activeView, setActiveView] = useState<ShiftReadOnlyView>("products");
+  const sortedLines = useMemo(
+    () => lines.slice().sort((a, b) => (itemMap.get(a.item_id)?.name ?? "").localeCompare(itemMap.get(b.item_id)?.name ?? "")),
+    [itemMap, lines]
+  );
   const shiftWindow = getShiftTimeWindow(shift);
   const movementStats = useMemo(
     () => buildShiftMovementStats(movements, clinicalUsages, shiftWindow.start, shiftWindow.end),
     [clinicalUsages, movements, shiftWindow.end, shiftWindow.start]
   );
-  const totalConsumed = sortedLines.reduce((total, line) => {
-    const opening = Number(line.opening_counted_stock ?? line.opening_stock ?? 0);
-    const closing = closingStockForLine(line);
-    const additions = movementStats.get(line.item_id)?.entries ?? 0;
-    return total + Math.max(opening + additions - closing, 0);
-  }, 0);
+  const lineSummaries = useMemo(() => sortedLines.map((line) => {
+    const item = itemMap.get(line.item_id);
+    const openingDiff = Number(line.opening_difference_stock ?? 0);
+    const closingDiff = closingDifferenceForLine(line);
+    const openingStock = Number(line.opening_counted_stock ?? line.opening_stock ?? 0);
+    const closingStock = closingStockForLine(line);
+    const stats = movementStats.get(line.item_id) ?? { entries: 0, outputs: 0, patientUsages: 0 };
+    const consumed = Math.max(openingStock + stats.entries - closingStock, 0);
+    return { line, item, openingDiff, closingDiff, openingStock, closingStock, stats, consumed };
+  }), [itemMap, movementStats, sortedLines]);
+  const openingDifferences = lineSummaries.filter((summary) => summary.openingDiff !== 0).length;
+  const closingDifferences = lineSummaries.filter((summary) => summary.closingDiff !== 0).length;
+  const differenceSummaries = lineSummaries.filter((summary) => summary.openingDiff !== 0 || summary.closingDiff !== 0);
+  const consumptionSummaries = lineSummaries.filter((summary) => summary.consumed > 0);
+  const visibleSummaries = activeView === "consumption"
+    ? consumptionSummaries
+    : activeView === "differences"
+      ? differenceSummaries
+      : lineSummaries;
+  const totalConsumed = lineSummaries.reduce((total, summary) => total + summary.consumed, 0);
+  const activeViewLabel = activeView === "consumption"
+    ? "Productos con consumo físico"
+    : activeView === "differences"
+      ? "Productos con diferencias"
+      : "Todos los productos del turno";
+  const emptyLabel = activeView === "consumption"
+    ? "No hubo consumo físico en este turno."
+    : activeView === "differences"
+      ? "No hubo diferencias registradas en este turno."
+      : "Este turno no tiene líneas de conteo.";
 
   return (
     <Modal title="Turno cerrado · solo lectura" onClose={onClose}>
@@ -1306,21 +1331,19 @@ function ShiftReadOnlyModal({ shift, lines, movements, clinicalUsages, itemMap, 
         </div>
 
         <div className="grid grid-cols-3 gap-2">
-          <Metric label="Productos" value={String(sortedLines.length)} />
-          <Metric label="Consumo físico" value={formatNumber(totalConsumed)} />
-          <Metric label="Diferencias" value={String(openingDifferences + closingDifferences)} warning={openingDifferences + closingDifferences > 0} />
+          <Metric label="Productos" value={String(lineSummaries.length)} active={activeView === "products"} onClick={() => setActiveView("products")} />
+          <Metric label="Consumo físico" value={formatNumber(totalConsumed)} active={activeView === "consumption"} onClick={() => setActiveView("consumption")} />
+          <Metric label="Diferencias" value={String(openingDifferences + closingDifferences)} warning={openingDifferences + closingDifferences > 0} active={activeView === "differences"} onClick={() => setActiveView("differences")} />
+        </div>
+
+        <div className="flex flex-col gap-1 rounded-[16px] bg-[rgba(247,242,236,0.78)] px-4 py-3 text-sm text-[var(--color-copy)] sm:flex-row sm:items-center sm:justify-between">
+          <span className="font-semibold text-[var(--color-ink)]">{activeViewLabel}</span>
+          <span>{visibleSummaries.length} de {lineSummaries.length} producto{lineSummaries.length === 1 ? "" : "s"}</span>
         </div>
 
         <div className="max-h-[58vh] overflow-y-auto pr-1">
           <div className="grid gap-2">
-            {sortedLines.map((line) => {
-              const item = itemMap.get(line.item_id);
-              const openingDiff = Number(line.opening_difference_stock ?? 0);
-              const closingDiff = closingDifferenceForLine(line);
-              const openingStock = Number(line.opening_counted_stock ?? line.opening_stock ?? 0);
-              const closingStock = closingStockForLine(line);
-              const stats = movementStats.get(line.item_id) ?? { entries: 0, outputs: 0, patientUsages: 0 };
-              const consumed = Math.max(openingStock + stats.entries - closingStock, 0);
+            {visibleSummaries.map(({ line, item, openingDiff, closingDiff, openingStock, closingStock, stats, consumed }) => {
               return (
                 <article key={line.id} className="rounded-[16px] border border-[var(--color-border)] bg-white/80 px-4 py-3">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -1352,7 +1375,7 @@ function ShiftReadOnlyModal({ shift, lines, movements, clinicalUsages, itemMap, 
                 </article>
               );
             })}
-            {sortedLines.length === 0 ? <EmptyState label="Este turno no tiene líneas de conteo." /> : null}
+            {visibleSummaries.length === 0 ? <EmptyState label={emptyLabel} /> : null}
           </div>
         </div>
       </div>
