@@ -692,7 +692,7 @@ export async function generateGeminiReply(input: {
     "La conversacion no es un formulario rigido: si la persona cambia de tema, corrige una doctora, saluda o pide otra cosa, responde a esa nueva intención y conserva el contexto util.",
     "Si ya existe ciudad, doctora o tratamiento en la conversacion reciente, reutiliza ese contexto antes de volver a pedirlo. Pide confirmacion solo si hay ambiguedad real.",
     "No asumas que hay una reserva activa por mensajes anteriores; usa el ESTADO REAL DE RESERVA ACTIVA.",
-    "Responde como WhatsApp: mensajes breves, naturales, con opciones numeradas cuando ayuden. No uses lenguaje técnico ni digas que hay demoras salvo que el sistema lo indique.",
+    "Responde como WhatsApp: mensajes breves, naturales, con opciones numeradas cuando ayuden. No uses Markdown, asteriscos, tablas, encabezados ni lenguaje técnico. No digas que hay demoras salvo que el sistema lo indique.",
     "Tolera errores de escritura comunes. Si el mensaje parece 'mas informacion', 'info', 'quiero saber' o similar, ofrece ayuda concreta en vez de pedir que repita.",
     "Si el paciente rechaza o no entiende un dato requerido de una reserva, no reinicies la conversacion; explica para que sirve el dato y ofrece derivar a una administradora.",
     "Responde en español cálido, profesional, breve y claro. No inventes precios, horarios, resultados ni servicios.",
@@ -737,7 +737,27 @@ export async function generateGeminiReply(input: {
   const payload = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
   const text = payload.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("").trim() ?? "";
   if (!text) throw new Error("Gemini devolvió una respuesta vacía.");
-  return text.slice(0, 3500);
+  return cleanWhatsAppAiText(text);
+}
+
+function cleanWhatsAppAiText(value: string) {
+  const cleaned = value
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/__(.*?)__/g, "$1")
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+    .replace(/^\s*[-*]\s+/gm, "• ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  if (cleaned.length <= 1800) return cleaned;
+  const excerpt = cleaned.slice(0, 1800);
+  const lastBoundary = Math.max(
+    excerpt.lastIndexOf(". "),
+    excerpt.lastIndexOf("? "),
+    excerpt.lastIndexOf("! "),
+    excerpt.lastIndexOf("\n\n"),
+  );
+  return `${excerpt.slice(0, lastBoundary > 900 ? lastBoundary + 1 : 1750).trim()}\n\n¿Quieres que te amplíe esta información o prefieres agendar?`;
 }
 
 type MetaSendResponse = { messages?: Array<{ id?: string }> };

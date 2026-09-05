@@ -118,6 +118,10 @@ export function WhatsAppCrmPage() {
     () => conversations.find((conversation) => conversation.id === selectedId) ?? null,
     [conversations, selectedId]
   );
+  const pendingLearningCount = useMemo(
+    () => learningEvents.filter((event) => event.status === "pending").length,
+    [learningEvents]
+  );
 
   const loadConversations = useCallback(async () => {
     const rows = await getCrmConversations();
@@ -534,6 +538,7 @@ export function WhatsAppCrmPage() {
               {automationSettings ? (
                 <button type="button" onClick={() => setSettingsOpen(true)} className="flex items-center justify-center gap-2 rounded-full border border-[var(--color-border)] bg-white px-4 py-2 text-xs font-semibold">
                   <Settings className="h-4 w-4" /> Configuración
+                  {pendingLearningCount ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] text-amber-900">{pendingLearningCount} aprendizajes</span> : null}
                 </button>
               ) : null}
 
@@ -641,8 +646,11 @@ function CrmSettingsDialog({
             />
           </label>
 
-          <details className="rounded-2xl border border-[var(--color-border)] bg-white px-3 py-3">
-            <summary className="cursor-pointer text-xs font-semibold text-[var(--color-ink)]">Aprendizaje supervisado</summary>
+          <details className="rounded-2xl border border-amber-200 bg-amber-50/55 px-3 py-3" open={learningEvents.some((event) => event.status === "pending")}>
+            <summary className="cursor-pointer text-xs font-semibold text-[var(--color-ink)]">
+              Aprendizaje supervisado
+              {learningEvents.length ? <span className="ml-2 rounded-full bg-white px-2 py-1 text-[10px] text-[var(--color-copy)]">{learningEvents.length} casos</span> : null}
+            </summary>
             <div className="mt-3 grid gap-2 text-xs">
               {learningEvents.length ? learningEvents.map((event) => (
                 <div key={event.id} className="rounded-xl border border-[var(--color-border)] bg-[#fbf7f2] p-3">
