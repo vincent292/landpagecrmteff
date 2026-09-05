@@ -619,6 +619,13 @@ function looksLikeGeneralInfoRequest(message: string) {
   const normalized = normalizeForIntent(message);
   const compact = compactIntentText(message);
   if (!normalized) return false;
+  const genericWords = new Set([
+    "quiero", "quisiera", "quieria", "necesito", "me", "das", "mandame", "pasame", "saber", "consulta",
+    "consultar", "puedes", "info", "informacion", "infirmacion", "sinformacion", "datos", "detalle",
+    "detalles", "sobre", "de", "del", "la", "el", "los", "las", "un", "una", "porfa", "porfavor",
+  ]);
+  const specificTerms = normalized.split(" ").filter((term) => term.length >= 4 && !genericWords.has(term));
+  if (specificTerms.length >= 1) return false;
   const hasInfoWord = /\b(info|informacion|infirmacion|sinformacion|datos|detalle|detalles)\b/.test(normalized)
     || /(mas)?(s?infor?macion|informacion|infirmacion|infomacion|infro?macion)/.test(compact);
   const hasAskVerb = /\b(quiero|quisiera|quieria|necesito|me das|mandame|pasame|saber|consulta|consultar|puedes)\b/.test(normalized);

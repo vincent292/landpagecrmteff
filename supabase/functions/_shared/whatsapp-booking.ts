@@ -50,6 +50,7 @@ const bookingPattern = /\b(reserv(?:ar|a|o)|agend(?:ar|a|o)|sacar\s+(?:una\s+)?c
 const cancelPattern = /\b(cancelar|salir|detener|ya\s+no)\b/i;
 const boliviaCities = ["Cochabamba", "La Paz", "Santa Cruz", "Sucre", "Oruro", "Potosi", "Tarija", "Beni", "Pando"];
 const treatmentCatalogPattern = /\b(que|cuales|cu[aá]les|ver|mu[eé]strame|informaci[oó]n|saber).{0,45}\b(trat[a]?m?ientos?|servicios?)\b|\b(trat[a]?m?ientos?|servicios?).{0,45}\b(disponibles?|tienen|ofrecen|hay)\b/i;
+const promotionPattern = /\b(promociones?|promo|promos|ofertas?|descuentos?|paquetes?)\b/i;
 const doctorTreatmentPattern = /\b(?:doctora|doctor|dra|dr|dora)\b.{0,80}\b(?:tratamientos?|servicios?|atiende|hace|realiza|ofrece|agenda|agendar|reservar|cita|horarios?|precio|costo)\b|\b(?:tratamientos?|servicios?|atiende|hace|realiza|ofrece|agenda|agendar|reservar|cita|horarios?|precio|costo)\b.{0,80}\b(?:doctora|doctor|dra|dr|dora)\b/i;
 const doctorListPattern = /^(?:ver\s+)?(?:doctoras?|doctores|dras?|medicas?|m[eé]dicas?)$/i;
 const greetingOnlyPattern = /^(hola|holi|buenas|buen dia|buenos dias|buenas tardes|buenas noches)$/i;
@@ -133,6 +134,40 @@ function displayPrice(treatment: Record<string, unknown>) {
     ? treatment.assessment_price_presencial ?? treatment.assessment_price
     : treatment.treatment_price ?? treatment.direct_booking_price ?? treatment.assessment_price ?? 0);
   return price > 0 ? `${price.toFixed(2)} Bs` : null;
+}
+
+function displayPromotionPrice(promotion: Record<string, unknown>) {
+  const variants = Array.isArray(promotion.promotion_variants)
+    ? promotion.promotion_variants as Array<Record<string, unknown>>
+    : [];
+  const visibleVariants = variants.filter((variant) => variant.is_active !== false);
+  const availableVariants = visibleVariants.filter((variant) => {
+    const slots = Number(variant.available_slots ?? 0);
+    if (!Number.isFinite(slots) || slots >= 999_999) return true;
+    return Math.max(slots - Number(variant.approved_slots ?? 0), 0) > 0;
+  });
+  const cheapest = [...availableVariants].sort((left, right) => Number(left.price_total ?? 0) - Number(right.price_total ?? 0))[0]
+    ?? [...visibleVariants].sort((left, right) => Number(left.price_total ?? 0) - Number(right.price_total ?? 0))[0];
+  const variantPrice = Number(cheapest?.price_total ?? 0);
+  if (Number.isFinite(variantPrice) && variantPrice > 0) return `${variantPrice.toFixed(2)} Bs`;
+  const promoPrice = Number(promotion.promo_price ?? 0);
+  return Number.isFinite(promoPrice) && promoPrice > 0 ? `${promoPrice.toFixed(2)} Bs` : null;
+}
+
+function displayPromotionSlots(promotion: Record<string, unknown>) {
+  const variants = Array.isArray(promotion.promotion_variants)
+    ? promotion.promotion_variants as Array<Record<string, unknown>>
+    : [];
+  const visibleVariants = variants.filter((variant) => variant.is_active !== false);
+  if (visibleVariants.some((variant) => Number(variant.available_slots ?? 0) >= 999_999)) return "según agenda";
+  const variantSlots = visibleVariants.reduce((total, variant) => {
+    const available = Number(variant.available_slots ?? 0);
+    const approved = Number(variant.approved_slots ?? 0);
+    return total + Math.max((Number.isFinite(available) ? available : 0) - (Number.isFinite(approved) ? approved : 0), 0);
+  }, 0);
+  if (visibleVariants.length) return `${variantSlots} cupo${variantSlots === 1 ? "" : "s"}`;
+  const slots = Number(promotion.available_slots ?? 0);
+  return Number.isFinite(slots) && slots > 0 ? `${slots} cupo${slots === 1 ? "" : "s"}` : null;
 }
 
 function textValue(value: unknown) {
@@ -258,6 +293,34 @@ function looksLikeTokenMatch(inputToken: string, nameToken: string) {
   if (inputToken === nameToken || inputToken.includes(nameToken) || nameToken.includes(inputToken)) return true;
   if (inputToken.length < 5 || nameToken.length < 5) return false;
   return editDistance(inputToken, nameToken) <= 2;
+}
+
+function meaningfulTokens(text: string) {
+  const stopWords = new Set([
+    "quiero", "quisiera", "saber", "informacion", "info", "sobre", "acerca", "del", "de", "la", "el", "los", "las",
+    "tratamiento", "tratamientos", "servicio", "servicios", "precio", "costo", "cuanto", "dime", "me", "puedes",
+    "dar", "ver", "mostrar", "muestrame", "hay", "tienen", "tiene",
+  ]);
+  return normalize(text).split(" ").filter((token) => token.length >= 3 && !stopWords.has(token));
+}
+
+function treatmentTextScore(treatment: Record<string, unknown>, text: string) {
+  const inputTokens = meaningfulTokens(text);
+  if (!inputTokens.length) return 0;
+  const title = normalize(String(treatment.title ?? ""));
+  const haystack = normalize([
+    treatment.title,
+    treatment.short_description,
+    treatment.public_info,
+    treatment.description,
+  ].filter(Boolean).join(" "));
+  const titleTokens = title.split(" ").filter((token) => token.length >= 3);
+  let score = title && normalize(text).includes(title) ? 10 : 0;
+  for (const inputToken of inputTokens) {
+    if (titleTokens.some((titleToken) => looksLikeTokenMatch(inputToken, titleToken))) score += 4;
+    else if (haystack.split(" ").some((token) => looksLikeTokenMatch(inputToken, token))) score += 1;
+  }
+  return score;
 }
 
 function knownDoctorAliasTokens(doctor: DoctorLite) {
@@ -461,12 +524,21 @@ async function findInformationalTreatmentByText(admin: SupabaseClient, text: str
     return title && (normalizedText.includes(title) || title.includes(normalizedText));
   });
   if (localMatch) return localMatch;
+  const fuzzyLocal = [...treatments]
+    .map((item) => ({ item, score: treatmentTextScore(item, text) }))
+    .sort((left, right) => right.score - left.score)[0];
+  if (fuzzyLocal && fuzzyLocal.score >= 8) return fuzzyLocal.item;
   if (city) {
     const allTreatments = await getInformationalTreatments(admin);
-    return allTreatments.find((item) => {
+    const exact = allTreatments.find((item) => {
       const title = normalize(String(item.title ?? ""));
       return title && (normalizedText.includes(title) || title.includes(normalizedText));
-    }) ?? null;
+    });
+    if (exact) return exact;
+    const fuzzy = [...allTreatments]
+      .map((item) => ({ item, score: treatmentTextScore(item, text) }))
+      .sort((left, right) => right.score - left.score)[0];
+    return fuzzy && fuzzy.score >= 8 ? fuzzy.item : null;
   }
   return null;
 }
@@ -485,6 +557,51 @@ async function showTreatmentDetails(admin: SupabaseClient, persisted: PersistedI
       { type: "reply", reply: { id: "treatment-catalog", title: "Ver otros" } },
     ] } },
   });
+}
+
+async function getActivePromotions(admin: SupabaseClient, city?: string | null) {
+  let query = admin
+    .from("promotions")
+    .select("id,title,description,public_info,city,end_date,promo_price,old_price,available_slots,is_active,promotion_variants(id,title,price_total,available_slots,approved_slots,is_active,sort_order)")
+    .eq("is_active", true)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(20);
+  if (city) query = query.eq("city", city);
+  const { data, error } = await query;
+  if (error) throw error;
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/La_Paz" });
+  return (data ?? []).filter((promotion) => {
+    if (/\b(prueba|test|interna)\b/i.test(String(promotion.title ?? ""))) return false;
+    const endDate = textValue(promotion.end_date);
+    return !endDate || endDate >= today;
+  });
+}
+
+async function showPromotionInformation(admin: SupabaseClient, persisted: PersistedInbound, userText?: string | null) {
+  const city = userText ? await resolveKnownCity(admin, userText) ?? textValue(persisted.contact.city) : textValue(persisted.contact.city);
+  let promotions = await getActivePromotions(admin, city);
+  if (!promotions.length && city) promotions = await getActivePromotions(admin);
+  if (!promotions.length) {
+    await admin.from("crm_conversations").update({ intent: "consulta_promociones", needs_human: false }).eq("id", persisted.conversation.id);
+    await sendBookingMessage(
+      admin,
+      persisted.conversation.id,
+      persisted.contact.wa_id,
+      "Por el momento no tenemos promociones activas disponibles. Sí puedo mostrarte tratamientos, precios o disponibilidad por doctora. ¿Qué te gustaría ver?",
+    );
+    return true;
+  }
+
+  const lines = promotions.slice(0, 8).map((promotion, index) => {
+    const price = displayPromotionPrice(promotion);
+    const slots = displayPromotionSlots(promotion);
+    return `${index + 1}. ${String(promotion.title)}${textValue(promotion.city) ? ` · ${textValue(promotion.city)}` : ""}${price ? ` · ${price}` : ""}${slots ? ` · ${slots}` : ""}`;
+  });
+  const body = `Claro, estas promociones están activas:\n\n${lines.join("\n")}\n\nPuedo darte detalle de una promoción, mostrar tratamientos o ayudarte a agendar cuando quieras.`;
+  await admin.from("crm_conversations").update({ intent: "consulta_promociones", needs_human: false }).eq("id", persisted.conversation.id);
+  await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, body.slice(0, 1024));
+  return true;
 }
 
 function isAssessmentBooking(session: BookingSession) {
@@ -680,6 +797,9 @@ export async function handleTreatmentCatalogConversation(admin: SupabaseClient, 
   }
   if (!message.interactiveId && doctorListPattern.test(normalize(message.text ?? ""))) {
     return await showDoctorChoices(admin, persisted, await getActiveDoctors(admin), message.text);
+  }
+  if (!message.interactiveId && promotionPattern.test(message.text ?? "")) {
+    return await showPromotionInformation(admin, persisted, message.text);
   }
   const currentTreatmentInfoId = currentIntentValue?.match(/^treatment_info:([0-9a-f-]{36})$/i)?.[1] ?? null;
   if (!message.interactiveId && currentTreatmentInfoId && message.text) {
