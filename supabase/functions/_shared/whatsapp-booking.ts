@@ -53,6 +53,8 @@ const treatmentCatalogPattern = /\b(que|cuales|cu[aá]les|ver|mu[eé]strame|info
 const promotionPattern = /\b(promociones?|promo|promos|ofertas?|descuentos?|paquetes?)\b/i;
 const doctorTreatmentPattern = /\b(?:doctora|doctor|dra|dr|dora)\b.{0,80}\b(?:tratamientos?|servicios?|atiende|hace|realiza|ofrece|agenda|agendar|reservar|cita|horarios?|precio|costo)\b|\b(?:tratamientos?|servicios?|atiende|hace|realiza|ofrece|agenda|agendar|reservar|cita|horarios?|precio|costo)\b.{0,80}\b(?:doctora|doctor|dra|dr|dora)\b/i;
 const doctorListPattern = /^(?:ver\s+)?(?:doctoras?|doctores|dras?|medicas?|m[eé]dicas?)$/i;
+const doctorMentionPattern = /\b(doctora|doctor|dra|dr|dora)\b/i;
+const currentTreatmentDoctorQuestionPattern = /\b(ese|este|esa|esta|lo|la)\b.{0,50}\b(hace|atiende|realiza|aplica|trabaja|puede|es con)\b|\b(hace|atiende|realiza|aplica|trabaja|puede|es con)\b.{0,50}\b(ese|este|esa|esta|tratamiento|procedimiento)\b/i;
 const greetingOnlyPattern = /^(hola|holi|buenas|buen dia|buenos dias|buenas tardes|buenas noches)$/i;
 const topicSwitchPattern = /\b(ahora|mejor|cambiar|cambiemos|otra cosa|quiero ver|quiero saber|no,?|esos son|esa es|ese es)\b/i;
 const exactNoPattern = /^(no|nop|nel|no gracias)$/i;
@@ -417,7 +419,7 @@ async function showDoctorTreatments(admin: SupabaseClient, persisted: PersistedI
   const treatments = (await getInformationalTreatments(admin, contextCity)).filter((treatment) => treatment.doctor_id === doctor.id);
   if (!treatments.length) {
     const cityText = contextCity ? ` en ${contextCity}` : "";
-    const body = `No encontré tratamientos publicados a nombre de ${doctor.full_name}${cityText}. Avisé a administración para que te oriente con datos actualizados.`;
+    const body = `Por ahora no veo tratamientos publicados a nombre de ${doctor.full_name}${cityText}. Puedo revisar otra ciudad, otra doctora o mostrarte los tratamientos disponibles.`;
     const conversationUpdate = await admin.from("crm_conversations").update({ needs_human: true, intent: "doctor_without_catalog" }).eq("id", persisted.conversation.id);
     if (conversationUpdate.error) throw conversationUpdate.error;
     await recordBotLearningEvent(admin, {
@@ -435,21 +437,30 @@ async function showDoctorTreatments(admin: SupabaseClient, persisted: PersistedI
   }
   if (contextCity) await rememberCityInterest(admin, persisted.contact.id, contextCity);
 
-  const lines = treatments.slice(0, 8).map((treatment, index) => {
+  const treatmentLines = treatments.map((treatment, index) => {
     const city = textValue(treatment.city);
     const price = displayPrice(treatment);
-    return `${index + 1}. ${String(treatment.title)}${city ? ` · ${city}` : ""}${price ? ` · ${price}` : ""}`;
+    const title = String(treatment.title).slice(0, 58);
+    return `${index + 1}. ${title}${city ? ` · ${city}` : ""}${price ? ` · ${price}` : ""}`;
   });
-  const more = treatments.length > lines.length ? `\nY ${treatments.length - lines.length} más disponibles.` : "";
   const contextLine = contextCity ? ` en ${contextCity}` : "";
-  const changeHint = contextCity ? "\n\nSi quieres otra ciudad u otra doctora, escríbelo y cambio la búsqueda." : "";
-  const body = `${doctor.full_name}${doctor.specialty ? ` (${doctor.specialty})` : ""} atiende estos tratamientos${contextLine}:\n\n${lines.join("\n")}${more}\n\nToca un tratamiento para ver detalle o escribe “reservar con ${doctor.full_name.split(" ")[0]}”.${changeHint}`;
+  const specialty = doctor.specialty ? ` (${doctor.specialty})` : "";
+  let shownCount = Math.min(6, treatmentLines.length);
+  let lines = treatmentLines.slice(0, shownCount);
+  let more = treatments.length > shownCount ? `\nY ${treatments.length - shownCount} más disponibles.` : "";
+  let body = `${doctor.full_name}${specialty} atiende estos tratamientos${contextLine}:\n\n${lines.join("\n")}${more}\n\nToca un tratamiento para ver detalle. También puedes pedirme otra doctora, otra ciudad o reservar una cita.`;
+  while (body.length > 980 && shownCount > 3) {
+    shownCount -= 1;
+    lines = treatmentLines.slice(0, shownCount);
+    more = treatments.length > shownCount ? `\nY ${treatments.length - shownCount} más disponibles.` : "";
+    body = `${doctor.full_name}${specialty} atiende estos tratamientos${contextLine}:\n\n${lines.join("\n")}${more}\n\nToca un tratamiento para ver detalle. También puedes pedirme otra doctora, otra ciudad o reservar una cita.`;
+  }
   await admin.from("crm_conversations").update({ intent: `doctor_info:${doctor.id}` }).eq("id", persisted.conversation.id);
-  await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, body.slice(0, 1024), {
+  await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, body, {
     type: "interactive",
     interactive: {
       type: "list",
-      body: { text: body.slice(0, 1024) },
+      body: { text: body },
       action: {
         button: "Ver detalle",
         sections: [{
@@ -557,6 +568,42 @@ async function showTreatmentDetails(admin: SupabaseClient, persisted: PersistedI
       { type: "reply", reply: { id: "treatment-catalog", title: "Ver otros" } },
     ] } },
   });
+}
+
+async function answerCurrentTreatmentDoctorQuestion(
+  admin: SupabaseClient,
+  persisted: PersistedInbound,
+  treatmentId: string,
+  doctor: DoctorLite,
+  userText?: string | null,
+) {
+  const treatment = await loadInformationalTreatment(admin, treatmentId);
+  if (!treatment) return false;
+  const currentDoctor = treatmentDoctorName(treatment);
+  const title = String(treatment.title ?? "este tratamiento");
+  const doesDoctorMatch = treatment.doctor_id === doctor.id;
+  const body = doesDoctorMatch
+    ? `Sí. ${title} figura publicado con ${doctor.full_name}. ¿Quieres que te muestre horarios o prefieres saber más del procedimiento?`
+    : `Por lo que tengo publicado, ${title} figura con ${currentDoctor ?? "otra profesional"}, no con ${doctor.full_name}. Puedo mostrarte los tratamientos de ${doctor.full_name} o ayudarte a ver otro procedimiento.`;
+  await admin.from("crm_conversations").update({ intent: `treatment_info:${treatmentId}`, needs_human: false }).eq("id", persisted.conversation.id);
+  await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, body, {
+    type: "interactive",
+    interactive: { type: "button", body: { text: body }, action: { buttons: [
+      { type: "reply", reply: { id: `doctor-info:${doctor.id}`, title: "Ver doctora" } },
+      { type: "reply", reply: { id: `treatment-book:${treatmentId}`, title: treatment.requires_assessment ? "Pedir valoracion" : "Reservar cita" } },
+    ] } },
+  });
+  await recordBotLearningEvent(admin, {
+    conversationId: persisted.conversation.id,
+    contactId: persisted.contact.id,
+    crmMessageId: persisted.messageId ?? null,
+    eventType: "doctor_clarification",
+    detectedIntent: "tratamiento_doctora",
+    userText,
+    botResponse: body,
+    metadata: { treatment_id: treatmentId, requested_doctor_id: doctor.id, matched: doesDoctorMatch },
+  });
+  return true;
 }
 
 async function getActivePromotions(admin: SupabaseClient, city?: string | null) {
@@ -694,6 +741,7 @@ export async function handleTreatmentCatalogConversation(admin: SupabaseClient, 
   const currentIntent = await admin.from("crm_conversations").select("intent").eq("id", persisted.conversation.id).maybeSingle();
   if (currentIntent.error) throw currentIntent.error;
   const currentIntentValue = currentIntent.data?.intent ?? null;
+  const currentTreatmentInfoId = currentIntentValue?.match(/^treatment_info:([0-9a-f-]{36})$/i)?.[1] ?? null;
   const doctorChoiceId = message.interactiveId?.startsWith("doctor-info:") ? message.interactiveId.slice("doctor-info:".length) : null;
   const doctorCityChoice = message.interactiveId?.match(/^doctor-city:([0-9a-f-]{36}):(\d+)$/i);
   if (doctorCityChoice) {
@@ -731,7 +779,12 @@ export async function handleTreatmentCatalogConversation(admin: SupabaseClient, 
     await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, "Te entiendo. Para mostrarte tratamientos por doctora necesito la ciudad. También puedes escribir otra doctora o “asesora” si prefieres ayuda humana.");
     return await showCityChoices(admin, persisted, "info");
   }
-  if (!message.interactiveId && message.text && doctorTreatmentPattern.test(message.text)) {
+  if (!message.interactiveId && message.text && currentTreatmentInfoId && currentTreatmentDoctorQuestionPattern.test(message.text)) {
+    const doctors = await getActiveDoctors(admin);
+    const doctor = resolveDoctorFromText(doctors, message.text);
+    if (doctor) return await answerCurrentTreatmentDoctorQuestion(admin, persisted, currentTreatmentInfoId, doctor, message.text);
+  }
+  if (!message.interactiveId && message.text && (doctorTreatmentPattern.test(message.text) || doctorMentionPattern.test(message.text))) {
     const doctors = await getActiveDoctors(admin);
     const doctor = resolveDoctorFromText(doctors, message.text);
     if (doctor) {
@@ -750,7 +803,7 @@ export async function handleTreatmentCatalogConversation(admin: SupabaseClient, 
       return await showDoctorTreatments(admin, persisted, doctor, message.text, city);
     }
   }
-  if (!message.interactiveId && message.text && currentIntentValue?.startsWith("doctor_info:")) {
+  if (!message.interactiveId && message.text && (currentIntentValue?.startsWith("doctor_info:") || currentIntentValue === "doctor_without_catalog")) {
     const doctors = await getActiveDoctors(admin);
     const doctor = resolveDoctorFromText(doctors, message.text);
     if (doctor) {
@@ -801,7 +854,6 @@ export async function handleTreatmentCatalogConversation(admin: SupabaseClient, 
   if (!message.interactiveId && promotionPattern.test(message.text ?? "")) {
     return await showPromotionInformation(admin, persisted, message.text);
   }
-  const currentTreatmentInfoId = currentIntentValue?.match(/^treatment_info:([0-9a-f-]{36})$/i)?.[1] ?? null;
   if (!message.interactiveId && currentTreatmentInfoId && message.text) {
     const treatment = await loadInformationalTreatment(admin, currentTreatmentInfoId);
     if (treatment && bookingPattern.test(message.text)) {
