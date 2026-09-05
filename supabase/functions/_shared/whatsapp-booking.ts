@@ -54,6 +54,7 @@ const promotionPattern = /\b(promociones?|promo|promos|ofertas?|descuentos?|paqu
 const doctorTreatmentPattern = /\b(?:doctora|doctor|dra|dr|dora)\b.{0,80}\b(?:tratamientos?|servicios?|atiende|hace|realiza|ofrece|agenda|agendar|reservar|cita|horarios?|precio|costo)\b|\b(?:tratamientos?|servicios?|atiende|hace|realiza|ofrece|agenda|agendar|reservar|cita|horarios?|precio|costo)\b.{0,80}\b(?:doctora|doctor|dra|dr|dora)\b/i;
 const doctorListPattern = /\b(?:hay|otras?|otros?|ver|listar|mostrar|mu[eé]strame|cu[aá]les|quienes|qui[eé]nes)\b.{0,35}\b(?:doctoras?|doctores|dras?|medicas?|m[eé]dicas?|profesionales)\b|\b(?:doctoras?|doctores|dras?|medicas?|m[eé]dicas?|profesionales)\b.{0,35}\b(?:hay|otras?|otros?|ver|listar|mostrar|disponibles?)\b|^(?:ver\s+)?(?:doctoras?|doctores|dras?|medicas?|m[eé]dicas?|profesionales)$/i;
 const doctorMentionPattern = /\b(doctora|doctor|dra|dr|dora)\b/i;
+const doctorProfileInfoPattern = /\b(?:info|informaci[oó]n|biograf[ií]a|perfil|quien|qui[eé]n|conocer|datos|especialidad|curriculum|cv|sobre)\b.{0,70}\b(?:doctora|doctor|dra|dr|dora|ballesteros|neisa)\b|\b(?:doctora|doctor|dra|dr|dora|ballesteros|neisa)\b.{0,70}\b(?:info|informaci[oó]n|biograf[ií]a|perfil|quien|qui[eé]n|conocer|datos|especialidad|curriculum|cv)\b/i;
 const currentTreatmentDoctorQuestionPattern = /\b(ese|este|esa|esta|lo|la)\b.{0,50}\b(hace|atiende|realiza|aplica|trabaja|puede|es con)\b|\b(hace|atiende|realiza|aplica|trabaja|puede|es con)\b.{0,50}\b(ese|este|esa|esta|tratamiento|procedimiento)\b/i;
 const greetingOnlyPattern = /^(hola|holi|buenas|buen dia|buenos dias|buenas tardes|buenas noches)$/i;
 const topicSwitchPattern = /\b(ahora|mejor|cambiar|cambiemos|otra cosa|quiero ver|quiero saber|no,?|esos son|esa es|ese es)\b/i;
@@ -249,12 +250,12 @@ function formatTreatmentSlotsLine(treatment: Record<string, unknown>) {
   return remaining > 0 ? `Cupos disponibles: ${remaining}.` : "Cupos disponibles: agotados por ahora.";
 }
 
-type DoctorLite = { id: string; full_name: string; specialty: string | null; city: string | null };
+type DoctorLite = { id: string; full_name: string; specialty: string | null; city: string | null; bio?: string | null; is_featured?: boolean | null };
 
 async function getActiveDoctors(admin: SupabaseClient) {
   const { data, error } = await admin
     .from("doctor_profiles")
-    .select("id,full_name,specialty,city")
+    .select("id,full_name,specialty,city,bio,is_featured")
     .eq("is_active", true)
     .is("deleted_at", null)
     .order("full_name")
@@ -385,6 +386,38 @@ async function showDoctorChoices(admin: SupabaseClient, persisted: PersistedInbo
     detectedIntent: "consulta_doctora",
     userText,
     botResponse: body,
+  });
+  return true;
+}
+
+async function showDoctorProfileInfo(admin: SupabaseClient, persisted: PersistedInbound, doctor: DoctorLite, userText?: string | null) {
+  const specialty = textValue(doctor.specialty);
+  const city = textValue(doctor.city);
+  const bio = compactText(doctor.bio, 620);
+  const lines = [
+    doctor.full_name,
+    specialty ? `Especialidad: ${specialty}.` : null,
+    city ? `Ciudad de atención: ${city}.` : null,
+    bio ? `\n${bio}` : null,
+  ].filter(Boolean);
+  const body = `${lines.join("\n")}\n\nPuedo mostrarte sus tratamientos disponibles o ayudarte a reservar una cita.`;
+  await admin.from("crm_conversations").update({ intent: `doctor_profile:${doctor.id}`, needs_human: false }).eq("id", persisted.conversation.id);
+  await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, body, {
+    type: "interactive",
+    interactive: { type: "button", body: { text: body }, action: { buttons: [
+      { type: "reply", reply: { id: `doctor-info:${doctor.id}`, title: "Ver tratamientos" } },
+      { type: "reply", reply: { id: "treatment-catalog", title: "Ver otros" } },
+    ] } },
+  });
+  await recordBotLearningEvent(admin, {
+    conversationId: persisted.conversation.id,
+    contactId: persisted.contact.id,
+    crmMessageId: persisted.messageId ?? null,
+    eventType: "doctor_clarification",
+    detectedIntent: "perfil_doctora",
+    userText,
+    botResponse: body,
+    metadata: { doctor_id: doctor.id, doctor_name: doctor.full_name },
   });
   return true;
 }
@@ -783,6 +816,12 @@ export async function handleTreatmentCatalogConversation(admin: SupabaseClient, 
     const doctors = await getActiveDoctors(admin);
     const doctor = resolveDoctorFromText(doctors, message.text);
     if (doctor) return await answerCurrentTreatmentDoctorQuestion(admin, persisted, currentTreatmentInfoId, doctor, message.text);
+  }
+  if (!message.interactiveId && message.text && doctorProfileInfoPattern.test(message.text)) {
+    const doctors = await getActiveDoctors(admin);
+    const doctor = resolveDoctorFromText(doctors, message.text);
+    if (doctor) return await showDoctorProfileInfo(admin, persisted, doctor, message.text);
+    return await showDoctorChoices(admin, persisted, doctors, message.text);
   }
   if (!message.interactiveId && message.text && (doctorTreatmentPattern.test(message.text) || doctorMentionPattern.test(message.text))) {
     const doctors = await getActiveDoctors(admin);

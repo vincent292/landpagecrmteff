@@ -522,8 +522,31 @@ function treatmentToKnowledgeText(row: Record<string, unknown>) {
   ].filter(Boolean).join("\n").slice(0, 3500);
 }
 
+function doctorToKnowledgeText(row: Record<string, unknown>) {
+  return [
+    `Nombre: ${crmText(row.full_name) ?? "Sin nombre"}.`,
+    crmText(row.specialty) ? `Especialidad: ${crmText(row.specialty)}.` : null,
+    crmText(row.city) ? `Ciudad de atencion: ${crmText(row.city)}.` : null,
+    crmText(row.bio) ? `Biografia publica: ${crmText(row.bio)}.` : null,
+    "No compartir telefono, WhatsApp, correo, Instagram ni TikTok de la doctora. Para contacto directo, derivar a administracion.",
+  ].filter(Boolean).join("\n").slice(0, 1800);
+}
+
+function paymentMethodsToKnowledgeText(rows: Array<Record<string, unknown>>) {
+  const methods = rows
+    .filter((row) => row.is_active !== false)
+    .map((row) => crmText(row.name))
+    .filter((name): name is string => Boolean(name));
+  const methodLine = methods.length ? `Metodos de pago activos: ${methods.join(", ")}.` : "Metodos de pago activos: consultar con administracion.";
+  return [
+    methodLine,
+    "Algunos tratamientos pueden manejar reserva con pago por QR, pago unico, plan por cuotas o tarjeta de ahorro segun evaluacion y configuracion interna.",
+    "No prometer cuotas ni aprobar financiamiento por WhatsApp; indicar que administracion confirma monto, plazo y condiciones.",
+  ].join("\n");
+}
+
 export async function getAiContext(admin: SupabaseClient, conversationId: string) {
-  const [settingsResult, sourcesResult, treatmentSourcesResult, messagesResult, bookingResult, metaAd] = await Promise.all([
+  const [settingsResult, sourcesResult, treatmentSourcesResult, doctorSourcesResult, paymentMethodsResult, messagesResult, bookingResult, metaAd] = await Promise.all([
     admin.from("crm_settings").select("ai_enabled,ai_system_prompt,booking_url,allow_external_grounding").eq("id", true).maybeSingle(),
     admin.from("crm_knowledge_sources").select("title,content").eq("is_active", true).order("updated_at", { ascending: false }).limit(20),
     admin.from("treatments")
@@ -532,6 +555,14 @@ export async function getAiContext(admin: SupabaseClient, conversationId: string
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(50),
+    admin.from("doctor_profiles")
+      .select("full_name,specialty,bio,city")
+      .eq("is_active", true)
+      .is("deleted_at", null)
+      .order("is_featured", { ascending: false })
+      .order("full_name")
+      .limit(20),
+    admin.from("cash_payment_methods").select("name,is_active").eq("is_active", true).order("sort_order").limit(20),
     admin.from("crm_messages").select("direction,sender_type,body").eq("conversation_id", conversationId).order("occurred_at", { ascending: false }).limit(12),
     admin.from("crm_booking_sessions")
       .select("status,identity_step,appointment_date,start_time,end_time,treatments(title)")
@@ -545,15 +576,26 @@ export async function getAiContext(admin: SupabaseClient, conversationId: string
   if (settingsResult.error) throw settingsResult.error;
   if (sourcesResult.error) throw sourcesResult.error;
   if (treatmentSourcesResult.error) throw treatmentSourcesResult.error;
+  if (doctorSourcesResult.error) throw doctorSourcesResult.error;
+  if (paymentMethodsResult.error && paymentMethodsResult.error.code !== "42P01") throw paymentMethodsResult.error;
   if (messagesResult.error) throw messagesResult.error;
   if (bookingResult.error) throw bookingResult.error;
   const booking = bookingResult.data as { status?: string; identity_step?: string | null; appointment_date?: string | null; start_time?: string | null; end_time?: string | null; treatments?: { title?: string | null } | null } | null;
   const treatmentSources = (treatmentSourcesResult.data ?? [])
     .filter((row) => !/\b(prueba|test|interna)\b/i.test(String(row.title ?? "")))
     .map((row) => ({ title: `Tratamiento: ${String(row.title ?? "Sin titulo")}`, content: treatmentToKnowledgeText(row as Record<string, unknown>) }));
+  const doctorSources = (doctorSourcesResult.data ?? [])
+    .filter((row) => String(row.full_name ?? "").trim())
+    .map((row) => ({ title: `Doctora: ${String(row.full_name ?? "Sin nombre")}`, content: doctorToKnowledgeText(row as Record<string, unknown>) }));
+  const paymentSource = {
+    title: "Pagos, cuotas y tarjeta de ahorro",
+    content: paymentMethodsToKnowledgeText((paymentMethodsResult.data ?? []) as Array<Record<string, unknown>>),
+  };
   return {
     settings: settingsResult.data ?? { ai_enabled: true, ai_system_prompt: null, booking_url: "/reservar-cita", allow_external_grounding: false },
     knowledgeSources: [
+      paymentSource,
+      ...doctorSources,
       ...treatmentSources,
       ...(sourcesResult.data ?? []).map((source) => ({ title: String(source.title), content: String(source.content ?? "") })),
     ],
@@ -614,6 +656,7 @@ const greetingPattern = /^(hola|holi|buenas|buenos dias|buenas tardes|buenas noc
 const treatmentWord = "trat[a]?m?ientos?";
 const treatmentListPattern = new RegExp(`\\b(que|cuales|cu[aá]les|ver|mu[eé]strame|informaci[oó]n).{0,45}\\b(${treatmentWord}|servicios?)\\b|\\b(${treatmentWord}|servicios?).{0,45}\\b(disponibles?|tienen|ofrecen|hay)\\b`, "i");
 const humanRequestPattern = /\b(humano|persona|administradora|asesor(?:a)?|reclamo|emergencia|urgencia)\b/i;
+const paymentInfoPattern = /\b(pagos?|pagar|formas?\s+de\s+pago|m[eé]todos?\s+de\s+pago|qr|transferencia|efectivo|tarjeta|cuotas?|financiamiento|credito|cr[eé]dito|ahorro|tarjeta\s+de\s+ahorro)\b/i;
 
 function looksLikeGeneralInfoRequest(message: string) {
   const normalized = normalizeForIntent(message);
@@ -645,6 +688,12 @@ export async function getFastCrmReply(admin: SupabaseClient, text?: string | nul
   }
   if (looksLikeGeneralInfoRequest(message)) {
     return "Claro, te ayudo.\n\nPuedes preguntarme por tratamientos, precios, doctoras o ciudades. También puedes escribir “quiero reservar una cita” cuando quieras agendar.";
+  }
+  if (paymentInfoPattern.test(message)) {
+    const { data } = await admin.from("cash_payment_methods").select("name").eq("is_active", true).order("sort_order").limit(8);
+    const methods = (data ?? []).map((row) => crmText(row.name)).filter((name): name is string => Boolean(name));
+    const methodLine = methods.length ? `Trabajamos con estos métodos de pago: ${methods.join(", ")}.` : "Administración te confirma los métodos de pago disponibles.";
+    return `${methodLine}\n\nTambién podemos orientarte sobre pago único, cuotas o tarjeta de ahorro según el tratamiento y la evaluación. Para confirmar montos y condiciones, una administradora lo revisa contigo.`;
   }
   if (!treatmentListPattern.test(message)) return null;
 
