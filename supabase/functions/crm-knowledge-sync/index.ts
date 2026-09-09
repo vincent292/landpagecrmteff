@@ -1,3 +1,4 @@
+import { isOfficialSiteUrl } from "../_shared/whatsapp-knowledge-policy.ts";
 import { corsHeaders, json, requireCrmManager } from "../_shared/whatsapp-crm.ts";
 
 function cleanText(value: string) {
@@ -25,13 +26,6 @@ function safeExternalUrl(value: string) {
   } catch {
     return null;
   }
-}
-
-function sourceTypeFor(url: URL) {
-  if (url.hostname.includes("instagram.com")) return "instagram";
-  if (url.hostname.includes("facebook.com")) return "facebook";
-  if (url.hostname.includes("tiktok.com")) return "tiktok";
-  return "website";
 }
 
 function normalizedUrl(value: URL) {
@@ -119,23 +113,18 @@ Deno.serve(async (request) => {
     }
 
     const publicSite = safeExternalUrl(Deno.env.get("PUBLIC_SITE_URL") || "https://www.draballesteros.com");
-    const siteSettings = await admin.from("site_settings").select("instagram_url,tiktok_url").limit(1).maybeSingle();
-    if (siteSettings.error) errors.push(`Redes sociales: ${siteSettings.error.message}`);
-    const socialUrls = Object.values(siteSettings.data ?? {}).filter((item) => typeof item === "string") as string[];
     const configuredUrls = [
       publicSite?.toString() || "",
       ...(publicSite ? ["/tratamientos", "/promociones", "/cursos", "/galeria", "/contacto"].map((path) => new URL(path, publicSite).toString()) : []),
-      ...socialUrls,
-      ...(Deno.env.get("CRM_SOCIAL_URLS") || "").split(","),
       ...(Deno.env.get("CRM_KNOWLEDGE_URLS") || "").split(","),
-    ].map((item) => item.trim()).filter(Boolean);
+    ].map((item) => item.trim()).filter((item) => publicSite && isOfficialSiteUrl(item, publicSite.toString()));
 
     const queue = [...new Set(configuredUrls)].slice(0, 20);
     const visited = new Set<string>();
     for (let index = 0; index < queue.length && visited.size < 30; index += 1) {
       const value = queue[index];
       const url = safeExternalUrl(value);
-      if (!url) {
+      if (!url || !publicSite || !isOfficialSiteUrl(url.toString(), publicSite.toString())) {
         errors.push(`URL omitida por seguridad: ${value}`);
         continue;
       }
@@ -146,12 +135,13 @@ Deno.serve(async (request) => {
         const response = await fetch(url, {
           headers: { "User-Agent": "DraBallesterosCRMKnowledge/1.0" },
           signal: AbortSignal.timeout(12000),
+          redirect: "error",
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const html = await response.text();
         const content = cleanText(html);
         if (content.length < 80) throw new Error("contenido no accesible o insuficiente");
-        const type = sourceTypeFor(url);
+        const type = "website";
         await upsertSource({
           source_type: type,
           source_url: url.toString(),

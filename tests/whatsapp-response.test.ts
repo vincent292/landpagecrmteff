@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { isAllowedKnowledgeSource, isOfficialSiteUrl, readScopedGeminiReply, unavailableTreatmentReply, unpublishedInformationReply } from "../supabase/functions/_shared/whatsapp-knowledge-policy.ts";
 import {
   cleanWhatsAppAiText, geminiGenerationConfig, readGeminiReply, resolveBookingUrl,
 } from "../supabase/functions/_shared/whatsapp-ai-response.ts";
@@ -135,4 +136,34 @@ test("long care instructions and full URLs survive message splitting", () => {
   assert.ok(chunks.every((chunk) => chunk.length <= 4096));
   assert.equal(chunks.join(" ").replace(/\s+/g, " "), body.replace(/\s+/g, " "));
   assert.ok(chunks.at(-1)?.endsWith(bookingUrl));
+});
+
+test("knowledge allows the official site and approved platform data only", () => {
+  const site = "https://www.draballesteros.com";
+  assert.ok(isAllowedKnowledgeSource({ title: "Contacto", source_type: "website", source_url: `${site}/contacto` }, site));
+  assert.ok(isAllowedKnowledgeSource({ title: "Cursos", source_type: "platform" }, site));
+  for (const source of [
+    { title: "Externo", source_type: "website", source_url: "https://otra-clinica.com" },
+    { title: "Redes", source_type: "instagram", source_url: "https://instagram.com/clinica" },
+    { title: "FAQ interna", source_type: "manual" },
+    { title: "Tratamientos", source_type: "platform" },
+  ]) assert.equal(isAllowedKnowledgeSource(source, site), false);
+  assert.equal(isOfficialSiteUrl("https://www.draballesteros.com.ejemplo.com", site), false);
+});
+
+test("freeform answers need exact evidence from an authorized source", () => {
+  const sources = [{ id: "source-1", content: "El precio publicado es 800 Bs." }];
+  const result = { kind: "answer", answer: "El precio es 800 Bs.", treatment: "", evidence: [{ sourceId: "source-1", quote: "precio publicado es 800 Bs." }] };
+  assert.equal(readScopedGeminiReply(finalReply(JSON.stringify(result)), sources, [], []), result.answer);
+  assert.throws(() => readScopedGeminiReply(finalReply(JSON.stringify({ ...result, evidence: [] })), sources, [], []), /sin evidencia/);
+  assert.throws(() => readScopedGeminiReply(finalReply(JSON.stringify({ ...result, evidence: [{ sourceId: "source-1", quote: "precio publicado es 100 Bs." }] })), sources, [], []), /evidencia/);
+  assert.throws(() => readScopedGeminiReply(finalReply(JSON.stringify({ ...result, evidence: [{ sourceId: "internet", quote: "precio publicado es 800 Bs." }] })), sources, [], []), /evidencia/);
+});
+
+test("unavailability requires a complete catalog and cannot deny a known treatment", () => {
+  const result = { kind: "unavailable_treatment", answer: "Te derivo a una asesora", treatment: "Liposucción", evidence: [] };
+  assert.equal(readScopedGeminiReply(finalReply(JSON.stringify(result)), [], [rhino], []), unavailableTreatmentReply);
+  assert.equal(readScopedGeminiReply(finalReply(JSON.stringify({ ...result, treatment: "teletransportación facial" })), [], [cleaning], []), unavailableTreatmentReply);
+  assert.equal(readScopedGeminiReply(finalReply(JSON.stringify(result)), [], undefined, []), unpublishedInformationReply);
+  assert.doesNotMatch(readScopedGeminiReply(finalReply(JSON.stringify({ ...result, treatment: "rinomodelación" })), [], [rhino], []), /no tenemos/);
 });

@@ -630,8 +630,8 @@ function CrmSettingsDialog({
               <input type="number" min={10} max={120} value={settings.booking_hold_minutes} onChange={(event) => onLocalChange({ ...settings, booking_hold_minutes: Number(event.target.value) })} onBlur={(event) => void onPatch({ booking_hold_minutes: Math.max(10, Math.min(120, Number(event.target.value) || 30)) })} className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs" />
             </label>
             <label className="flex items-center gap-2 rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-xs font-semibold">
-              <input type="checkbox" checked={settings.allow_external_grounding} onChange={(event) => void onPatch({ allow_external_grounding: event.target.checked })} />
-              Gemini con consulta web
+              <input type="checkbox" checked disabled />
+              Solo información del sitio y catálogo oficial
             </label>
           </div>
 

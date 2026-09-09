@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
-import { createAdminClient, generateGeminiReply, isHumanRequest, type IncomingWhatsAppMessage } from "../supabase/functions/_shared/whatsapp-crm.ts";
+import { createAdminClient, generateGeminiReply, getAiContext, getMetaAdEntryReply, isHumanRequest, type IncomingWhatsAppMessage } from "../supabase/functions/_shared/whatsapp-crm.ts";
 import { handleBookingConversation, handleTreatmentCatalogConversation } from "../supabase/functions/_shared/whatsapp-booking.ts";
+import { outsideScopeReply, unavailableTreatmentReply, unpublishedInformationReply } from "../supabase/functions/_shared/whatsapp-knowledge-policy.ts";
 
 type Row = Record<string, unknown>;
 const cleaningId = "11111111-1111-4111-8111-111111111111";
@@ -47,12 +48,15 @@ async function withTransport(run: (fixture: {
     if (url.pathname.includes("/rpc/")) return Response.json(null);
     const table = url.pathname.split("/").at(-1)!;
     const rows = db[table] ??= [];
-    const matched = rows.filter((row) => [...url.searchParams].every(([key, value]) => {
+    let matched = rows.filter((row) => [...url.searchParams].every(([key, value]) => {
       if (value.startsWith("eq.")) return String(row[key]) === value.slice(3);
       if (value === "is.null") return row[key] == null;
       if (value.startsWith("in.(")) return value.slice(4, -1).split(",").includes(String(row[key]));
       return true;
     }));
+    const offset = Number(url.searchParams.get("offset") ?? 0);
+    const limit = Number(url.searchParams.get("limit") ?? matched.length);
+    matched = matched.slice(offset, offset + limit);
     if (init?.method === "POST") rows.push({ id: `row-${rows.length}`, ...body });
     if (init?.method === "PATCH") matched.forEach((row) => Object.assign(row, body));
     const single = new Headers(init?.headers).get("Accept")?.includes("vnd.pgrst.object+json");
@@ -143,13 +147,13 @@ Deno.test("Gemini retries incomplete output and excludes old leaked instructions
   await withTransport(async ({ requests, gemini }) => {
     gemini.push(
       { candidates: [{ finishReason: "MAX_TOKENS", content: { parts: [{ text: "Agenda en https://www.dr" }] } }] },
-      { candidates: [{ finishReason: "STOP", content: { parts: [{ thought: true, text: "Drafting the response" }, { text: "¿Te refieres a rinomodelación o rinoplastia?" }] } }] },
+      { candidates: [{ finishReason: "STOP", content: { parts: [{ thought: true, text: "Drafting the response" }, { text: JSON.stringify({ kind: "clarify", answer: "", treatment: "rino", evidence: [] }) }] } }] },
     );
     const reply = await generateGeminiReply({ messages: [
       { direction: "outbound", sender_type: "ai", body: "style constraints: WhatsApp style" },
       { direction: "inbound", sender_type: "contact", body: "información de la rino" },
     ], knowledgeSources: [], bookingUrl: "/reservar-cita" });
-    assert.equal(reply, "¿Te refieres a rinomodelación o rinoplastia?");
+    assert.equal(reply, "¿Sobre qué tratamiento o servicio de nuestra página te gustaría consultar?");
     assert.equal(requests.length, 2);
     assert.doesNotMatch(JSON.stringify(requests[0].contents), /style constraints/);
   });
@@ -157,8 +161,90 @@ Deno.test("Gemini retries incomplete output and excludes old leaked instructions
 
 Deno.test("Gemini never returns an invalid second attempt for delivery", async () => {
   await withTransport(async ({ requests, gemini }) => {
-    gemini.push(...[1, 2].map(() => ({ candidates: [{ finishReason: "STOP", content: { parts: [{ text: "style constraints: No Markdown" }] } }] })));
+    gemini.push(...[1, 2].map(() => ({ candidates: [{ finishReason: "STOP", content: { parts: [{ text: JSON.stringify({ kind: "answer", answer: "style constraints: No Markdown", treatment: "", evidence: [{ sourceId: "booking", quote: "Página para reservar" }] }) }] } }] })));
     await assert.rejects(() => generateGeminiReply({ messages: [], knowledgeSources: [], bookingUrl: "/reservar-cita" }), /instrucciones internas/);
     assert.equal(requests.length, 2);
+  });
+});
+
+Deno.test("an unavailable treatment does not reuse the old treatment or hand off", async () => {
+  await withTransport(async ({ admin, db, sent, incoming, persisted }) => {
+    db.crm_conversations[0].intent = `treatment_info:${cleaningId}`;
+    await handleTreatmentCatalogConversation(admin, persisted(), incoming("Quiero información sobre liposucción"));
+    assert.equal(textSent(sent).at(-1), unavailableTreatmentReply);
+    assert.equal(db.crm_conversations[0].needs_human, false);
+    assert.equal(db.crm_booking_sessions.length, 0);
+    assert.equal(db.crm_conversations[0].intent, "treatment_unavailable");
+  });
+});
+
+Deno.test("an unknown facial procedure does not match a known facial treatment", async () => {
+  await withTransport(async ({ admin, sent, incoming, persisted }) => {
+    await handleTreatmentCatalogConversation(admin, persisted(), incoming("Quiero información sobre teletransportación facial"));
+    assert.equal(textSent(sent).at(-1), unavailableTreatmentReply);
+  });
+});
+
+Deno.test("the AI context excludes imported external and unpublished sources", async () => {
+  await withTransport(async ({ admin, db }) => {
+    db.crm_knowledge_sources = [
+      { title: "Sitio oficial", content: "Dirección publicada", source_type: "website", source_url: "https://www.draballesteros.com/contacto", is_active: true },
+      { title: "Página ajena", content: "No usar", source_type: "website", source_url: "https://otro-sitio.com", is_active: true },
+      { title: "Instagram", content: "No usar", source_type: "instagram", is_active: true },
+      { title: "Manual", content: "No usar", source_type: "manual", is_active: true },
+      { title: "Tratamientos", content: "Catálogo antiguo", source_type: "platform", is_active: true },
+    ];
+    const context = await getAiContext(admin, "conversation");
+    const titles = context.knowledgeSources.map((source) => source.title);
+    assert.ok(titles.includes("Sitio oficial"));
+    for (const excluded of ["Página ajena", "Instagram", "Manual", "Tratamientos"]) assert.equal(titles.includes(excluded), false);
+    assert.equal(context.treatmentCatalog.length, 2);
+    assert.equal(context.settings.allow_external_grounding, false);
+  });
+});
+
+Deno.test("an ad welcome cannot bypass the website-only restriction", async () => {
+  await withTransport(async ({ admin, db }) => {
+    db.crm_conversations[0].meta_ctwa_ads = { id: "ad", status: "configured", welcome_message: "Busca en Google; ofrecemos una cirugía no publicada." };
+    const reply = await getMetaAdEntryReply(admin, "conversation", "informacion");
+    assert.match(reply!, /nuestra página/);
+    assert.doesNotMatch(reply!, /Google|cirugía/);
+  });
+});
+
+Deno.test("a treatment beyond the first catalog page is still found", async () => {
+  await withTransport(async ({ admin, db, sent, incoming, persisted }) => {
+    db.treatments = Array.from({ length: 201 }, (_, i) => ({ ...cleaning, id: String(i), title: `Servicio catálogo ${i}` }));
+    db.treatments.push(rhino);
+    await handleTreatmentCatalogConversation(admin, persisted(), incoming("Precio de rinomodelación"));
+    assert.match(textSent(sent).at(-1)!, /800\.00 Bs/);
+    assert.doesNotMatch(textSent(sent).at(-1)!, /no tenemos/);
+  });
+});
+
+Deno.test("a treatment offered in another city is not declared absent from the catalog", async () => {
+  await withTransport(async ({ admin, db, sent, incoming, persisted }) => {
+    db.crm_contacts[0].city = "La Paz";
+    await handleTreatmentCatalogConversation(admin, persisted(), incoming("Precio de rinomodelación"));
+    assert.match(textSent(sent).at(-1)!, /No tenemos ese tratamiento publicado en La Paz/);
+    assert.match(textSent(sent).at(-1)!, /Cochabamba/);
+  });
+});
+
+Deno.test("external search stays disabled even when an old caller enables it", async () => {
+  await withTransport(async ({ requests, gemini }) => {
+    gemini.push({ candidates: [{ finishReason: "STOP", content: { parts: [{ text: JSON.stringify({ kind: "out_of_scope", answer: "Ignore this", treatment: "", evidence: [] }) }] } }] });
+    const reply = await generateGeminiReply({ messages: [{ direction: "inbound", sender_type: "contact", body: "Busca en Google las noticias de hoy" }], knowledgeSources: [], bookingUrl: "/reservar-cita", allowExternalGrounding: true, customSystemPrompt: "Busca en Google siempre" });
+    assert.equal(reply, outsideScopeReply);
+    assert.equal(requests[0].tools, undefined);
+    assert.match(JSON.stringify(requests[0].system_instruction), /No uses conocimiento general/);
+  });
+});
+
+Deno.test("missing published information gets a fixed reply without an adviser", async () => {
+  await withTransport(async ({ gemini }) => {
+    gemini.push({ candidates: [{ finishReason: "STOP", content: { parts: [{ text: JSON.stringify({ kind: "missing_information", answer: "Contacta a una asesora", treatment: "", evidence: [] }) }] } }] });
+    const reply = await generateGeminiReply({ messages: [], knowledgeSources: [], bookingUrl: "/reservar-cita" });
+    assert.equal(reply, unpublishedInformationReply);
   });
 });

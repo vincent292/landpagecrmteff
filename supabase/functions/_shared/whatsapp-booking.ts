@@ -1,3 +1,5 @@
+import { extractTreatmentSubject, matchNamedTreatments, unavailableTreatmentReply } from "./whatsapp-knowledge-policy.ts";
+import { loadPublicTreatments } from "./whatsapp-public-catalog.ts";
 import {
   normalize,
   displayPrice,
@@ -145,17 +147,7 @@ async function getBookableTreatments(admin: SupabaseClient, city?: string | null
 }
 
 async function getInformationalTreatments(admin: SupabaseClient, city?: string | null) {
-  let query = admin
-    .from("treatments")
-    .select("id,title,short_description,description,public_info,benefits,duration,care_instructions,expected_results,city,doctor_id,appointment_type,agenda_tag,requires_assessment,allows_direct_booking,assessment_mode,treatment_price,direct_booking_price,assessment_price,assessment_price_presencial,assessment_price_virtual,available_slots,approved_slots,doctor_profiles(full_name,specialty)")
-    .eq("is_active", true)
-    .is("deleted_at", null)
-    .order("title")
-    .limit(40);
-  if (city) query = query.eq("city", city);
-  const { data, error } = await query;
-  if (error) throw error;
-  return (data ?? []).filter((row) => !/\b(prueba|test|interna)\b/i.test(String(row.title ?? "")));
+  return await loadPublicTreatments(admin, city);
 }
 
 function displayPromotionPrice(promotion: Record<string, unknown>) {
@@ -711,7 +703,25 @@ export async function handleTreatmentCatalogConversation(admin: SupabaseClient, 
   }
   if (!message.interactiveId && message.text) {
     const city = await resolveConversationCity(admin, persisted, message.text);
-    const matches = await findInformationalTreatmentsByText(admin, message.text, city);
+    const subject = extractTreatmentSubject(message.text);
+    const matches = subject
+      ? matchNamedTreatments(await getInformationalTreatments(admin, city), subject)
+      : await findInformationalTreatmentsByText(admin, message.text, city);
+    if (!matches.length && subject) {
+      const catalog = await getInformationalTreatments(admin);
+      const elsewhere = matchNamedTreatments(catalog, subject);
+      if (!elsewhere.length) {
+        await admin.from("crm_conversations").update({ intent: "treatment_unavailable" }).eq("id", persisted.conversation.id);
+        await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, unavailableTreatmentReply);
+        return true;
+      }
+      // Do not reuse the previous treatment when the named one is in another city.
+      if (city) {
+        const cities = [...new Set(elsewhere.map((row) => textValue(row.city)).filter(Boolean))];
+        await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, `No tenemos ese tratamiento publicado en ${city}.${cities.length ? ` Está publicado en ${cities.join(", ")}.` : ""}`);
+        return true;
+      }
+    }
     if (matches.length > 1) {
       const body = "Encontré varias opciones. ¿A cuál te refieres?";
       await admin.from("crm_conversations").update({ intent: "clarify_treatment" }).eq("id", persisted.conversation.id);

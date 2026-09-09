@@ -207,14 +207,14 @@ async function answerWithAi(input: {
       conversationContext: context.conversationContext,
       metaAdContext: context.metaAdContext,
       customSystemPrompt: context.settings.ai_system_prompt,
-      allowExternalGrounding: context.settings.allow_external_grounding !== false,
+      treatmentCatalog: context.treatmentCatalog,
     });
   } catch (error) {
     console.error("[whatsapp] Gemini reply failed; sending fallback", error);
     const bookingUrl = resolveBookingUrl(context.settings.booking_url, Deno.env.get("PUBLIC_SITE_URL") || "https://www.draballesteros.com");
     reply = isBookingRequest(latestInbound)
       ? `Puedes continuar tu reserva desde esta página:\n${bookingUrl}\n\nSi necesitas ayuda del equipo, escribe “asesora”.`
-      : "No pude completar la consulta en este momento. Puedes intentarlo de nuevo o escribir “asesora” para que una persona te ayude.";
+      : "No pude consultar la información de nuestra página en este momento. Por favor, inténtalo de nuevo.";
     usedFallback = true;
   }
   // A human may have taken over while Gemini was generating the answer.

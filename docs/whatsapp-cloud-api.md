@@ -90,7 +90,18 @@ No activar el certificado de cliente. Después de verificar, suscribirse a `mess
 
 ## Calidad de respuestas
 
-La salida de Gemini se acepta únicamente cuando `finishReason` es `STOP`. Los bloques con `thought: true` se descartan; el texto final se revisa para detectar instrucciones internas y enlaces que no procedan de la configuración, las fuentes incluidas en el contexto o los resultados de búsqueda devueltos por el proveedor. Los enlaces Markdown se convierten a texto plano conservando la URL completa.
+El bot tiene una restricción obligatoria al sitio oficial y los datos publicados de la plataforma. No se habilitan herramientas de búsqueda externa, aunque una configuración antigua tenga `allow_external_grounding=true`. El sincronizador solo descarga páginas del mismo origen que `PUBLIC_SITE_URL`, sin seguir redirecciones; las fuentes externas o manuales previamente importadas no se incluyen en las respuestas. Los anuncios aportan contexto, pero no son evidencia ni se envían sus mensajes de bienvenida sin validar.
+
+Las respuestas libres usan un formato estructurado interno con tipo de respuesta y fragmentos exactos de evidencia. El backend valida que esa evidencia pertenezca a las fuentes entregadas; solo envía el mensaje para el paciente. Esta validación no sustituye la revisión de precisión de las paráfrasis.
+
+- Tratamiento ausente del catálogo activo completo: «En este momento no tenemos ese tratamiento. ¿Te gustaría ver los tratamientos disponibles en nuestra página?». No se crea una reserva ni una derivación por esa ausencia.
+- Tratamiento existente con un dato faltante: «Esa información no está publicada en nuestra página por el momento.».
+- Tema externo: se explica que el bot atiende información de la página.
+- Las solicitudes explícitas de una persona, urgencias y la gestión de reservas mantienen sus flujos.
+
+El catálogo se lee con paginación para evitar falsos negativos por el límite de una página. Las copias antiguas de tratamientos y doctoras no sustituyen sus datos actuales.
+
+La salida de Gemini se acepta únicamente cuando `finishReason` es `STOP`. Los bloques con `thought: true` se descartan; el texto final se revisa para detectar instrucciones internas y enlaces que no procedan de la configuración, las fuentes del sitio oficial incluidas en el contexto. Los enlaces Markdown se convierten a texto plano conservando la URL completa.
 
 Una respuesta incompleta, vacía, demasiado larga o con instrucciones internas se regenera una vez. Si vuelve a fallar, el webhook envía una alternativa fija y registra `ai_fallback`. No se recortan respuestas generadas para hacerlas caber. El presupuesto de salida deja espacio para la respuesta final y el razonamiento se configura según la familia del modelo. Referencias: [pensamiento y partes de Gemini](https://ai.google.dev/gemini-api/docs/generate-content/thinking), [motivos de finalización](https://ai.google.dev/api/generate-content#FinishReason).
 
