@@ -435,6 +435,11 @@ async function findInformationalTreatmentsByText(admin: SupabaseClient, text: st
   return matchInformationalTreatments(treatments, text);
 }
 
+async function findInformationalTreatmentsInAnyCity(admin: SupabaseClient, text: string) {
+  if (!meaningfulTokens(text).length) return [];
+  return matchInformationalTreatments(await getInformationalTreatments(admin), text);
+}
+
 async function showTreatmentDetails(admin: SupabaseClient, persisted: PersistedInbound, treatment: Record<string, unknown>, question?: string | null) {
   const body = question && isTreatmentFollowUpQuestion(question) ? formatTreatmentFollowUpAnswer(treatment, question) : formatTreatmentOverview(treatment);
   await admin.from("crm_conversations")
@@ -707,16 +712,41 @@ export async function handleTreatmentCatalogConversation(admin: SupabaseClient, 
     const matches = subject
       ? matchNamedTreatments(await getInformationalTreatments(admin, city), subject)
       : await findInformationalTreatmentsByText(admin, message.text, city);
-    if (!matches.length && subject) {
-      const catalog = await getInformationalTreatments(admin);
-      const elsewhere = matchNamedTreatments(catalog, subject);
-      if (!elsewhere.length) {
-        await admin.from("crm_conversations").update({ intent: "treatment_unavailable" }).eq("id", persisted.conversation.id);
-        await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, unavailableTreatmentReply);
+    if (!matches.length && currentIntentValue === "clarify_treatment") {
+      const clarifiedMatches = await findInformationalTreatmentsInAnyCity(admin, message.text);
+      if (clarifiedMatches.length === 1) {
+        if (isBookingRequest(message.text)) await beginIdentityCollection(admin, persisted, clarifiedMatches[0]);
+        else await showTreatmentDetails(admin, persisted, clarifiedMatches[0], message.text);
         return true;
       }
-      // Do not reuse the previous treatment when the named one is in another city.
-      if (city) {
+      if (clarifiedMatches.length > 1) {
+        const body = "Encontré ese tratamiento en más de una opción. Elige la que corresponde:";
+        await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, body, {
+          type: "interactive",
+          interactive: { type: "list", body: { text: body }, action: { button: "Elegir opción", sections: [{ title: "Opciones", rows: clarifiedMatches.slice(0, 10).map((treatment) => ({
+            id: `treatment-info:${treatment.id}`,
+            title: String(treatment.title).slice(0, 24),
+            description: [treatment.city, displayPrice(treatment)].filter(Boolean).join(" · ").slice(0, 72) || "Ver información",
+          })) }] } },
+        });
+        return true;
+      }
+    }
+    if (!matches.length && (subject || meaningfulTokens(message.text).length)) {
+      const catalog = await getInformationalTreatments(admin);
+      const elsewhere = subject ? matchNamedTreatments(catalog, subject) : matchInformationalTreatments(catalog, message.text);
+      if (!elsewhere.length) {
+        if (subject) {
+          await admin.from("crm_conversations").update({ intent: "treatment_unavailable" }).eq("id", persisted.conversation.id);
+          await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, unavailableTreatmentReply);
+          return true;
+        }
+      } else if (!city && elsewhere.length === 1) {
+        if (isBookingRequest(message.text)) await beginIdentityCollection(admin, persisted, elsewhere[0]);
+        else await showTreatmentDetails(admin, persisted, elsewhere[0], message.text);
+        return true;
+      } else if (city) {
+        // Do not reuse the previous treatment when the named one is in another city.
         const cities = [...new Set(elsewhere.map((row) => textValue(row.city)).filter(Boolean))];
         await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, `No tenemos ese tratamiento publicado en ${city}.${cities.length ? ` Está publicado en ${cities.join(", ")}.` : ""}`);
         return true;
