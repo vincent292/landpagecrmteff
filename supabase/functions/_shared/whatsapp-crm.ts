@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.105.1";
+import { cleanWhatsAppAiText, geminiGenerationConfig, isUnsafeAiReply, readGeminiReply, resolveBookingUrl, urlsInText, type GeminiPayload } from "./whatsapp-ai-response.ts";
 
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -546,11 +547,11 @@ function paymentMethodsToKnowledgeText(rows: Array<Record<string, unknown>>) {
 }
 
 export async function getAiContext(admin: SupabaseClient, conversationId: string) {
-  const [settingsResult, sourcesResult, treatmentSourcesResult, doctorSourcesResult, paymentMethodsResult, messagesResult, bookingResult, metaAd] = await Promise.all([
+  const [settingsResult, sourcesResult, treatmentSourcesResult, doctorSourcesResult, paymentMethodsResult, messagesResult, bookingResult, metaAd, conversationResult] = await Promise.all([
     admin.from("crm_settings").select("ai_enabled,ai_system_prompt,booking_url,allow_external_grounding").eq("id", true).maybeSingle(),
     admin.from("crm_knowledge_sources").select("title,content").eq("is_active", true).order("updated_at", { ascending: false }).limit(20),
     admin.from("treatments")
-      .select("title,short_description,description,public_info,benefits,duration,care_instructions,expected_results,city,requires_assessment,allows_direct_booking,treatment_price,direct_booking_price,assessment_price,assessment_price_presencial,assessment_price_virtual,available_slots,approved_slots,doctor_profiles(full_name,specialty)")
+      .select("id,title,short_description,description,public_info,benefits,duration,care_instructions,expected_results,city,requires_assessment,allows_direct_booking,assessment_mode,treatment_price,direct_booking_price,assessment_price,assessment_price_presencial,assessment_price_virtual,available_slots,approved_slots,doctor_profiles(full_name,specialty)")
       .eq("is_active", true)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
@@ -572,6 +573,7 @@ export async function getAiContext(admin: SupabaseClient, conversationId: string
       .limit(1)
       .maybeSingle(),
     getMetaAdContext(admin, conversationId),
+    admin.from("crm_conversations").select("intent,crm_contacts(city)").eq("id", conversationId).maybeSingle(),
   ]);
   if (settingsResult.error) throw settingsResult.error;
   if (sourcesResult.error) throw sourcesResult.error;
@@ -580,6 +582,10 @@ export async function getAiContext(admin: SupabaseClient, conversationId: string
   if (paymentMethodsResult.error && paymentMethodsResult.error.code !== "42P01") throw paymentMethodsResult.error;
   if (messagesResult.error) throw messagesResult.error;
   if (bookingResult.error) throw bookingResult.error;
+  if (conversationResult.error) throw conversationResult.error;
+  const selectedTreatmentId = conversationResult.data?.intent?.match(/^treatment_info:([0-9a-f-]{36})$/i)?.[1];
+  const selectedTreatment = (treatmentSourcesResult.data ?? []).find((row) => row.id === selectedTreatmentId);
+  const contact = conversationResult.data?.crm_contacts as { city?: string | null } | null;
   const booking = bookingResult.data as { status?: string; identity_step?: string | null; appointment_date?: string | null; start_time?: string | null; end_time?: string | null; treatments?: { title?: string | null } | null } | null;
   const treatmentSources = (treatmentSourcesResult.data ?? [])
     .filter((row) => !/\b(prueba|test|interna)\b/i.test(String(row.title ?? "")))
@@ -600,6 +606,10 @@ export async function getAiContext(admin: SupabaseClient, conversationId: string
       ...(sourcesResult.data ?? []).map((source) => ({ title: String(source.title), content: String(source.content ?? "") })),
     ],
     messages: (messagesResult.data ?? []).reverse(),
+    conversationContext: [
+      contact?.city ? `Ciudad elegida: ${contact.city}.` : "",
+      selectedTreatment ? `Tratamiento consultado: ${selectedTreatment.title}.\n${treatmentToKnowledgeText(selectedTreatment as Record<string, unknown>)}` : "",
+    ].filter(Boolean).join("\n"),
     metaAdContext: metaAd
       ? [
         `Origen: anuncio Meta Click-to-WhatsApp (${metaAd.status === "configured" ? "configurado" : "pendiente de vincular"}).`,
@@ -644,6 +654,7 @@ function selectKnowledgeForQuestion(sources: KnowledgeSource[], question: string
       source,
       score: terms.reduce((total, term) => total + (normalizeForSearch(`${source.title} ${source.content}`).includes(term) ? 1 : 0), 0),
     }))
+    .filter(({ score }) => score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, 4)
     .map(({ source }) => `## ${source.title}\n${source.content.slice(0, 2600)}`)
@@ -655,7 +666,7 @@ const greetingPattern = /^(hola|holi|buenas|buenos dias|buenas tardes|buenas noc
 // Includes common WhatsApp typos such as "trataientos".
 const treatmentWord = "trat[a]?m?ientos?";
 const treatmentListPattern = new RegExp(`\\b(que|cuales|cu[aá]les|ver|mu[eé]strame|informaci[oó]n).{0,45}\\b(${treatmentWord}|servicios?)\\b|\\b(${treatmentWord}|servicios?).{0,45}\\b(disponibles?|tienen|ofrecen|hay)\\b`, "i");
-const humanRequestPattern = /\b(humano|persona|administradora|asesor(?:a)?|reclamo|emergencia|urgencia)\b/i;
+const humanRequestPattern = /\b(humano|administrador(?:a)?|administraci[oó]n|asesor(?:a)?|reclamo|emergencia|urgencia)\b|\b(hablar|comunicarme|contactar|atienda|atenderme)\b.{0,40}\b(persona|alguien)\b|\b(quiero|necesito|prefiero)\s+(?:una\s+)?persona\b/i;
 const paymentInfoPattern = /\b(pagos?|pagar|formas?\s+de\s+pago|m[eé]todos?\s+de\s+pago|qr|transferencia|efectivo|tarjeta|cuotas?|financiamiento|credito|cr[eé]dito|ahorro|tarjeta\s+de\s+ahorro)\b/i;
 
 function looksLikeGeneralInfoRequest(message: string) {
@@ -684,7 +695,7 @@ export async function getFastCrmReply(admin: SupabaseClient, text?: string | nul
   const message = (text ?? "").trim();
   if (!message) return null;
   if (greetingPattern.test(message)) {
-    return "¡Hola! Soy la asistente virtual de la Dra. Estefany Ballesteros.\n\nPuedo ayudarte con:\n1. Tratamientos\n2. Precios\n3. Doctoras\n4. Reservar una cita\n\n¿Qué deseas consultar?";
+    return "¡Hola! Soy la asistente virtual de la Dra. Estefany Ballesteros 😊 Puedo ayudarte con tratamientos, precios y citas. ¿Qué te gustaría consultar?";
   }
   if (looksLikeGeneralInfoRequest(message)) {
     return "Claro, te ayudo.\n\nPuedes preguntarme por tratamientos, precios, doctoras o ciudades. También puedes escribir “quiero reservar una cita” cuando quieras agendar.";
@@ -721,6 +732,7 @@ export async function generateGeminiReply(input: {
   knowledgeSources: KnowledgeSource[];
   bookingUrl: string;
   bookingState?: string;
+  conversationContext?: string;
   metaAdContext?: string | null;
   customSystemPrompt?: string | null;
   allowExternalGrounding?: boolean;
@@ -728,8 +740,10 @@ export async function generateGeminiReply(input: {
   const apiKey = requiredEnv("GEMINI_API_KEY");
   const model = Deno.env.get("GEMINI_MODEL")?.trim() || "gemini-3.7-flash";
   const siteUrl = (Deno.env.get("PUBLIC_SITE_URL") || "https://www.draballesteros.com").replace(/\/$/, "");
-  const bookingUrl = input.bookingUrl.startsWith("http") ? input.bookingUrl : `${siteUrl}${input.bookingUrl}`;
-  const transcript = input.messages.map((message) => `${message.direction === "inbound" ? "Paciente" : message.sender_type === "ai" ? "Asistente" : "Equipo"}: ${message.body ?? "[archivo]"}`).join("\n");
+  const bookingUrl = resolveBookingUrl(input.bookingUrl, siteUrl);
+  // Previous leaked instructions must not become examples for the next answer.
+  const transcript = input.messages.filter((message) => message.direction === "inbound" || !isUnsafeAiReply(message.body ?? ""))
+    .map((message) => `${message.direction === "inbound" ? "Paciente" : message.sender_type === "ai" ? "Asistente" : "Equipo"}: ${message.direction === "inbound" ? message.body ?? "[archivo]" : cleanWhatsAppAiText(message.body ?? "[archivo]")}`).join("\n");
   const latestInbound = [...input.messages].reverse().find((message) => message.direction === "inbound" && message.body?.trim())?.body ?? "";
   const knowledge = selectKnowledgeForQuestion(input.knowledgeSources, latestInbound);
   const shouldUseGrounding = input.allowExternalGrounding === true
@@ -742,6 +756,9 @@ export async function generateGeminiReply(input: {
     "Si ya existe ciudad, doctora o tratamiento en la conversacion reciente, reutiliza ese contexto antes de volver a pedirlo. Pide confirmacion solo si hay ambiguedad real.",
     "No asumas que hay una reserva activa por mensajes anteriores; usa el ESTADO REAL DE RESERVA ACTIVA.",
     "Responde como WhatsApp: mensajes breves, naturales, con opciones numeradas cuando ayuden. No uses Markdown, asteriscos, tablas, encabezados ni lenguaje técnico. No digas que hay demoras salvo que el sistema lo indique.",
+    "Entrega solamente el mensaje final para la persona. Nunca muestres análisis, borradores, reglas de estilo, instrucciones internas ni frases de planificación en inglés.",
+    "Contesta primero la pregunta concreta en 2 a 4 frases y como máximo una pregunta de seguimiento. Si pregunta precio, responde precio; si pide información, da una explicación breve. No copies toda la ficha ni repitas el menú.",
+    "Si dice rino y hay varios tratamientos posibles, pregunta cuál le interesa sin asumir que rinoplastia y rinomodelación son lo mismo. Distingue siempre el precio de una valoración del precio del tratamiento.",
     "Tolera errores de escritura comunes. Si el mensaje parece 'mas informacion', 'info', 'quiero saber' o similar, ofrece ayuda concreta en vez de pedir que repita.",
     "Si el paciente rechaza o no entiende un dato requerido de una reserva, no reinicies la conversacion; explica para que sirve el dato y ofrece derivar a una administradora.",
     "Responde en español cálido, profesional, breve y claro. No inventes precios, horarios, resultados ni servicios.",
@@ -752,22 +769,25 @@ export async function generateGeminiReply(input: {
     "Si no sabes algo o piden una persona, ofrece derivar a una administradora.",
     "No recomiendes dosis, medicamentos, inyectables, combinaciones clinicas ni automedicacion; si hace falta evaluacion, dilo con claridad.",
     "Si existe CONTEXTO DE ANUNCIO META, tiene prioridad sobre el saludo genérico. Si está pendiente de vincular, úsalo solo como contexto literal: no deduzcas ni inventes el servicio; cuando no se pueda identificar, formula una sola pregunta de aclaración.",
-    `Para solicitar una cita comparte este enlace cuando corresponda: ${bookingUrl}.`,
+    "Las reservas se gestionan por el flujo de WhatsApp. Nunca afirmes que agendaste, confirmaste una cita o avisaste al equipo sin que el estado del sistema lo confirme.",
+    `Solo si solicita la página web o no puede continuar por WhatsApp, comparte el enlace completo en texto plano, en su propia línea: ${bookingUrl}`,
     "Nunca pidas contraseñas, datos de tarjeta ni información clínica extensa por WhatsApp.",
     input.customSystemPrompt?.trim() || "",
   ].filter(Boolean).join("\n");
-  const buildBody = (withGrounding: boolean) => JSON.stringify({
+  const buildBody = (withGrounding: boolean, retry = false) => JSON.stringify({
       system_instruction: { parts: [{ text: systemInstruction }] },
       contents: [{ role: "user", parts: [{ text: [
         `Nombre: ${input.contactName || "no informado"}`,
         `ESTADO REAL DE RESERVA ACTIVA:\n${input.bookingState ?? "No informado."}`,
+        input.conversationContext ? `CONTEXTO ACTUAL DE LA CONVERSACIÓN:\n${input.conversationContext}` : "",
         input.metaAdContext ? `CONTEXTO DE ANUNCIO META:\n${input.metaAdContext}` : "",
         `CONTEXTO DEL NEGOCIO:\n${knowledge}`,
         `CONVERSACIÓN RECIENTE:\n${transcript}`,
         "Redacta únicamente el próximo mensaje de WhatsApp.",
+        retry ? "El intento anterior no produjo un mensaje válido. Responde de nuevo con un mensaje completo de hasta 700 caracteres, sin análisis ni borradores. Usa solo enlaces completos del contexto." : "",
       ].join("\n\n") }] }],
       ...(withGrounding ? { tools: [{ google_search: {} }] } : {}),
-      generationConfig: { maxOutputTokens: 550, temperature: 0.25 },
+      generationConfig: geminiGenerationConfig(model, retry),
     });
   let response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: "POST",
@@ -783,30 +803,19 @@ export async function generateGeminiReply(input: {
     });
   }
   if (!response.ok) throw new Error(`Gemini API ${response.status}: ${(await response.text()).slice(0, 400)}`);
-  const payload = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
-  const text = payload.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("").trim() ?? "";
-  if (!text) throw new Error("Gemini devolvió una respuesta vacía.");
-  return cleanWhatsAppAiText(text);
-}
-
-function cleanWhatsAppAiText(value: string) {
-  const cleaned = value
-    .replace(/\*\*(.*?)\*\*/g, "$1")
-    .replace(/__(.*?)__/g, "$1")
-    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
-    .replace(/^\s*[-*]\s+/gm, "• ")
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-  if (cleaned.length <= 1800) return cleaned;
-  const excerpt = cleaned.slice(0, 1800);
-  const lastBoundary = Math.max(
-    excerpt.lastIndexOf(". "),
-    excerpt.lastIndexOf("? "),
-    excerpt.lastIndexOf("! "),
-    excerpt.lastIndexOf("\n\n"),
-  );
-  return `${excerpt.slice(0, lastBoundary > 900 ? lastBoundary + 1 : 1750).trim()}\n\n¿Quieres que te amplíe esta información o prefieres agendar?`;
+  const allowedUrls = [bookingUrl, ...urlsInText(knowledge), ...urlsInText(input.conversationContext ?? "")];
+  try {
+    return readGeminiReply(await response.json() as GeminiPayload, allowedUrls);
+  } catch (error) {
+    console.warn("[whatsapp] Invalid Gemini answer; retrying once", error instanceof Error ? error.message : "invalid output");
+    const retry = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+      body: buildBody(false, true), signal: AbortSignal.timeout(12_000),
+    });
+    if (!retry.ok) throw new Error(`Gemini retry API ${retry.status}`, { cause: error });
+    return readGeminiReply(await retry.json() as GeminiPayload, allowedUrls);
+  }
 }
 
 type MetaSendResponse = { messages?: Array<{ id?: string }> };

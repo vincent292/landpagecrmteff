@@ -17,12 +17,10 @@ import {
   verifyMetaSignature,
 } from "../_shared/whatsapp-crm.ts";
 import { handleBookingConversation, handleTreatmentCatalogConversation } from "../_shared/whatsapp-booking.ts";
+import { resolveBookingUrl } from "../_shared/whatsapp-ai-response.ts";
+import { isBookingRequest } from "../_shared/whatsapp-treatment-response.ts";
 
 declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
-
-function isUnsafeAiReply(reply: string) {
-  return /\b(without inventing|direct response|system instruction|prompt injection|contexto del negocio|estado real de reserva|redacta unicamente|ignore previous)\b/i.test(reply);
-}
 
 function digitsOnly(value: string | null | undefined) {
   return String(value ?? "").replace(/\D/g, "");
@@ -198,6 +196,7 @@ async function answerWithAi(input: {
   if (!context.settings.ai_enabled) return;
   let reply: string;
   let usedFallback = false;
+  const latestInbound = [...context.messages].reverse().find((message) => message.direction === "inbound" && message.body?.trim())?.body ?? "";
   try {
     reply = await generateGeminiReply({
       contactName: input.contactName,
@@ -205,19 +204,23 @@ async function answerWithAi(input: {
       knowledgeSources: context.knowledgeSources,
       bookingUrl: context.settings.booking_url,
       bookingState: context.bookingState,
+      conversationContext: context.conversationContext,
       metaAdContext: context.metaAdContext,
       customSystemPrompt: context.settings.ai_system_prompt,
       allowExternalGrounding: context.settings.allow_external_grounding !== false,
     });
-    if (isUnsafeAiReply(reply)) {
-      console.error("[whatsapp] Blocked unsafe Gemini output");
-      reply = "Puedo ayudarte con información de tratamientos, precios publicados y reservas. ¿Qué deseas consultar?";
-    }
   } catch (error) {
     console.error("[whatsapp] Gemini reply failed; sending fallback", error);
-    reply = "Te ayudo. Puedes preguntarme por tratamientos, precios, doctoras o ciudades. Si deseas agendar, escribe “quiero reservar una cita”. Si prefieres una persona, escribe “asesora”.";
+    const bookingUrl = resolveBookingUrl(context.settings.booking_url, Deno.env.get("PUBLIC_SITE_URL") || "https://www.draballesteros.com");
+    reply = isBookingRequest(latestInbound)
+      ? `Puedes continuar tu reserva desde esta página:\n${bookingUrl}\n\nSi necesitas ayuda del equipo, escribe “asesora”.`
+      : "No pude completar la consulta en este momento. Puedes intentarlo de nuevo o escribir “asesora” para que una persona te ayude.";
     usedFallback = true;
   }
+  // A human may have taken over while Gemini was generating the answer.
+  const current = await admin.from("crm_conversations").select("ai_enabled,needs_human").eq("id", input.conversationId).maybeSingle();
+  if (current.error) throw current.error;
+  if (!current.data?.ai_enabled || current.data.needs_human) return;
   const meta = await sendMetaMessage(input.to, {
     type: "text",
     text: { preview_url: /https?:\/\//i.test(reply), body: reply },
@@ -229,7 +232,6 @@ async function answerWithAi(input: {
     senderType: "ai",
   });
   if (usedFallback) {
-    const latestInbound = [...context.messages].reverse().find((message) => message.direction === "inbound" && message.body?.trim())?.body ?? null;
     await recordBotLearningEvent(admin, {
       conversationId: input.conversationId,
       eventType: "ai_fallback",
@@ -330,7 +332,7 @@ Deno.serve(async (request) => {
         await persistOutboundMessage(admin, { conversationId: persisted.conversation.id, metaMessageId: meta?.messages?.[0]?.id ?? null, body: handoff, senderType: "system" });
         continue;
       }
-      if (!persisted.conversation.ai_enabled) continue;
+      if (!persisted.conversation.ai_enabled || persisted.conversation.needs_human) continue;
       const fastReply = await getFastCrmReply(admin, message.text);
       if (fastReply) {
         const meta = await sendMetaMessage(message.from, { type: "text", text: { preview_url: false, body: fastReply } });

@@ -1,7 +1,23 @@
+import {
+  normalize,
+  displayPrice,
+  textValue,
+  compactText,
+  treatmentDoctorName,
+  looksLikeTokenMatch,
+  formatTreatmentOverview,
+  isTreatmentFollowUpQuestion,
+  formatTreatmentFollowUpAnswer,
+  matchInformationalTreatments,
+  isBookingRequest,
+  splitWhatsAppText,
+  meaningfulTokens,
+} from "./whatsapp-treatment-response.ts";
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2.105.1";
 import { PutObjectCommand } from "npm:@aws-sdk/client-s3";
 
 import {
+  isHumanRequest,
   persistOutboundMessage,
   recordBotLearningEvent,
   requiredEnv,
@@ -46,7 +62,6 @@ type PersistedInbound = {
 };
 
 const activeStatuses = ["collecting_identity", "choosing_date", "choosing_time", "awaiting_payment", "payment_review", "needs_human"];
-const bookingPattern = /\b(reserv(?:ar|a|o)|agend(?:ar|a|o)|sacar\s+(?:una\s+)?cita|quiero\s+(?:una\s+)?cita|tomar\s+(?:una\s+)?cita)\b/i;
 const cancelPattern = /\b(cancelar|salir|detener|ya\s+no)\b/i;
 const boliviaCities = ["Cochabamba", "La Paz", "Santa Cruz", "Sucre", "Oruro", "Potosi", "Tarija", "Beni", "Pando"];
 const treatmentCatalogPattern = /\b(que|cuales|cu[aá]les|ver|mu[eé]strame|informaci[oó]n|saber).{0,45}\b(trat[a]?m?ientos?|servicios?)\b|\b(trat[a]?m?ientos?|servicios?).{0,45}\b(disponibles?|tienen|ofrecen|hay)\b/i;
@@ -61,10 +76,6 @@ const topicSwitchPattern = /\b(ahora|mejor|cambiar|cambiemos|otra cosa|quiero ve
 const exactNoPattern = /^(no|nop|nel|no gracias)$/i;
 const identityHandoffPattern = /^(omitir|saltar|luego|despues|después|mas tarde|más tarde|no tengo|no lo tengo|no recuerdo|no se|no sé|prefiero no|no quiero)$/i;
 
-function normalize(value: string) {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-}
-
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("es-BO", { weekday: "short", day: "2-digit", month: "short", timeZone: "America/La_Paz" })
     .format(new Date(`${value}T12:00:00-04:00`));
@@ -77,6 +88,21 @@ async function sendBookingMessage(
   body: string,
   payload?: Record<string, unknown>,
 ) {
+  if ((payload?.type === "interactive" && body.length > 1024) || (!payload && body.length > 4096)) {
+    for (const chunk of splitWhatsAppText(body)) {
+      await sendBookingMessage(admin, conversationId, to, chunk);
+    }
+    if (payload?.type === "interactive") {
+      const interactive = payload.interactive as Record<string, unknown>;
+      const followUp = "¿Cómo deseas continuar?";
+      await sendBookingMessage(admin, conversationId, to, followUp, { ...payload, interactive: { ...interactive, body: { text: followUp } } });
+    }
+    return;
+  }
+  if (payload?.type === "interactive") {
+    // Store exactly the same text that Meta receives; never send a sliced body.
+    payload = { ...payload, interactive: { ...payload.interactive as Record<string, unknown>, body: { text: body } } };
+  }
   const meta = await sendMetaMessage(to, payload ?? { type: "text", text: { preview_url: /https?:\/\//i.test(body), body } });
   await persistOutboundMessage(admin, {
     conversationId,
@@ -102,7 +128,7 @@ async function loadActiveSession(admin: SupabaseClient, conversationId: string) 
 async function getBookableTreatments(admin: SupabaseClient, city?: string | null) {
   let query = admin
     .from("treatments")
-    .select("id,title,slug,city,doctor_id,appointment_type,agenda_tag,treatment_price,direct_booking_price,assessment_price")
+    .select("id,title,slug,city,doctor_id,appointment_type,agenda_tag,treatment_price,direct_booking_price,assessment_price,requires_assessment,allows_direct_booking")
     .eq("is_active", true)
     .eq("allows_direct_booking", true)
     .eq("requires_assessment", false)
@@ -130,13 +156,6 @@ async function getInformationalTreatments(admin: SupabaseClient, city?: string |
   const { data, error } = await query;
   if (error) throw error;
   return (data ?? []).filter((row) => !/\b(prueba|test|interna)\b/i.test(String(row.title ?? "")));
-}
-
-function displayPrice(treatment: Record<string, unknown>) {
-  const price = Number(treatment.requires_assessment
-    ? treatment.assessment_price_presencial ?? treatment.assessment_price
-    : treatment.treatment_price ?? treatment.direct_booking_price ?? treatment.assessment_price ?? 0);
-  return price > 0 ? `${price.toFixed(2)} Bs` : null;
 }
 
 function displayPromotionPrice(promotion: Record<string, unknown>) {
@@ -173,10 +192,6 @@ function displayPromotionSlots(promotion: Record<string, unknown>) {
   return Number.isFinite(slots) && slots > 0 ? `${slots} cupo${slots === 1 ? "" : "s"}` : null;
 }
 
-function textValue(value: unknown) {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
 async function resolveKnownCity(admin: SupabaseClient, text: string) {
   const normalizedText = normalize(text);
   if (!normalizedText) return null;
@@ -208,48 +223,6 @@ async function resolveKnownCity(admin: SupabaseClient, text: string) {
   }) ?? null;
 }
 
-function compactText(value: unknown, maxLength: number) {
-  const text = textValue(value)?.replace(/\s+/g, " ");
-  if (!text) return null;
-  return text.length > maxLength ? `${text.slice(0, Math.max(0, maxLength - 1)).trim()}...` : text;
-}
-
-function treatmentDoctorName(treatment: Record<string, unknown>) {
-  const doctor = treatment.doctor_profiles as { full_name?: string | null; specialty?: string | null } | null | undefined;
-  if (!doctor?.full_name) return null;
-  return doctor.specialty ? `${doctor.full_name} (${doctor.specialty})` : doctor.full_name;
-}
-
-function remainingTreatmentSlots(treatment: Record<string, unknown>) {
-  const total = Number(treatment.available_slots ?? 0);
-  if (!Number.isFinite(total) || total <= 0) return null;
-  const approved = Number(treatment.approved_slots ?? 0);
-  return Math.max(total - (Number.isFinite(approved) ? approved : 0), 0);
-}
-
-function formatTreatmentPriceLine(treatment: Record<string, unknown>) {
-  if (treatment.requires_assessment) {
-    const mode = String(treatment.assessment_mode ?? "presencial");
-    const presencial = Number(treatment.assessment_price_presencial ?? treatment.assessment_price ?? 0);
-    const virtual = Number(treatment.assessment_price_virtual ?? treatment.assessment_price ?? 0);
-    const parts = [
-      mode !== "virtual" && presencial > 0 ? `presencial ${presencial.toFixed(2)} Bs` : null,
-      mode !== "presencial" && virtual > 0 ? `virtual ${virtual.toFixed(2)} Bs` : null,
-    ].filter(Boolean);
-    return parts.length
-      ? `Valoracion previa: ${parts.join(" / ")}.`
-      : "Requiere valoracion previa. El costo se confirma con administracion.";
-  }
-  const price = displayPrice(treatment);
-  return price ? `Precio: ${price}.` : "Precio: consulta con administracion.";
-}
-
-function formatTreatmentSlotsLine(treatment: Record<string, unknown>) {
-  const remaining = remainingTreatmentSlots(treatment);
-  if (remaining == null) return treatment.allows_direct_booking ? "Cupos: segun agenda disponible." : null;
-  return remaining > 0 ? `Cupos disponibles: ${remaining}.` : "Cupos disponibles: agotados por ahora.";
-}
-
 type DoctorLite = { id: string; full_name: string; specialty: string | null; city: string | null; bio?: string | null; is_featured?: boolean | null };
 
 async function getActiveDoctors(admin: SupabaseClient) {
@@ -273,57 +246,6 @@ function doctorSearchTokens(text: string) {
     "ver", "mostrar", "muestra", "esos", "son",
   ]);
   return normalize(text).split(" ").filter((token) => token.length >= 3 && !stopWords.has(token));
-}
-
-function editDistance(a: string, b: string) {
-  const previous = Array.from({ length: b.length + 1 }, (_, index) => index);
-  const current = Array.from({ length: b.length + 1 }, () => 0);
-  for (let i = 1; i <= a.length; i += 1) {
-    current[0] = i;
-    for (let j = 1; j <= b.length; j += 1) {
-      current[j] = Math.min(
-        previous[j] + 1,
-        current[j - 1] + 1,
-        previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1),
-      );
-    }
-    previous.splice(0, previous.length, ...current);
-  }
-  return previous[b.length];
-}
-
-function looksLikeTokenMatch(inputToken: string, nameToken: string) {
-  if (inputToken === nameToken || inputToken.includes(nameToken) || nameToken.includes(inputToken)) return true;
-  if (inputToken.length < 5 || nameToken.length < 5) return false;
-  return editDistance(inputToken, nameToken) <= 2;
-}
-
-function meaningfulTokens(text: string) {
-  const stopWords = new Set([
-    "quiero", "quisiera", "saber", "informacion", "info", "sobre", "acerca", "del", "de", "la", "el", "los", "las",
-    "tratamiento", "tratamientos", "servicio", "servicios", "precio", "costo", "cuanto", "dime", "me", "puedes",
-    "dar", "ver", "mostrar", "muestrame", "hay", "tienen", "tiene",
-  ]);
-  return normalize(text).split(" ").filter((token) => token.length >= 3 && !stopWords.has(token));
-}
-
-function treatmentTextScore(treatment: Record<string, unknown>, text: string) {
-  const inputTokens = meaningfulTokens(text);
-  if (!inputTokens.length) return 0;
-  const title = normalize(String(treatment.title ?? ""));
-  const haystack = normalize([
-    treatment.title,
-    treatment.short_description,
-    treatment.public_info,
-    treatment.description,
-  ].filter(Boolean).join(" "));
-  const titleTokens = title.split(" ").filter((token) => token.length >= 3);
-  let score = title && normalize(text).includes(title) ? 10 : 0;
-  for (const inputToken of inputTokens) {
-    if (titleTokens.some((titleToken) => looksLikeTokenMatch(inputToken, titleToken))) score += 4;
-    else if (haystack.split(" ").some((token) => looksLikeTokenMatch(inputToken, token))) score += 1;
-  }
-  return score;
 }
 
 function knownDoctorAliasTokens(doctor: DoctorLite) {
@@ -510,85 +432,19 @@ async function showDoctorTreatments(admin: SupabaseClient, persisted: PersistedI
   return true;
 }
 
-function formatTreatmentOverview(treatment: Record<string, unknown>) {
-  const lines = [`*${String(treatment.title ?? "Tratamiento")}*`];
-  const facts = [
-    textValue(treatment.city) ? `Ciudad: ${textValue(treatment.city)}` : null,
-    treatmentDoctorName(treatment) ? `Doctora: ${treatmentDoctorName(treatment)}` : null,
-    textValue(treatment.duration) ? `Duracion: ${textValue(treatment.duration)}` : null,
-    formatTreatmentPriceLine(treatment),
-    formatTreatmentSlotsLine(treatment),
-  ].filter(Boolean);
-  if (facts.length) lines.push(facts.join("\n"));
-
-  const info = compactText(treatment.public_info ?? treatment.short_description ?? treatment.description, 420);
-  if (info) lines.push(info);
-
-  const benefits = compactText(treatment.benefits, 170);
-  if (benefits) lines.push(`Beneficios: ${benefits}`);
-  const care = compactText(treatment.care_instructions, 150);
-  if (care) lines.push(`Cuidados: ${care}`);
-  const results = compactText(treatment.expected_results, 150);
-  if (results) lines.push(`Resultados esperados: ${results}`);
-
-  lines.push("Puedes preguntarme: beneficios, duracion, cuidados, resultados, precio o cupos.");
-  return lines.join("\n\n").slice(0, 1024);
-}
-
-function isTreatmentFollowUpQuestion(text?: string | null) {
-  const normalized = normalize(text ?? "");
-  return /\b(beneficios?|cuidados?|duracion|dura|resultados?|precio|costo|cuanto|cupos?|disponibilidad|doctora|doctor|quien|ciudad|sede|para que|sirve|consiste|como es)\b/i.test(normalized);
-}
-
-function formatTreatmentFollowUpAnswer(treatment: Record<string, unknown>, text?: string | null) {
-  const normalized = normalize(text ?? "");
-  const title = String(treatment.title ?? "Tratamiento");
-  if (/\b(precio|costo|cuanto)\b/i.test(normalized)) return `*${title}*\n${formatTreatmentPriceLine(treatment)}`;
-  if (/\b(cupos?|disponibilidad)\b/i.test(normalized)) return `*${title}*\n${formatTreatmentSlotsLine(treatment) ?? "Los cupos dependen de la agenda disponible."}`;
-  if (/\b(duracion|dura)\b/i.test(normalized)) return `*${title}*\nDuracion: ${textValue(treatment.duration) ?? "se confirma durante la valoracion o con administracion."}`;
-  if (/\b(cuidados?)\b/i.test(normalized)) return `*${title}*\nCuidados: ${compactText(treatment.care_instructions, 850) ?? "los cuidados especificos se indican segun la valoracion profesional."}`;
-  if (/\b(beneficios?)\b/i.test(normalized)) return `*${title}*\nBeneficios: ${compactText(treatment.benefits, 850) ?? compactText(treatment.public_info ?? treatment.description, 850) ?? "la informacion se confirma en valoracion profesional."}`;
-  if (/\b(resultados?)\b/i.test(normalized)) return `*${title}*\nResultados esperados: ${compactText(treatment.expected_results, 850) ?? "los resultados pueden variar segun cada persona y se explican en valoracion."}`;
-  if (/\b(doctora|doctor|quien)\b/i.test(normalized)) return `*${title}*\nDoctora: ${treatmentDoctorName(treatment) ?? "se asigna segun disponibilidad de agenda."}`;
-  if (/\b(ciudad|sede)\b/i.test(normalized)) return `*${title}*\nCiudad: ${textValue(treatment.city) ?? "se confirma segun disponibilidad."}`;
-  return formatTreatmentOverview(treatment);
-}
-
 async function loadInformationalTreatment(admin: SupabaseClient, treatmentId: string) {
   const treatments = await getInformationalTreatments(admin);
   return treatments.find((item) => item.id === treatmentId) ?? null;
 }
 
-async function findInformationalTreatmentByText(admin: SupabaseClient, text: string, city?: string | null) {
-  const normalizedText = normalize(text);
-  if (normalizedText.length < 4) return null;
+async function findInformationalTreatmentsByText(admin: SupabaseClient, text: string, city?: string | null) {
+  if (!meaningfulTokens(text).length) return [];
   const treatments = await getInformationalTreatments(admin, city || undefined);
-  const localMatch = treatments.find((item) => {
-    const title = normalize(String(item.title ?? ""));
-    return title && (normalizedText.includes(title) || title.includes(normalizedText));
-  });
-  if (localMatch) return localMatch;
-  const fuzzyLocal = [...treatments]
-    .map((item) => ({ item, score: treatmentTextScore(item, text) }))
-    .sort((left, right) => right.score - left.score)[0];
-  if (fuzzyLocal && fuzzyLocal.score >= 8) return fuzzyLocal.item;
-  if (city) {
-    const allTreatments = await getInformationalTreatments(admin);
-    const exact = allTreatments.find((item) => {
-      const title = normalize(String(item.title ?? ""));
-      return title && (normalizedText.includes(title) || title.includes(normalizedText));
-    });
-    if (exact) return exact;
-    const fuzzy = [...allTreatments]
-      .map((item) => ({ item, score: treatmentTextScore(item, text) }))
-      .sort((left, right) => right.score - left.score)[0];
-    return fuzzy && fuzzy.score >= 8 ? fuzzy.item : null;
-  }
-  return null;
+  return matchInformationalTreatments(treatments, text);
 }
 
-async function showTreatmentDetails(admin: SupabaseClient, persisted: PersistedInbound, treatment: Record<string, unknown>) {
-  const body = formatTreatmentOverview(treatment);
+async function showTreatmentDetails(admin: SupabaseClient, persisted: PersistedInbound, treatment: Record<string, unknown>, question?: string | null) {
+  const body = question && isTreatmentFollowUpQuestion(question) ? formatTreatmentFollowUpAnswer(treatment, question) : formatTreatmentOverview(treatment);
   await admin.from("crm_conversations")
     .update({ intent: `treatment_info:${treatment.id}` })
     .eq("id", persisted.conversation.id);
@@ -680,7 +536,7 @@ async function showPromotionInformation(admin: SupabaseClient, persisted: Persis
   });
   const body = `Claro, estas promociones están activas:\n\n${lines.join("\n")}\n\nPuedo darte detalle de una promoción, mostrar tratamientos o ayudarte a agendar cuando quieras.`;
   await admin.from("crm_conversations").update({ intent: "consulta_promociones", needs_human: false }).eq("id", persisted.conversation.id);
-  await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, body.slice(0, 1024));
+  await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, body);
   return true;
 }
 
@@ -708,9 +564,9 @@ async function rememberCityInterest(admin: SupabaseClient, contactId: string, ci
 
 async function showCityChoices(admin: SupabaseClient, persisted: PersistedInbound, purpose: "info" | "booking") {
   const body = purpose === "booking"
-    ? "Antes de mostrar horarios, elige la ciudad donde deseas atenderte:"
-    : "Elige tu ciudad para mostrarte solamente los tratamientos disponibles allí:";
-  await admin.from("crm_conversations").update({ intent: purpose === "booking" ? "select_treatment_city" : "catalog_city" }).eq("id", persisted.conversation.id);
+    ? "Claro, te ayudo a reservar por aquí. ¿En qué ciudad deseas atenderte?"
+    : "¿En qué ciudad te gustaría atenderte? Así te muestro los tratamientos disponibles allí.";
+  await admin.from("crm_conversations").update({ intent: purpose === "booking" ? "select_treatment_city" : "catalog_city", ...(purpose === "booking" ? { needs_human: false } : {}) }).eq("id", persisted.conversation.id);
   await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, body, {
     type: "interactive",
     interactive: {
@@ -741,6 +597,8 @@ async function showTreatmentInformationChoices(admin: SupabaseClient, persisted:
 }
 
 export async function handleTreatmentCatalogConversation(admin: SupabaseClient, persisted: PersistedInbound, message: IncomingWhatsAppMessage) {
+  if (!message.interactiveId && isHumanRequest(message.text)) return false;
+  if (persisted.conversation.needs_human && !message.interactiveId && !isBookingRequest(message.text ?? "")) return false;
   if (message.interactiveId === "booking-help") {
     await admin.from("crm_conversations")
       .update({ needs_human: true, intent: "solicitar_ayuda_reserva" })
@@ -851,6 +709,31 @@ export async function handleTreatmentCatalogConversation(admin: SupabaseClient, 
       return await showDoctorTreatments(admin, persisted, doctor, message.text, city);
     }
   }
+  if (!message.interactiveId && message.text) {
+    const city = await resolveConversationCity(admin, persisted, message.text);
+    const matches = await findInformationalTreatmentsByText(admin, message.text, city);
+    if (matches.length > 1) {
+      const body = "Encontré varias opciones. ¿A cuál te refieres?";
+      await admin.from("crm_conversations").update({ intent: "clarify_treatment" }).eq("id", persisted.conversation.id);
+      await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, body, {
+        type: "interactive",
+        interactive: { type: "list", body: { text: body }, action: { button: "Elegir tratamiento", sections: [{ title: "Opciones", rows: matches.slice(0, 10).map((treatment) => ({
+          id: `treatment-info:${treatment.id}`,
+          title: String(treatment.title).slice(0, 24),
+          description: [treatment.city, displayPrice(treatment)].filter(Boolean).join(" · ").slice(0, 72) || "Ver información",
+        })) }] } },
+      });
+      return true;
+    }
+    if (matches.length === 1) {
+      if (isBookingRequest(message.text)) await beginIdentityCollection(admin, persisted, matches[0]);
+      else await showTreatmentDetails(admin, persisted, matches[0], message.text);
+      return true;
+    }
+  }
+  if (!message.interactiveId && message.text && currentIntentValue === "catalog_city" && isBookingRequest(message.text)) {
+    return await showTreatmentChoices(admin, persisted, await resolveConversationCity(admin, persisted, message.text));
+  }
   if (!message.interactiveId && message.text && (currentIntentValue === "select_treatment_city" || currentIntentValue === "catalog_city")) {
     const purpose = currentIntentValue === "select_treatment_city" ? "booking" : "info";
     const city = await resolveKnownCity(admin, message.text);
@@ -895,7 +778,7 @@ export async function handleTreatmentCatalogConversation(admin: SupabaseClient, 
   }
   if (!message.interactiveId && currentTreatmentInfoId && message.text) {
     const treatment = await loadInformationalTreatment(admin, currentTreatmentInfoId);
-    if (treatment && bookingPattern.test(message.text)) {
+    if (treatment && isBookingRequest(message.text)) {
       await beginIdentityCollection(admin, persisted, treatment);
       return true;
     }
@@ -903,7 +786,7 @@ export async function handleTreatmentCatalogConversation(admin: SupabaseClient, 
       const body = formatTreatmentFollowUpAnswer(treatment, message.text);
       await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, body, {
         type: "interactive",
-        interactive: { type: "button", body: { text: body.slice(0, 1024) }, action: { buttons: [
+        interactive: { type: "button", body: { text: body }, action: { buttons: [
           { type: "reply", reply: { id: `treatment-book:${treatment.id}`, title: treatment.requires_assessment ? "Pedir valoracion" : "Reservar cita" } },
           { type: "reply", reply: { id: "treatment-catalog", title: "Ver otros" } },
         ] } },
@@ -911,15 +794,11 @@ export async function handleTreatmentCatalogConversation(admin: SupabaseClient, 
       return true;
     }
   }
-  const namedTreatment = !message.interactiveId && message.text
-    ? await findInformationalTreatmentByText(admin, message.text, persisted.contact.city)
-    : null;
-  if (namedTreatment) {
-    if (bookingPattern.test(message.text ?? "")) await beginIdentityCollection(admin, persisted, namedTreatment);
-    else await showTreatmentDetails(admin, persisted, namedTreatment);
-    return true;
+  if (treatmentCatalogPattern.test(message.text ?? "")) {
+    const city = await resolveConversationCity(admin, persisted, message.text);
+    if (city && await showTreatmentInformationChoices(admin, persisted, city)) return true;
+    return await showCityChoices(admin, persisted, "info");
   }
-  if (treatmentCatalogPattern.test(message.text ?? "")) return await showCityChoices(admin, persisted, "info");
   const infoId = message.interactiveId?.startsWith("treatment-info:") ? message.interactiveId.slice("treatment-info:".length) : null;
   const bookId = message.interactiveId?.startsWith("treatment-book:") ? message.interactiveId.slice("treatment-book:".length) : null;
   if (bookId) {
@@ -953,7 +832,7 @@ async function showTreatmentChoices(admin: SupabaseClient, persisted: PersistedI
       type: "interactive",
       interactive: { type: "button", body: { text: body }, action: { buttons: [
         { type: "reply", reply: { id: "catalog-change-city:booking", title: "Elegir otra ciudad" } },
-        { type: "reply", reply: { id: "booking-help", title: "Hablar con administración" } },
+        { type: "reply", reply: { id: "booking-help", title: "Pedir ayuda" } },
       ] } },
     });
     return true;
@@ -963,7 +842,7 @@ async function showTreatmentChoices(admin: SupabaseClient, persisted: PersistedI
     title: String(treatment.title).slice(0, 24),
     description: `${Number(treatment.treatment_price ?? treatment.direct_booking_price ?? treatment.assessment_price).toFixed(2)} Bs`.slice(0, 72),
   }));
-  await admin.from("crm_conversations").update({ intent: "select_treatment" }).eq("id", persisted.conversation.id);
+  await admin.from("crm_conversations").update({ intent: "select_treatment", needs_human: false }).eq("id", persisted.conversation.id);
   await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, `Elige el tratamiento que deseas reservar en ${city}:`, {
     type: "interactive",
     interactive: { type: "list", body: { text: `Elige el tratamiento que deseas reservar en ${city}:` }, action: { button: "Ver tratamientos", sections: [{ title: "Tratamientos", rows }] } },
@@ -1138,6 +1017,11 @@ async function answerTreatmentQuestionDuringIdentity(
 }
 
 async function beginIdentityCollection(admin: SupabaseClient, persisted: PersistedInbound, treatment: Record<string, unknown>) {
+  if (!treatment.requires_assessment && treatment.allows_direct_booking === false) {
+    await admin.from("crm_conversations").update({ needs_human: true, intent: "solicitar_evaluacion" }).eq("id", persisted.conversation.id);
+    await sendBookingMessage(admin, persisted.conversation.id, persisted.contact.wa_id, "Para coordinar este tratamiento necesitas ayuda del equipo. Dejé tu solicitud a administración para que continúe contigo.");
+    return;
+  }
   const { data: existing, error: existingError } = await admin
     .from("crm_booking_sessions")
     .select("id")
@@ -1740,6 +1624,7 @@ export async function handleBookingConversation(
   persisted: PersistedInbound,
   message: IncomingWhatsAppMessage,
 ) {
+  if (!message.interactiveId && isHumanRequest(message.text)) return false;
   // Expirar retenciones es mantenimiento. Una falla temporal en esa limpieza
   // nunca debe impedir que el paciente continúe una reserva válida.
   const expiry = await admin.rpc("crm_expire_booking_holds");
@@ -1747,8 +1632,8 @@ export async function handleBookingConversation(
   let session = await loadActiveSession(admin, persisted.conversation.id);
   // Una conversación tomada por una administradora no debe bloquear una
   // reserva activa: el paciente aún debe poder pagar o subir su comprobante.
-  if (persisted.conversation.needs_human && !session) return false;
-  if (!session && !bookingPattern.test(message.text ?? "")) {
+  if (persisted.conversation.needs_human && !session && !isBookingRequest(message.text ?? "")) return false;
+  if (!session && !isBookingRequest(message.text ?? "")) {
     const { data: recentlyExpiredRows, error: expiredError } = await admin
       .from("crm_booking_sessions")
       .select("id")
@@ -1862,7 +1747,7 @@ export async function handleBookingConversation(
       return true;
     }
   }
-  if (!bookingPattern.test(message.text ?? "")) return false;
+  if (!isBookingRequest(message.text ?? "")) return false;
   const treatment = await resolveTreatmentSelection(admin, persisted.conversation.id, message, persisted.contact.city);
   if (treatment) await beginIdentityCollection(admin, persisted, treatment);
   else await showTreatmentChoices(admin, persisted, persisted.contact.city);

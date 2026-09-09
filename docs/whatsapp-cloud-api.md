@@ -81,12 +81,33 @@ No activar el certificado de cliente. Después de verificar, suscribirse a `mess
 
 ## Flujo de citas y pagos
 
-1. La persona solicita una cita y Gemini comparte `/reservar-cita` cuando corresponde.
-2. La administradora vincula la conversación con `appointment_reservations`.
-3. Si existe `public_payment_token`, envía `/pago-cita/:token` desde el CRM.
-4. También puede enviar la imagen del QR general.
-5. La persona sube su comprobante desde la página pública.
-6. El CRM presenta **Ver comprobante** mediante una URL privada firmada.
+1. La persona solicita una cita y el flujo de WhatsApp pide la ciudad y el tratamiento cuando aún no se conocen. Si acaba de consultar un tratamiento, la reserva reutiliza esa selección.
+2. El flujo recopila los datos del paciente y consulta la agenda. Para tratamientos con valoración previa se identifica su modalidad y costo por separado.
+3. La reserva se registra en el sistema; un mensaje generado por Gemini nunca constituye una confirmación.
+4. Cuando corresponde pagar, se envían las instrucciones y el QR. Si existe `public_payment_token`, el CRM también permite enviar `/pago-cita/:token`.
+5. La persona envía su comprobante; el CRM permite revisarlo antes de confirmar el pago y la cita.
+6. `/reservar-cita` queda disponible para quien solicite la web o como alternativa si no se puede continuar el flujo de WhatsApp.
+
+## Calidad de respuestas
+
+La salida de Gemini se acepta únicamente cuando `finishReason` es `STOP`. Los bloques con `thought: true` se descartan; el texto final se revisa para detectar instrucciones internas y enlaces que no procedan de la configuración, las fuentes incluidas en el contexto o los resultados de búsqueda devueltos por el proveedor. Los enlaces Markdown se convierten a texto plano conservando la URL completa.
+
+Una respuesta incompleta, vacía, demasiado larga o con instrucciones internas se regenera una vez. Si vuelve a fallar, el webhook envía una alternativa fija y registra `ai_fallback`. No se recortan respuestas generadas para hacerlas caber. El presupuesto de salida deja espacio para la respuesta final y el razonamiento se configura según la familia del modelo. Referencias: [pensamiento y partes de Gemini](https://ai.google.dev/gemini-api/docs/generate-content/thinking), [motivos de finalización](https://ai.google.dev/api/generate-content#FinishReason).
+
+Las preguntas sobre precio, duración, cuidados y otros campos de un tratamiento identificado se responden directamente con datos publicados. Una consulta que nombra otro tratamiento cambia el contexto antes de responder. Si una abreviatura como «rino» coincide con varias opciones, se pide elegir. La ficha inicial es breve; los cuidados extensos se envían completos en varios mensajes y el CRM guarda exactamente el texto enviado.
+
+Los precios no se corrigen ni se deducen automáticamente. Si un tratamiento activo tiene un precio de prueba (por ejemplo, 1 Bs.) o información contradictoria, debe corregirse en el catálogo. El costo de una valoración se identifica como tal.
+
+Pruebas sin llamadas a pacientes ni servicios reales:
+
+```sh
+npm run test:whatsapp
+# Requiere Deno; también se puede ejecutar con npx --yes deno.
+npm run test:whatsapp-flow
+deno check --node-modules-dir=none --no-lock supabase/functions/whatsapp-webhook/index.ts
+```
+
+Las pruebas del flujo simulan Supabase, Meta y Gemini. El cambio se activa desplegando `whatsapp-webhook`; los módulos compartidos se empaquetan con esa función. No requiere migraciones de base de datos.
 
 ## Seguridad
 

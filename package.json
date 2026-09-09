@@ -8,6 +8,8 @@
     "seo:generate": "node scripts/generate-seo-files.mjs",
     "build": "npm run seo:generate && tsc -b && vite build",
     "lint": "eslint .",
+    "test:whatsapp": "node --test tests/whatsapp-response.test.ts",
+    "test:whatsapp-flow": "deno test --node-modules-dir=none --no-lock --allow-env tests/whatsapp-flow_test.ts",
     "preview": "vite preview",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
