@@ -1,5 +1,5 @@
 import { cleanWhatsAppAiText, validateWhatsAppAiReply, type GeminiPayload } from "./whatsapp-ai-response.ts";
-import { looksLikeTokenMatch, normalize } from "./whatsapp-treatment-response.ts";
+import { looksLikeTreatmentTokenMatch, normalize } from "./whatsapp-treatment-response.ts";
 
 export const unavailableTreatmentReply = "En este momento no tenemos ese tratamiento. ¿Te gustaría ver los tratamientos disponibles en nuestra página?";
 export const unpublishedInformationReply = "Esa información no está publicada en nuestra página por el momento.";
@@ -39,7 +39,7 @@ export function matchNamedTreatments<T extends { title: string }>(catalog: T[], 
   return catalog.filter((item) => {
     const titleWords = normalize(item.title).split(" ");
     // "Facial" alone must not make an unknown procedure match limpieza facial.
-    return words.every((word) => titleWords.some((titleWord) => looksLikeTokenMatch(word, titleWord)));
+    return words.every((word) => titleWords.some((titleWord) => looksLikeTreatmentTokenMatch(word, titleWord)));
   });
 }
 

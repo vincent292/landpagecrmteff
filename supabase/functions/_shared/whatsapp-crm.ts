@@ -1,9 +1,10 @@
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.105.1";
-import { cleanWhatsAppAiText, geminiGenerationConfig, isUnsafeAiReply, resolveBookingUrl, urlsInText, type GeminiPayload } from "./whatsapp-ai-response.ts";
+import { cleanWhatsAppAiText, geminiGenerationConfig, isUnsafeAiReply, resolveBookingUrl, urlsInText } from "./whatsapp-ai-response.ts";
+import { requestGeminiReply } from "./whatsapp-gemini-client.ts";
 
 import { isAllowedKnowledgeSource, isOfficialSiteUrl, readScopedGeminiReply, scopedReplySchema } from "./whatsapp-knowledge-policy.ts";
 import { loadPublicTreatments } from "./whatsapp-public-catalog.ts";
-import { looksLikeTokenMatch, meaningfulTokens } from "./whatsapp-treatment-response.ts";
+import { looksLikeTreatmentTokenMatch, meaningfulTokens } from "./whatsapp-treatment-response.ts";
 
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -624,7 +625,7 @@ function normalizeForSearch(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
-function selectKnowledgeForQuestion(sources: KnowledgeSource[], question: string) {
+function selectKnowledgeForQuestion(sources: KnowledgeSource[], question: string, latestInbound: string) {
   const normalizedTerms = normalizeForSearch(question)
     .split(/[^a-z0-9]+/)
     .filter((term) => term.length >= 4);
@@ -635,11 +636,14 @@ function selectKnowledgeForQuestion(sources: KnowledgeSource[], question: string
   const ranked = [...sources]
     .map((source) => {
       const haystack = normalizeForSearch(`${source.title} ${source.content}`);
+      const titleTokens = meaningfulTokens(source.title);
       const sourceTokens = [...new Set(haystack.split(/[^a-z0-9]+/).filter((term) => term.length >= 3))];
+      const latestTitleScore = meaningfulTokens(latestInbound).reduce((total, term) =>
+        total + (titleTokens.some((token) => looksLikeTreatmentTokenMatch(term, token)) ? 20 : 0), 0);
       const score = terms.reduce((total, term) => {
         if (haystack.includes(term)) return total + 3;
-        return total + (sourceTokens.some((sourceToken) => looksLikeTokenMatch(term, sourceToken)) ? 1 : 0);
-      }, 0);
+        return total + (sourceTokens.some((sourceToken) => looksLikeTreatmentTokenMatch(term, sourceToken)) ? 1 : 0);
+      }, latestTitleScore);
       return { source, score };
     })
     .filter(({ score }) => score > 0)
@@ -681,7 +685,7 @@ export async function generateGeminiReply(input: {
     .map((message) => message.body)
     .join("\n");
   const knowledgeQuery = [latestInbound, recentInbound, input.conversationContext, input.metaAdContext].filter(Boolean).join("\n");
-  const knowledge = selectKnowledgeForQuestion(input.knowledgeSources, knowledgeQuery);
+  const knowledge = selectKnowledgeForQuestion(input.knowledgeSources, knowledgeQuery, latestInbound);
   const sources = [
     {
       id: "assistant",
@@ -703,6 +707,7 @@ export async function generateGeminiReply(input: {
     "Contesta primero la pregunta concreta en 2 a 4 frases y como máximo una pregunta de seguimiento. Si pregunta precio, responde precio; si pide información, da una explicación breve. No copies toda la ficha ni repitas el menú.",
     "Si dice rino y hay varios tratamientos posibles, pregunta cuál le interesa sin asumir que rinoplastia y rinomodelación son lo mismo. Distingue siempre el precio de una valoración del precio del tratamiento.",
     "Tolera errores de escritura comunes. Si el mensaje parece 'mas informacion', 'info', 'quiero saber' o similar, ofrece ayuda concreta en vez de pedir que repita.",
+    "Interpreta la intención aunque haya letras cambiadas, repetidas, omitidas o números accidentales: 'savbe4r' puede ser 'saber', y 'rinomodelasion' o 'rsdsinomodelacion' pueden referirse a rinomodelación. No corrijas al paciente ni le exijas escribir el nombre exacto. Comprueba el significado contra el catálogo y las fuentes; entender un nombre no significa que ofrezcamos ese servicio. Si dos interpretaciones siguen siendo plausibles, pide una sola aclaración.",
     "Si el paciente rechaza o no entiende un dato requerido de una reserva, no reinicies la conversacion; explica para que sirve el dato y ofrece derivar a una administradora.",
     "Responde en español cálido, profesional, breve y claro. No inventes precios, horarios, resultados ni servicios.",
     "Para precios, horarios, servicios, sedes, profesionales y políticas del consultorio usa exclusivamente CONTEXTO DEL NEGOCIO.",
@@ -723,7 +728,7 @@ export async function generateGeminiReply(input: {
     "Usa kind=out_of_scope para preguntas ajenas a la página. Usa missing_information si el servicio existe pero falta el dato solicitado. Usa unavailable_treatment y el nombre solicitado en treatment solamente si no figura en el CATÁLOGO ACTIVO COMPLETO. No confundas ausencia de horarios o de una sede con ausencia del tratamiento. Si hay ambigüedad real usa clarify.",
     "Para answer responde primero la consulta, con lenguaje natural y breve, sin remitir a asesoras. Para los demás tipos deja answer vacío y evidence vacío: el sistema entregará el mensaje correspondiente.",
   ].filter(Boolean).join("\n");
-  const buildBody = (retry = false) => JSON.stringify({
+  const buildBody = (requestModel: string, retry = false) => JSON.stringify({
       system_instruction: { parts: [{ text: systemInstruction }] },
       contents: [{ role: "user", parts: [{ text: [
         `Nombre: ${input.contactName || "no informado"}`,
@@ -736,27 +741,14 @@ export async function generateGeminiReply(input: {
         "Clasifica la consulta y devuelve el JSON requerido con el próximo mensaje de WhatsApp y su evidencia.",
         retry ? "El intento anterior no produjo un mensaje válido. Responde de nuevo con un mensaje completo de hasta 700 caracteres, sin análisis ni borradores. Usa solo enlaces completos del contexto." : "",
       ].join("\n\n") }] }],
-      generationConfig: { ...geminiGenerationConfig(model, retry), responseMimeType: "application/json", responseSchema: scopedReplySchema },
+      generationConfig: { ...geminiGenerationConfig(requestModel, retry), responseMimeType: "application/json", responseSchema: scopedReplySchema },
     });
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-    body: buildBody(), signal: AbortSignal.timeout(12_000),
-  });
-  if (!response.ok) throw new Error(`Gemini API ${response.status}: ${(await response.text()).slice(0, 400)}`);
   const allowedUrls = [bookingUrl, ...sources.flatMap((source) => urlsInText(source.content))].filter((url) => isOfficialSiteUrl(url, siteUrl));
-  try {
-    return readScopedGeminiReply(await response.json() as GeminiPayload, sources, input.treatmentCatalog, allowedUrls);
-  } catch (error) {
-    console.warn("[whatsapp] Invalid Gemini answer; retrying once", error instanceof Error ? error.message : "invalid output");
-    const retry = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-      body: buildBody(true), signal: AbortSignal.timeout(12_000),
-    });
-    if (!retry.ok) throw new Error(`Gemini retry API ${retry.status}`, { cause: error });
-    return readScopedGeminiReply(await retry.json() as GeminiPayload, sources, input.treatmentCatalog, allowedUrls);
-  }
+  return await requestGeminiReply({
+    apiKey, model, fallbackModel: Deno.env.get("GEMINI_FALLBACK_MODEL")?.trim() || "gemini-3.5-flash-lite",
+    buildBody,
+    readReply: (payload) => readScopedGeminiReply(payload, sources, input.treatmentCatalog, allowedUrls),
+  });
 }
 
 type MetaSendResponse = { messages?: Array<{ id?: string }> };

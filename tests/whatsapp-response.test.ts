@@ -89,6 +89,29 @@ test("one specific treatment word resolves a price question", () => {
   assert.deepEqual(matchInformationalTreatments(treatments, "precio de rinomodelacion").map((row) => row.id), ["rhino"]);
 });
 
+for (const text of [
+  "buenas quiero savbe4r sobre rinomodelasion",
+  "quiero saber sobre rsdsinomodelacion",
+  "quiero informacion sobre srinomodelacion",
+]) {
+  test(`hurried typing still identifies the published treatment: ${text}`, () => {
+    assert.deepEqual(matchInformationalTreatments(treatments, text).map((row) => row.id), ["rhino"]);
+    assert.deepEqual(matchInformationalTreatments([cleaning, surgery], text), []);
+  });
+}
+
+test("typo tolerance does not merge different procedures", () => {
+  assert.deepEqual(matchInformationalTreatments(treatments, "rinoplastia").map((row) => row.id), ["surgery"]);
+  assert.deepEqual(matchInformationalTreatments(treatments, "buenas quiero saber sobre depilacion"), []);
+});
+
+test("short title words cannot make an absent treatment appear available", () => {
+  const catalog = [{ title: "LAMINADO DE CEJAS" }, { title: "LIFTING DE PESTANAS" }];
+  const result = { kind: "unavailable_treatment", answer: "", treatment: "rinomodelacion", evidence: [] };
+  assert.equal(readScopedGeminiReply(finalReply(JSON.stringify(result)), [], catalog, []), unavailableTreatmentReply);
+  assert.deepEqual(matchInformationalTreatments(catalog, "quiero saber sobre rsdsinomodelacion"), []);
+});
+
 test("rino requires clarification when several treatments match", () => {
   assert.deepEqual(matchInformationalTreatments(treatments, "Y quisiera saber más información de la rino").map((row) => row.id), ["rhino", "surgery"]);
 });

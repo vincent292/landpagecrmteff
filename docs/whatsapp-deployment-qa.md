@@ -1,5 +1,44 @@
 # Verificación del despliegue de WhatsApp
 
+## Actualización: escritura apresurada y fallos de Gemini, 9 de septiembre de 2026
+
+Los logs de producción de las 17:06 y 17:11 (Bolivia) mostraron, respectivamente,
+un HTTP 503 de Gemini por alta demanda y un timeout de 12 segundos. El mensaje de
+error no demostraba que la página estuviera inaccesible. Además, la comparación
+de tratamientos admitía palabras de dos letras: `de` podía hacer coincidir
+rinomodelación con laminado de cejas.
+
+Correcciones: comparación de nombres sin esas coincidencias cortas, tolerancia a
+tres errores en nombres largos, prioridad del tema más reciente al recuperar
+fuentes y reintentos limitados con un modelo de respaldo. Se conserva el modelo
+principal configurado; el respaldo predeterminado es `gemini-3.5-flash-lite`.
+No se añadieron tareas periódicas ni se modificó el catálogo.
+
+Despliegue confirmado: `whatsapp-webhook` v56, `whatsapp-send` v12,
+`crm-knowledge-sync` v12 y `crm-notification-dispatch` v15, todas ACTIVE.
+El webhook devolvió 200 al desafío de Meta y al evento firmado vacío (cero
+respuestas en cola), y 403 al evento sin firma. No se ejecutaron migraciones.
+
+Validación: 39 pruebas de respuestas y 28 de integración simulada, con chequeo de
+tipos Deno y ESLint de los archivos afectados. Las pruebas cubren 503, 429,
+timeouts, fallos de red, errores permanentes, límites de reintentos y evidencia.
+
+Pruebas del generador local con Gemini real y el catálogo público de producción:
+
+- `buenas quiero savbe4r sobre rinomodelasion`: respuesta de tratamiento ausente,
+  en 12,6 segundos.
+- `quiero saber sobre rsdsinomodelacion`: misma respuesta, en 33,9 segundos;
+  se recuperó del timeout del modelo principal usando el respaldo.
+- `buenass quiero savber sobre limpiesa fasial`: información de limpieza facial
+  basada en la ficha publicada, en 39,5 segundos, tras dos fallos temporales.
+
+Rinomodelación no figura en el catálogo consultado, ni en la búsqueda interna por
+`rino`; no se inventó una ficha para responder. El precio de limpieza publicado
+continúa siendo 1 Bs. Estas pruebas no enviaron mensajes a teléfonos. La latencia
+del proveedor sigue siendo variable; los reintentos no garantizan disponibilidad.
+
+Las versiones y verificaciones de secciones anteriores son registros históricos.
+
 ## Actualización: restricciones al sitio oficial — 9 de septiembre de 2026
 
 Estado publicado en `huwdvusjdiumohegffci`:

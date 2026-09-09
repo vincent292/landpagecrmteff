@@ -84,11 +84,19 @@ export function looksLikeTokenMatch(inputToken: string, nameToken: string) {
   return editDistance(inputToken, nameToken) <= 2;
 }
 
+export function looksLikeTreatmentTokenMatch(inputToken: string, nameToken: string) {
+  if (Math.min(inputToken.length, nameToken.length) < 3) return false;
+  if (looksLikeTokenMatch(inputToken, nameToken)) return true;
+  // Long procedure names can contain several mistyped or inserted letters.
+  return Math.min(inputToken.length, nameToken.length) >= 12 && editDistance(inputToken, nameToken) <= 3;
+}
+
 export function meaningfulTokens(text: string) {
   const stopWords = new Set([
     "quiero", "quisiera", "saber", "informacion", "info", "sobre", "acerca", "del", "de", "la", "el", "los", "las",
     "tratamiento", "tratamientos", "servicio", "servicios", "precio", "costo", "cuanto", "dime", "me", "puedes",
     "dar", "ver", "mostrar", "muestrame", "hay", "tienen", "tiene",
+    "hola", "buenas", "buenos", "dias", "tardes", "noches",
     "mas", "una", "uno", "por", "para", "favor", "que", "como", "cita", "citas", "reservar", "reserva", "agendar",
     "puedo", "podria", "gustaria", "conocer", "necesito", "cuesta", "vale", "cuidados", "beneficios", "duracion", "dura",
     "resultados", "cupos", "disponibilidad", "cochabamba", "paz", "santa", "cruz", "sucre", "oruro", "potosi", "tarija", "beni", "pando",
@@ -109,7 +117,7 @@ export function treatmentTextScore(treatment: Record<string, unknown>, text: str
   const titleTokens = title.split(" ").filter((token) => token.length >= 3);
   let score = title && normalize(text).includes(title) ? 10 : 0;
   for (const inputToken of inputTokens) {
-    if (titleTokens.some((titleToken) => looksLikeTokenMatch(inputToken, titleToken))) score += 4;
+    if (titleTokens.some((titleToken) => looksLikeTreatmentTokenMatch(inputToken, titleToken))) score += 4;
     else if (haystack.split(" ").some((token) => looksLikeTokenMatch(inputToken, token))) score += 1;
   }
   return score;
@@ -177,7 +185,7 @@ export function matchInformationalTreatments(treatments: Array<Record<string, un
   // Prefixes such as rino may return several choices; never silently pick one.
   const ranked = treatments.map((item) => {
     const titleTokens = normalize(String(item.title ?? "")).split(" ");
-    const matchesTitle = terms.some((term) => term.length >= 4 && titleTokens.some((token) => looksLikeTokenMatch(term, token)));
+    const matchesTitle = terms.some((term) => term.length >= 4 && titleTokens.some((token) => looksLikeTreatmentTokenMatch(term, token)));
     return { item, score: matchesTitle ? treatmentTextScore(item, text) : 0 };
   }).filter(({ score }) => score >= 4).sort((a, b) => b.score - a.score);
   if (!ranked.length) return [];

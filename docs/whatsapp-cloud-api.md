@@ -35,6 +35,7 @@ WHATSAPP_API_VERSION=v25.0
 
 GEMINI_API_KEY=
 GEMINI_MODEL=gemini-3.7-flash
+GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite
 
 PUBLIC_SITE_URL=https://www.draballesteros.com
 CRM_SOCIAL_URLS=https://www.instagram.com/PERFIL,https://www.tiktok.com/@PERFIL
@@ -48,6 +49,14 @@ npx supabase secrets set --env-file .env --project-ref huwdvusjdiumohegffci
 ```
 
 `WHATSAPP_TOKEN` continúa aceptándose como alias de `WHATSAPP_ACCESS_TOKEN`, y `VERIFY_TOKEN` como alias de `WHATSAPP_VERIFY_TOKEN`.
+
+Las respuestas de IA tienen un máximo de tres intentos en total, con 20 segundos
+por petición. Ante errores temporales (408, 429, 500, 502, 503, 504 o fallos de red)
+se espera brevemente y se usa el modelo de respaldo. Un `Retry-After` superior a
+cinco segundos termina la operación para no reintentar antes de lo indicado por
+Google. Las respuestas inválidas permiten una sola reparación, siempre con las
+mismas fuentes y validaciones. No se reintentan errores de configuración o permisos.
+Esto ocurre solo al responder un mensaje, sin nuevas tareas periódicas.
 
 ## Migración y despliegue
 

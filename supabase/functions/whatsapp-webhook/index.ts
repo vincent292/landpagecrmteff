@@ -213,7 +213,7 @@ async function answerWithAi(input: {
     const bookingUrl = resolveBookingUrl(context.settings.booking_url, Deno.env.get("PUBLIC_SITE_URL") || "https://www.draballesteros.com");
     reply = isBookingRequest(latestInbound)
       ? `Puedes continuar tu reserva desde esta página:\n${bookingUrl}\n\nSi necesitas ayuda del equipo, escribe “asesora”.`
-      : "No pude consultar la información de nuestra página en este momento. Por favor, inténtalo de nuevo.";
+      : "Estoy teniendo un problema temporal para responder. Puedes volver a intentarlo o escribir “asesora” para hablar con el equipo.";
     usedFallback = true;
   }
   // A human may have taken over while Gemini was generating the answer.

@@ -13,18 +13,19 @@ async function withTransport(run: (fixture: {
   db: Record<string, Row[]>;
   sent: Row[];
   requests: Row[];
-  gemini: Row[];
+  gemini: Array<Row | Response | Error>;
   admin: ReturnType<typeof createAdminClient>;
   incoming: (text: string, interactiveId?: string) => IncomingWhatsAppMessage;
   persisted: () => Parameters<typeof handleTreatmentCatalogConversation>[1];
 }) => Promise<void>) {
   const env = { SUPABASE_URL: "https://database.example.test", SUPABASE_SERVICE_ROLE_KEY: "fixture-key", WHATSAPP_ACCESS_TOKEN: "fixture-token", WHATSAPP_PHONE_NUMBER_ID: "fixture-phone", GEMINI_API_KEY: "fixture-key", GEMINI_MODEL: "gemini-3.7-flash", PUBLIC_SITE_URL: "https://www.draballesteros.com" };
-  const saved = Object.keys(env).map((key) => [key, Deno.env.get(key)] as const);
+  const saved = [...Object.keys(env), "GEMINI_FALLBACK_MODEL"].map((key) => [key, Deno.env.get(key)] as const);
   for (const [key, value] of Object.entries(env)) Deno.env.set(key, value);
+  Deno.env.set("GEMINI_FALLBACK_MODEL", "gemini-2.5-flash");
   const originalFetch = globalThis.fetch;
   const sent: Row[] = [];
   const requests: Row[] = [];
-  const gemini: Row[] = [];
+  const gemini: Array<Row | Response | Error> = [];
   const db: Record<string, Row[]> = {
     treatments: [structuredClone(cleaning), structuredClone(rhino)],
     crm_conversations: [{ id: "conversation", intent: null, ai_enabled: true, needs_human: false }],
@@ -39,9 +40,11 @@ async function withTransport(run: (fixture: {
       return Response.json({ messages: [{ id: `sent-${sent.length}` }] });
     }
     if (url.hostname === "generativelanguage.googleapis.com") {
-      requests.push(body);
+      requests.push({ ...body, modelPath: url.pathname });
       const response = gemini.shift();
       assert.ok(response, "unexpected Gemini request");
+      if (response instanceof Error) throw response;
+      if (response instanceof Response) return response;
       return Response.json(response);
     }
     assert.equal(url.hostname, "database.example.test", "no real external services may be contacted");
@@ -166,6 +169,84 @@ Deno.test("Gemini never returns an invalid second attempt for delivery", async (
     assert.equal(requests.length, 2);
   });
 });
+
+const groundedRhinoReply = { candidates: [{ finishReason: "STOP", content: { parts: [{ text: JSON.stringify({
+  kind: "answer", answer: "La rinomodelacion tiene un precio publicado de 800 Bs.", treatment: "rinomodelacion",
+  evidence: [{ sourceId: "source-1", quote: "Precio publicado: 800 Bs." }],
+}) }] } }] };
+
+const typoAiInput = {
+  messages: [{ direction: "inbound", sender_type: "contact", body: "quiero saber sobre rsdsinomodelacion" }],
+  knowledgeSources: [{ title: "Tratamiento: RINOMODELACION", content: "Precio publicado: 800 Bs." }],
+  treatmentCatalog: [{ title: "RINOMODELACION" }], bookingUrl: "/reservar-cita",
+};
+
+for (const failure of [503, 429, "timeout", "network"] as const) {
+  Deno.test(`Gemini recovers from ${failure} with a model-specific fallback request`, async () => {
+    await withTransport(async ({ requests, gemini }) => {
+      gemini.push(typeof failure === "number" ? new Response("unavailable", { status: failure })
+        : failure === "timeout" ? new DOMException("Signal timed out", "TimeoutError") : new TypeError("fetch failed"), groundedRhinoReply);
+      assert.match(await generateGeminiReply(typoAiInput), /800 Bs/);
+      assert.equal(requests.length, 2);
+      assert.match(String(requests[1].modelPath), /gemini-2\.5-flash/);
+      assert.equal((requests[1].generationConfig as Row).thinkingConfig && ((requests[1].generationConfig as Row).thinkingConfig as Row).thinkingBudget, 0);
+      assert.match(JSON.stringify(requests[1].contents), /Precio publicado: 800 Bs/);
+      assert.equal((requests[1].generationConfig as Row).responseMimeType, "application/json");
+    });
+  });
+}
+
+Deno.test("persistent transient failures have a bounded retry budget", async () => {
+  await withTransport(async ({ requests, gemini }) => {
+    gemini.push(...[1, 2, 3].map(() => new Response("unavailable", { status: 503 })));
+    await assert.rejects(() => generateGeminiReply(typoAiInput), /Gemini API 503/);
+    assert.equal(requests.length, 3);
+  });
+});
+
+for (const status of [400, 401, 403]) {
+  Deno.test(`Gemini does not retry permanent HTTP ${status} errors`, async () => {
+    await withTransport(async ({ requests, gemini }) => {
+      gemini.push(new Response("invalid request", { status }));
+      await assert.rejects(() => generateGeminiReply(typoAiInput), new RegExp(`Gemini API ${status}`));
+      assert.equal(requests.length, 1);
+    });
+  });
+}
+
+Deno.test("Gemini respects a long Retry-After instead of immediately retrying", async () => {
+  await withTransport(async ({ requests, gemini }) => {
+    gemini.push(new Response("quota", { status: 429, headers: { "Retry-After": "60" } }));
+    await assert.rejects(() => generateGeminiReply(typoAiInput), /Gemini API 429/);
+    assert.equal(requests.length, 1);
+  });
+});
+
+Deno.test("the latest misspelled treatment outranks old conversation topics in retrieval", async () => {
+  await withTransport(async ({ requests, gemini }) => {
+    gemini.push(groundedRhinoReply);
+    const oldTopic = "limpieza facial beneficios cuidados resultados precio";
+    await generateGeminiReply({ ...typoAiInput,
+      messages: [{ direction: "inbound", sender_type: "contact", body: oldTopic }, ...typoAiInput.messages],
+      knowledgeSources: [
+        ...Array.from({ length: 5 }, (_, i) => ({ title: `Limpieza facial ${i}`, content: oldTopic })),
+        ...typoAiInput.knowledgeSources,
+      ],
+    });
+    assert.match(JSON.stringify(requests[0].contents), /source-1.*RINOMODELACION/);
+  });
+});
+
+for (const message of ["buenas quiero savbe4r sobre rinomodelasion", "quiero saber sobre rsdsinomodelacion"]) {
+  Deno.test(`the catalog handles a typo without starting a booking: ${message}`, async () => {
+    await withTransport(async ({ admin, db, sent, incoming, persisted }) => {
+      assert.equal(await handleTreatmentCatalogConversation(admin, persisted(), incoming(message)), true);
+      assert.match(textSent(sent)[0], /RINOMODELACI/);
+      assert.equal(db.crm_conversations[0].intent, `treatment_info:${rhinoId}`);
+      assert.equal(db.crm_booking_sessions.length, 0);
+    });
+  });
+}
 
 Deno.test("an unavailable treatment does not reuse the old treatment or hand off", async () => {
   await withTransport(async ({ admin, db, sent, incoming, persisted }) => {
