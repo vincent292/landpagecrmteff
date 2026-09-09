@@ -6,7 +6,6 @@ import {
   generateGeminiReply,
   getAiContext,
   getMetaAdEntryReply,
-  getFastCrmReply,
   isHumanRequest,
   json,
   persistInboundMessage,
@@ -333,12 +332,6 @@ Deno.serve(async (request) => {
         continue;
       }
       if (!persisted.conversation.ai_enabled || persisted.conversation.needs_human) continue;
-      const fastReply = await getFastCrmReply(admin, message.text);
-      if (fastReply) {
-        const meta = await sendMetaMessage(message.from, { type: "text", text: { preview_url: false, body: fastReply } });
-        await persistOutboundMessage(admin, { conversationId: persisted.conversation.id, metaMessageId: meta?.messages?.[0]?.id ?? null, body: fastReply, senderType: "ai" });
-        continue;
-      }
       // Attribution enriches a response but must never silence a patient if
       // the optional ad record is absent or temporarily inconsistent.
       let metaAdReply: string | null = null;
