@@ -2258,11 +2258,25 @@ function movementSuccessText(mode: MovementMode, name: string, quantity: number,
 }
 
 function friendlyError(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error ?? "");
-  if (message.toLowerCase().includes("duplicate") || message.includes("Ya existe un producto")) return "Ya existe un producto con ese nombre.";
-  if (message.includes("stock negativo") || message.includes("dejaria stock negativo")) return "No hay suficiente stock para realizar ese descuento.";
-  if (message.includes("cancel_inventory_shift")) return "Primero debe aplicarse la actualización de seguridad de turnos en Supabase.";
-  if (message.includes("Solo el superusuario")) return "Solo Superusuario puede borrar definitivamente.";
-  if (message.toLowerCase().includes("foreign key") || message.toLowerCase().includes("violates")) return "No se puede borrar definitivamente porque todavía tiene historial relacionado. Puedes ocultarlo de la vista.";
+  const structuredError = error && typeof error === "object" ? error as {
+    message?: unknown;
+    details?: unknown;
+    hint?: unknown;
+    code?: unknown;
+  } : null;
+  const message = error instanceof Error
+    ? error.message
+    : typeof structuredError?.message === "string"
+      ? structuredError.message
+      : String(error ?? "");
+  const extraDetails = [structuredError?.details, structuredError?.hint, structuredError?.code]
+    .filter((value): value is string => typeof value === "string" && value.length > 0)
+    .join(" ");
+  const fullMessage = [message, extraDetails].filter(Boolean).join(" ");
+  if (fullMessage.toLowerCase().includes("duplicate") || fullMessage.includes("Ya existe un producto")) return "Ya existe un producto con ese nombre.";
+  if (fullMessage.includes("stock negativo") || fullMessage.includes("dejaria stock negativo")) return "No hay suficiente stock para realizar ese descuento.";
+  if (fullMessage.includes("cancel_inventory_shift")) return "Primero debe aplicarse la actualización de seguridad de turnos en Supabase.";
+  if (fullMessage.includes("Solo el superusuario")) return "Solo Superusuario puede borrar definitivamente.";
+  if (fullMessage.toLowerCase().includes("foreign key") || fullMessage.toLowerCase().includes("violates")) return "No se puede borrar definitivamente porque todavía tiene historial relacionado. Puedes ocultarlo de la vista.";
   return message || "No pudimos completar la operación. Revisa los datos e intenta nuevamente.";
 }
